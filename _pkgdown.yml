@@ -1,0 +1,26 @@
+template:
+  bootstrap: 5
+
+navbar:
+  type: inverse
+
+home:
+  title: dv.listings
+  links:
+  - text: Browse source code
+    href: https://github.com/Boehringer-Ingelheim/dv.listings
+
+reference:
+- title: "Module usage"
+- contents:
+  - mod_listings
+  - mock_listings_mm
+  - convert_data
+- title: "For developers"
+- contents:
+  - simple_listing_UI
+  - simple_listing_server
+  - mod_simple_listing
+  - listings_UI
+  - listings_server
+  - mock_simple_listing_mm
