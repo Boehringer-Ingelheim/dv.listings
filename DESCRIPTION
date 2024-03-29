@@ -41,6 +41,6 @@ Imports:
     shinyjs (>= 2.1.0),
     shinyWidgets (>= 0.8.0),
     tibble (>= 3.2.1)
-RoxygenNote: 7.2.3
+RoxygenNote: 7.3.0
 Roxygen: list(markdown = TRUE)
 VignetteBuilder: knitr
