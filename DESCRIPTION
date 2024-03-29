@@ -43,4 +43,5 @@ Imports:
     tibble (>= 3.2.1)
 RoxygenNote: 7.3.0
 Roxygen: list(markdown = TRUE)
+Remotes: boehringer-ingelheim/dv.manager@main
 VignetteBuilder: knitr
