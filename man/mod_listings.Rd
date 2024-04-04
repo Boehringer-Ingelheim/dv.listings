@@ -48,9 +48,9 @@ library(dv.listings)
 
 # 1. Create a data list with example data
 data_list <- list(
-adsl  = pharmaverseadam::adsl,
-adae  = pharmaverseadam::adae,
-adtte = pharmaverseadam::adtte_onco
+  adsl  = pharmaverseadam::adsl,
+  adae  = pharmaverseadam::adae,
+  adtte = pharmaverseadam::adtte_onco
 )
 
 # 2. Preprocessing
@@ -81,9 +81,9 @@ module_list <- list(
 
 # 4. Launch the app
 dv.manager::run_app(
- data = list("MyData" = data_list),
- module_list = module_list,
- filter_data = "adsl"
+  data = list("MyData" = data_list),
+  module_list = module_list,
+  filter_data = "adsl"
 )
 \dontshow{\}) # examplesIf}
 }

@@ -1,5 +1,5 @@
 # CONSTANTS ----
-EXP <- pack_of_constants( #nolint
+EXP <- pack_of_constants( # nolint
   EXPORT_WINDOW_TITLE = "Download options",
   EXPORTBTN_ID = "download_data",
   EXPORTBTN_LABEL = "Download",
@@ -38,7 +38,7 @@ EXP <- pack_of_constants( #nolint
 #'
 #' @return A shiny \code{uiOutput} element.
 #' @keywords internal
-mod_export_listings_UI <- function(module_id) { #nolint
+mod_export_listings_UI <- function(module_id) { # nolint
 
   # Check validity of arguments
   checkmate::assert_string(module_id, min.chars = 1)
@@ -47,7 +47,7 @@ mod_export_listings_UI <- function(module_id) { #nolint
 
   ui <- shiny::tagList(
     shinyFeedback::useShinyFeedback(), # needed to use shinyFeedback functionalities
-    shinyjs::useShinyjs(),             # needed to use shinyjs functionalities
+    shinyjs::useShinyjs(), # needed to use shinyjs functionalities
 
     shiny::actionButton(ns(EXP$EXPORTBTN_ID), label = EXP$EXPORTBTN_LABEL)
   )
@@ -91,7 +91,6 @@ mod_export_listings_server <- function(module_id,
                                        data_selection_name,
                                        current_rows,
                                        intended_use_label) {
-
   # check validity of parameters
   checkmate::assert(
     checkmate::check_string(module_id, min.chars = 1),
@@ -109,7 +108,6 @@ mod_export_listings_server <- function(module_id,
   shiny::moduleServer(
     module_id,
     function(input, output, session) {
-
       v_dataset_list <- shiny::reactive({
         checkmate::assert_list(dataset_list(), types = "data.frame", null.ok = TRUE, names = "named")
         dataset_list()
@@ -134,7 +132,6 @@ mod_export_listings_server <- function(module_id,
 
       # Determine currently displayed data (taking set filters into account)
       current_data <- shiny::reactive({
-
         if (is.null(current_rows())) {
           NULL
         } else {
@@ -232,10 +229,11 @@ mod_export_listings_server <- function(module_id,
         {
           dataprotect <- ifelse(!is.null(intended_use_label), input[[EXP$DATAPROTECT_ID]], TRUE)
 
-          if (!check_ref_cols()
-              & (input[[EXP$FILENAME_ID]] != "")
-              & dataprotect
-              & (ifelse(is.null(input[[EXP$SNAPSHOT_ID]]), 0, nchar(input[[EXP$SNAPSHOT_ID]])) <= 50)) {
+          if (!check_ref_cols() &
+              (input[[EXP$FILENAME_ID]] != "") &
+              dataprotect &
+              (ifelse(is.null(input[[EXP$SNAPSHOT_ID]]), 0, nchar(input[[EXP$SNAPSHOT_ID]])) <= 50)
+          ) {
             return(TRUE)
           } else {
             return(FALSE)
@@ -265,20 +263,16 @@ mod_export_listings_server <- function(module_id,
           )
 
           if (input[[EXP$FILETYPE_ID]] == ".xlsx") {
-
             excel_export(data_to_download, file, intended_use_label)
-
           } else {
-
             shiny::withProgress(message = "Creating pdf.", value = 0, {
-
               num_pages <- pdf_export(
                 data_to_download = data_to_download,
                 ref_cols = input[[EXP$REFCOL_ID]],
                 file = file,
                 metadata = c(
                   dataset_metadata$name(),
-                  #to make sure that the date is readable and wont display as numeric value
+                  # to make sure that the date is readable and wont display as numeric value
                   as.character(dataset_metadata$date_range()[2]),
                   input[[EXP$SNAPSHOT_ID]]
                 ),
@@ -298,7 +292,6 @@ mod_export_listings_server <- function(module_id,
           current_rows()
         }
       )
-
     }
   )
 }

@@ -10,13 +10,13 @@ set.seed(1234)
 ##################
 
 # Dimensions
-N <- 20
-M <- 10
+N <- 20 # nolint
+M <- 10 # nolint
 
 # Create random content
 simple_dummy <- cbind(
-  data.frame(matrix(sample(1:50, size = N*ceiling(M/2), replace = TRUE), nrow = N, ncol = ceiling(M/2))), # integers
-  data.frame(matrix(sample(LETTERS, size = N*floor(M/2), replace = TRUE), nrow = N, ncol = floor(M/2)))   # characters
+  data.frame(matrix(sample(1:50, size = N * ceiling(M / 2), replace = TRUE), nrow = N, ncol = ceiling(M / 2))), # integers # nolint
+  data.frame(matrix(sample(LETTERS, size = N * floor(M / 2), replace = TRUE), nrow = N, ncol = floor(M / 2))) # characters # nolint
 )
 names(simple_dummy) <- paste0("var", 1:M)
 
@@ -49,7 +49,7 @@ age <- sample(x = 30:70, size = n, replace = TRUE)
 ageu <- rep("YEARS", n)
 sex <- sample(x = c("F", "M"), size = n, replace = TRUE)
 arm <- sample(x = c("Drug 1", "Drug 2", "Placebo"), size = n, replace = TRUE)
-race <- sample(x = c("WHITE","BLACK OR AFRICAN AMERICAN","AMERICAN INDIAN OR ALASKA NATIVE"), size = n, replace = TRUE)
+race <- sample(x = c("WHITE", "BLACK OR AFRICAN AMERICAN", "AMERICAN INDIAN OR ALASKA NATIVE"), size = n, replace = TRUE) # nolint
 
 # Gather content in one data frame
 dm_dummy <- data.frame(
@@ -143,5 +143,3 @@ attributes(ae_dummy$AEENDTC)$label <- "End Date/Time of Adverse Event"
 
 # Rewrite data frame as tibble
 ae_dummy <- tibble::as_tibble(ae_dummy)
-
-

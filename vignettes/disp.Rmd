@@ -24,7 +24,6 @@ knitr::opts_chunk$set(
 This code piece produces essentially the same app behavior as using the `dataset_names` argument. That is, any selection made by the user in the global filter menu affects the module display. 
 
 ```{r filtered, eval = FALSE}
-
 dv.listings::mod_listings(
   module_id = "mod2a",
   dataset_disp = dv.manager::mm_dispatch(
@@ -40,7 +39,6 @@ dv.listings::mod_listings(
 In case it is undesirable that global filter settings affect the listings displayed in a *dv.listings* module, it is possible to define the dispatcher such that it delivers always unfiltered data. This means that [any global filter will be ignored]{.ul}!
 
 ```{r unfiltered, eval = FALSE}
-
 dv.listings::mod_listings(
   module_id = "mod2b",
   dataset_disp = dv.manager::mm_dispatch(

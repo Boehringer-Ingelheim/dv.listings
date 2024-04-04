@@ -1,5 +1,5 @@
 # CONSTANTS ----
-TBL <- pack_of_constants( #nolint
+TBL <- pack_of_constants( # nolint
   DATASET_ID = "dataset",
   DATASET_LABEL = "Select listing",
   COLUMNS_ID = "col_sel",
@@ -28,7 +28,6 @@ listings_UI <- function(module_id) { # nolint
   ns <- shiny::NS(module_id)
 
   shiny::tagList(
-
     shiny::fluidRow(
       shiny::column(2, shinyWidgets::dropdownButton(
         inputId = ns(TBL$DRPDBUTTON_ID),
@@ -48,9 +47,7 @@ listings_UI <- function(module_id) { # nolint
       )),
       shiny::column(2, mod_export_listings_UI(module_id = ns(TBL$EXPORT_ID)), offset = 8)
     ),
-
     shiny::br(),
-
     DT::dataTableOutput(ns(TBL$TABLE_ID), height = "80vh")
   )
 }
@@ -85,7 +82,6 @@ listings_server <- function(module_id,
                             dataset_metadata,
                             pagination = NULL,
                             intended_use_label = NULL) {
-
   checkmate::assert(
     checkmate::check_character(module_id, min.chars = 1),
     checkmate::check_multi_class(dataset_list, c("reactive", "shinymeta_reactive")),
@@ -102,7 +98,6 @@ listings_server <- function(module_id,
   }
   # Initiate module server
   shiny::moduleServer(module_id, function(input, output, session) {
-
     v_dataset_list <- shiny::reactive({
       checkmate::assert_list(dataset_list(), types = "data.frame", null.ok = TRUE, names = "named")
       dataset_list()
@@ -142,14 +137,15 @@ listings_server <- function(module_id,
       # React to changes in the listings identity or full dataset change
       list(input[[TBL$DATASET_ID]], dataset_metadata[["name"]]()),
       {
-
         # Notify of columns not present in the dataset
         p_selected_cols <- intersect(r_selected_columns_in_dataset()[[input[[TBL$DATASET_ID]]]], names(listings_data()))
         np_selected_cols <- setdiff(r_selected_columns_in_dataset()[[input[[TBL$DATASET_ID]]]], p_selected_cols)
-        if (length(np_selected_cols) > 0) shiny::showNotification(
-          paste("Removing columns not present in dataset", paste(np_selected_cols, collapse = ";")),
-          type = "warning"
-        )
+        if (length(np_selected_cols) > 0) {
+          shiny::showNotification(
+            paste("Removing columns not present in dataset", paste(np_selected_cols, collapse = ";")),
+            type = "warning"
+          )
+        }
 
         choices <- generate_choices(listings_data())
 
@@ -265,7 +261,6 @@ listings_server <- function(module_id,
     shiny::exportTestValues(
       selected_columns_in_dataset = r_selected_columns_in_dataset()
     )
-
   })
 }
 
@@ -298,9 +293,9 @@ listings_server <- function(module_id,
 #'
 #' # 1. Create a data list with example data
 #' data_list <- list(
-#' adsl  = pharmaverseadam::adsl,
-#' adae  = pharmaverseadam::adae,
-#' adtte = pharmaverseadam::adtte_onco
+#'   adsl  = pharmaverseadam::adsl,
+#'   adae  = pharmaverseadam::adae,
+#'   adtte = pharmaverseadam::adtte_onco
 #' )
 #'
 #' # 2. Preprocessing
@@ -331,20 +326,18 @@ listings_server <- function(module_id,
 #'
 #' # 4. Launch the app
 #' dv.manager::run_app(
-#'  data = list("MyData" = data_list),
-#'  module_list = module_list,
-#'  filter_data = "adsl"
+#'   data = list("MyData" = data_list),
+#'   module_list = module_list,
+#'   filter_data = "adsl"
 #' )
 #'
-
-mod_listings <- function(module_id,
-                         dataset_names,
-                         default_vars = NULL,
-                         pagination = NULL,
-                         intended_use_label = "Use only for internal review and monitoring during the conduct of clinical trials.",
-                         dataset_disp
-                         ) {
-
+mod_listings <- function(
+    module_id,
+    dataset_names,
+    default_vars = NULL,
+    pagination = NULL,
+    intended_use_label = "Use only for internal review and monitoring during the conduct of clinical trials.",
+    dataset_disp) {
   # Check validity of parameters
   if (!missing(dataset_names)) {
     checkmate::assert_character(dataset_names)

@@ -1,4 +1,3 @@
-
 test_that("listings_UI() fails when argument type mismatches", {
   expect_error(listings_UI(""))
   expect_error(listings_UI(3))
@@ -6,10 +5,11 @@ test_that("listings_UI() fails when argument type mismatches", {
 
 
 server_func <- function(id, dataset_list, default_vars, dataset_metadata, pagination = NULL, intended_use_label) {
-
-  listings_server(module_id = id, dataset_list = dataset_list, default_vars = default_vars,
-                  dataset_metadata = dataset_metadata, pagination = pagination,
-                  intended_use_label = intended_use_label)
+  listings_server(
+    module_id = id, dataset_list = dataset_list, default_vars = default_vars,
+    dataset_metadata = dataset_metadata, pagination = pagination,
+    intended_use_label = intended_use_label
+  )
 }
 
 test_that("listings_server() fails when argument type mismatches", {
@@ -18,7 +18,9 @@ test_that("listings_server() fails when argument type mismatches", {
   id_num <- 3
   id_zero <- ""
 
-  data_valid <- shiny::reactive({list(dm = dm_dummy, ae = ae_dummy)})
+  data_valid <- shiny::reactive({
+    list(dm = dm_dummy, ae = ae_dummy)
+  })
   data_no_df <- shiny::reactive(list(string = "Some text", num = 1))
   data_no_list <- shiny::reactive(ae_dummy)
   data_null <- shiny::reactive(NULL)
@@ -192,8 +194,7 @@ app <- shinytest2::AppDriver$new(
 
 app_dir <- app$get_url()
 
-test_that("listings_server() stores the selected_columns_in_dataset and the currently selected dataset for bookmarking", {
-
+test_that("listings_server() stores the selected_columns_in_dataset and the currently selected dataset for bookmarking", { # nolint
   # Initialize test app
   app <- shinytest2::AppDriver$new(
     app_dir = app_dir, name = "test_on_bookmark_TAB-SO-763"
@@ -211,23 +212,21 @@ test_that("listings_server() stores the selected_columns_in_dataset and the curr
   bmk_url <- app$get_value(export = "url")
   query_string_list <- parseQueryString(bmk_url, nested = TRUE)
 
-  expected_elements <- c("dummy1", "var1","var2","var3", "dummy2", "var2", "var4")
+  expected_elements <- c("dummy1", "var1", "var2", "var3", "dummy2", "var2", "var4")
   exist <- purrr::map2_lgl(expected_elements, query_string_list$`listings-selected_columns_in_dataset`, grepl)
 
   testthat::expect_true(all(exist))
   testthat::expect_true(grepl("dummy2", query_string_list$`listings-data_sel`))
-
 })
 
-test_that("listings_server() restores the selected_columns_in_dataset and the currently selected dataset for bookmarking", {
-
+test_that("listings_server() restores the selected_columns_in_dataset and the currently selected dataset for bookmarking", { # nolint
   # Initialize test app
   app <- shinytest2::AppDriver$new(
     app_dir = app_dir, name = "test_restore_bookmark_TAB-SO-777"
   )
 
   # Capture the background app's URL and add appropriate query parameters
-  bk_url <- paste0(app$get_url(), "?_inputs_&listings-dropdown_btn_state=false&listings-col_sel=%5B%22var2%22%2C%22var4%22%5D&listings-dataset=%22dummy2%22&listings-export-download_data=0&listings-dropdown_btn=2&_values_&listings-selected_columns_in_dataset=%7B%22dummy1%22%3A%5B%22var1%22%2C%22var2%22%2C%22var3%22%5D%2C%22dummy2%22%3A%5B%22var2%22%2C%22var4%22%5D%7D&listings-data_sel=%22dummy2%22")
+  bk_url <- paste0(app$get_url(), "?_inputs_&listings-dropdown_btn_state=false&listings-col_sel=%5B%22var2%22%2C%22var4%22%5D&listings-dataset=%22dummy2%22&listings-export-download_data=0&listings-dropdown_btn=2&_values_&listings-selected_columns_in_dataset=%7B%22dummy1%22%3A%5B%22var1%22%2C%22var2%22%2C%22var3%22%5D%2C%22dummy2%22%3A%5B%22var2%22%2C%22var4%22%5D%7D&listings-data_sel=%22dummy2%22") # nolint
   # Open the bookmark URL in a new AppDriver object
   app <- shinytest2::AppDriver$new(app_dir = bk_url, name = "test_restore_bookmark")
 
@@ -244,14 +243,13 @@ test_that("listings_server() restores the selected_columns_in_dataset and the cu
 })
 
 test_that("listings_server() allows bookmarking for dataset and column selections", {
-
   # Initialize test app
   app <- shinytest2::AppDriver$new(
     app_dir = app_dir, name = "test_on_bookmark_TAB-SO-777"
   )
 
   # Capture the background app's URL and add appropriate query parameters
-  bk_url <- paste0(app$get_url(), "?_inputs_&listings-dropdown_btn_state=false&listings-col_sel=%5B%22var2%22%2C%22var4%22%5D&listings-dataset=%22dummy2%22&listings-export-download_data=0&listings-dropdown_btn=1&_values_&listings-selected_columns_in_dataset=%7B%22dummy1%22%3A%5B%22var1%22%2C%22var2%22%2C%22var3%22%5D%2C%22dummy2%22%3A%5B%22var2%22%2C%22var4%22%5D%7D&listings-data_sel=%22dummy2%22")
+  bk_url <- paste0(app$get_url(), "?_inputs_&listings-dropdown_btn_state=false&listings-col_sel=%5B%22var2%22%2C%22var4%22%5D&listings-dataset=%22dummy2%22&listings-export-download_data=0&listings-dropdown_btn=1&_values_&listings-selected_columns_in_dataset=%7B%22dummy1%22%3A%5B%22var1%22%2C%22var2%22%2C%22var3%22%5D%2C%22dummy2%22%3A%5B%22var2%22%2C%22var4%22%5D%7D&listings-data_sel=%22dummy2%22") # nolint
 
   # Open the bookmark URL in a new AppDriver object
   app <- shinytest2::AppDriver$new(app_dir = bk_url, name = "test_on_bookmark")
@@ -279,7 +277,6 @@ app <- shinytest2::AppDriver$new(
 app_dir <- app$get_url()
 
 test_that("mod_listings() fails when argument types mismatch", {
-
   # Prepare parameters to test
   disp_no_list <- "Not a list" # Parameter not a list at all
   disp_no_char <- list(from = 3, selection = "adae") # Parameter not a list of characters
@@ -338,7 +335,6 @@ test_that("mod_listings() returns a list containing all information for dv.manag
 
 
 test_that("mod_listings() displays a data table, dataset selector and corresponding column selector at app launch", {
-
   # Initialize test app
   app <- shinytest2::AppDriver$new(
     app_dir = app_dir, name = "test_initial_state"
@@ -350,11 +346,9 @@ test_that("mod_listings() displays a data table, dataset selector and correspond
 
   # Verify that required elements exist
   testthat::expect_true(!is.null(dataset_sel) && !is.null(column_sel) && !is.null(table_out))
-
 })
 
 test_that("mod_listings() restores row order of the whole table when restoring a sorted variable", {
-
   # Initialize test app
   app <- shinytest2::AppDriver$new(
     app_dir = app_dir, name = "test_restore_row_order"
@@ -377,7 +371,6 @@ test_that("mod_listings() restores row order of the whole table when restoring a
   # Perform test that row order changed and then gets restored
   testthat::expect_false(all(initial_rows == sorted_rows))
   testthat::expect_identical(initial_rows, reset_rows)
-
 })
 
 test_that("mod_listings() restores even from nested variable sorting", {
@@ -392,7 +385,6 @@ app <- shinytest2::AppDriver$new(
 app_dir <- app$get_url()
 
 test_that("mock_listings_mm() launches successfully the module via dv.manager", {
-
   # Initialize test app
   app <- shinytest2::AppDriver$new(
     app_dir = app_dir, name = "test_launch_mm"
@@ -412,15 +404,13 @@ test_that("mock_listings_mm() launches successfully the module via dv.manager", 
   data_sel <- length(value_list[["input"]][["multi-dataset"]]) == 1
 
   out_table <- (nrow(value_list[["export"]][["multi-output_table"]]) > 0 &&
-                  ncol(value_list[["export"]][["multi-output_table"]]) > 0)
+    ncol(value_list[["export"]][["multi-output_table"]]) > 0) # nolint
 
   # Verify that module can be launched via module manager by expecting values for selectors and a output dataframe
   testthat::expect_true((col_sel && data_sel && out_table))
-
-}) #integration
+}) # integration
 
 test_that("mock_table_mm() displays the column names with the corresponding labels", {
-
   # Initialize test app
   app <- shinytest2::AppDriver$new(
     app_dir = app_dir, name = "test_col_labels_TAB-SO-760"
@@ -437,11 +427,9 @@ test_that("mock_table_mm() displays the column names with the corresponding labe
 
   # Verify that dataset choices are displayed properly with their labels
   testthat::expect_equal(actual, expected)
-
 })
 
 test_that("mock_table_mm() updates dropdown choices on dataset change in dv.manager", {
-
   # Initialize test app
   app <- shinytest2::AppDriver$new(
     app_dir = app_dir, name = "test_update_labels"
@@ -471,11 +459,9 @@ test_that("mock_table_mm() updates dropdown choices on dataset change in dv.mana
 
   # Verify that dataset choices were updated due to dataset switch
   testthat::expect_equal(actual, expected = expected)
-
-}) #integration
+}) # integration
 
 test_that("mock_table_mm() displays no table when global filter returns an empty data.frame", {
-
   # Initialize test app
   app <- shinytest2::AppDriver$new(
     app_dir = app_dir, name = "test_empty_df",
@@ -496,11 +482,9 @@ test_that("mock_table_mm() displays no table when global filter returns an empty
   actual <- nrow(dataset)
 
   testthat::expect_equal(actual, expected = 0)
-
-}) #integration
+}) # integration
 
 test_that("mock_table_mm() displays selected columns after activating global filter", {
-
   # Initialize test app
   app <- shinytest2::AppDriver$new(
     app_dir = app_dir, name = "test_global_filter_selected_cols"
@@ -517,11 +501,9 @@ test_that("mock_table_mm() displays selected columns after activating global fil
   actual <- app$get_value(input = "multi-col_sel")
 
   testthat::expect_equal(actual, expected = selected_cols)
-
-}) #integration
+}) # integration
 
 test_that("mock_table_mm() displays selected dataset after activating global filter", {
-
   # Initialize test app
   app <- shinytest2::AppDriver$new(
     app_dir = app_dir, name = "test_global_filter_selected_dataset"
@@ -542,4 +524,4 @@ test_that("mock_table_mm() displays selected dataset after activating global fil
   app$stop()
 
   testthat::expect_equal(actual, expected = selected)
-}) #integration
+}) # integration

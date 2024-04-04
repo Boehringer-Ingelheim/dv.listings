@@ -9,7 +9,7 @@ if (use_load_all) {
 source("../../dummy-data.R")
 
 # Test app
-test_ui <- function(id) { #nolint
+test_ui <- function(id) { # nolint
   ns <- ifelse(is.character(id), shiny::NS(id), shiny::NS(NULL))
   shiny::fluidPage(listings_UI(ns("listings")))
 }
@@ -24,7 +24,7 @@ test_server <- function(input, output, session) {
 
   listings_server(
     "listings",
-    dataset_list =  shiny::reactive(data),
+    dataset_list = shiny::reactive(data),
     default_vars = def_vars,
     dataset_metadata = list(
       name = shiny::reactive("test_name"),

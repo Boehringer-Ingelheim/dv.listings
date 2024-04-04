@@ -2,7 +2,6 @@
 source("dummy-data.R")
 
 test_that("export_modal_content() throws an error when argument types mismatch", {
-
   # arguments
   ns_valid <- function(id) {}
   ns_invalid <- list(NULL, 42, c("wrong", "type"))
@@ -29,7 +28,6 @@ test_that("export_modal_content() returns a shiny tagList with five element", {
 })
 
 test_that("export_modal_content() shows/hides additional panels depending on condition", {
-
   # show additional panels
   result <- export_modal_content(function(id) {}, "name", "true", c("column", "names"))
   expect_equal(result[[4]]$attribs$`data-display-if`, "true")
@@ -41,14 +39,13 @@ test_that("export_modal_content() shows/hides additional panels depending on con
 
 
 test_that("shorten_entries() throws an error when argument types mismatch", {
-
   # arguments
   vec_valid <- c("first_entry", "second_entry", "third_entry")
   vec_invalid <- list(42)
   len_max_valid <- as.integer(5)
   len_max_invalid <- list(
-    8.4,                # type_mismatch
-    as.integer(2),      # too_small
+    8.4, # type_mismatch
+    as.integer(2), # too_small
     as.integer(c(1, 2)) # too_long
   )
 
@@ -59,7 +56,6 @@ test_that("shorten_entries() throws an error when argument types mismatch", {
 })
 
 test_that("shorten_entries() returns the original vector if strings are already short enough", {
-
   # arguments
   vec <- c("first_entry", "second_entry", "third_entry")
   len_max <- as.integer(42)
@@ -69,7 +65,6 @@ test_that("shorten_entries() returns the original vector if strings are already 
 })
 
 test_that("shorten_entries() cuts strings to not exceed a specific length", {
-
   # arguments
   vec <- c("first_entry", "second_entry", "third_entry")
   len_max <- as.integer(5)
@@ -79,7 +74,6 @@ test_that("shorten_entries() cuts strings to not exceed a specific length", {
 })
 
 test_that("shorten_entries() returns the correct string after cutting", {
-
   # arguments
   vec <- c("first_entry", "second_entry", "third_entry")
   len_max <- as.integer(5)
@@ -90,7 +84,6 @@ test_that("shorten_entries() returns the correct string after cutting", {
 
 
 test_that("split_label() throws an error when argument types mismatch", {
-
   # arguments
   label_valid <- "This is a label."
   label_invalid <- list(42, c("multiple labels", "in one", "vector"), NULL)
@@ -107,11 +100,9 @@ test_that("split_label() throws an error when argument types mismatch", {
   purrr::walk(max_width_invalid, ~ expect_error(split_label(label_valid, min_width_valid, .x, label_width_valid)))
   purrr::walk(label_width_invalid, ~ expect_error(split_label(label_valid, min_width_valid, max_width_valid, .x)))
   expect_error(split_label(label_valid, min_width_valid, max_width_valid, label_width_valid), NA) # expect no error
-
 })
 
 test_that("split_label() splits a simple label correctly", {
-
   # arguments
   label <- "This is a simple label."
   min_width <- as.integer(5)
@@ -129,7 +120,6 @@ test_that("split_label() splits a simple label correctly", {
 })
 
 test_that("split_label() deals with labels that do not fit in the foreseen lines", {
-
   # arguments
   label <- "This is a looooong label which does not fit in the foreseen lines."
   min_width <- as.integer(1)
@@ -146,8 +136,7 @@ test_that("split_label() deals with labels that do not fit in the foreseen lines
   )
 })
 
-test_that("split_label() directly returns the unchanged label and min_width in case one entry is longer than the label", {
-
+test_that("split_label() directly returns the unchanged label and min_width in case one entry is longer than the label", { # nolint
   # arguments
   label <- "Short label"
   min_width <- as.integer(50)
@@ -163,7 +152,6 @@ test_that("split_label() directly returns the unchanged label and min_width in c
 
 
 test_that("calculate_col_width() throws an error when argument types mismatch", {
-
   # arguments
   df_valid <- dm_dummy
 
@@ -174,14 +162,14 @@ test_that("calculate_col_width() throws an error when argument types mismatch", 
 
   df_invalid <- list(
     "Not a data frame.", # type_mismatch
-    df_unnamed,          # unnamed
+    df_unnamed, # unnamed
     df_duplicated_names, # duplicated names
-    data.frame()         # no_dimensions
+    data.frame() # no_dimensions
   )
 
   ref_valid <- paste0(names(df_valid)[1], " [", get_labels(df_valid[1]), "]")
   ref_invalid <- list(
-    cbind(1:5, 6:10),     # type_mismatch
+    cbind(1:5, 6:10), # type_mismatch
     c("wrong", "entries") # wrong_entries
   )
 
@@ -189,11 +177,9 @@ test_that("calculate_col_width() throws an error when argument types mismatch", 
   purrr::walk(df_invalid, ~ expect_error(calculate_col_width(.x, ref_valid)))
   purrr::walk(ref_invalid, ~ expect_error(calculate_col_width(df_valid, .x)))
   expect_error(calculate_col_width(df_valid, ref_valid), NA) # expect no error
-
 })
 
 test_that("calculate_col_width() returns the correct results", {
-
   # df argument
   df <- data.frame(cbind(
     c("entry", "entry"),
@@ -237,7 +223,6 @@ test_that("calculate_col_width() returns the correct results", {
 })
 
 test_that("calculate_col_width() detects that all columns are specified as reference columns", {
-
   # arguments
   df <- data.frame(cbind(
     c("entry", "entry"),
@@ -251,7 +236,6 @@ test_that("calculate_col_width() detects that all columns are specified as refer
 })
 
 test_that("calculate_col_width() detects that reference columns take up too much space", {
-
   # arguments
   df <- dm_dummy
   ref <- paste0(colnames(df)[1:15], " [", get_labels(df)[1:15], "]")
@@ -265,7 +249,6 @@ test_that("calculate_col_width() detects that reference columns take up too much
 empty_rownames <- purrr::imap(rep("", PDF_EXP$LABEL_WIDTH), ~ paste(rep(.x, .y), collapse = " "))
 
 test_that("pdf_preprocessing() throws an error when argument types mismatch", {
-
   # arguments
   df_valid <- dm_dummy
 
@@ -275,14 +258,14 @@ test_that("pdf_preprocessing() throws an error when argument types mismatch", {
   colnames(duplicated_names) <- c("name1", "name1")
   df_invalid <- list(
     "Not a data frame.", # type_mismatch
-    unnamed,             # unnamed
-    duplicated_names,    # duplicated names
-    data.frame()         # no dimensions
+    unnamed, # unnamed
+    duplicated_names, # duplicated names
+    data.frame() # no dimensions
   )
 
   ref_valid <- paste0(names(df_valid)[1], " [", get_labels(df_valid[1]), "]")
   ref_invalid <- list(
-    cbind(1:5, 6:10),     # type_mismatch
+    cbind(1:5, 6:10), # type_mismatch
     c("wrong", "entries") # wrong_entries
   )
 
@@ -293,7 +276,6 @@ test_that("pdf_preprocessing() throws an error when argument types mismatch", {
 })
 
 test_that("pdf_preprocessing() returns original df (without splitting) inclusively labels and its column widths", {
-
   # df argument
   df <- data.frame(cbind(
     c("entry", "entry"),
@@ -326,7 +308,6 @@ test_that("pdf_preprocessing() returns original df (without splitting) inclusive
 })
 
 test_that("pdf_preprocessing() deals with data frames containing only one column", {
-
   # df argument
   df <- data.frame(simple_dummy[1:5, 1])
   colnames(df) <- c("name1")
@@ -342,11 +323,9 @@ test_that("pdf_preprocessing() deals with data frames containing only one column
 
   # perform test
   expect_identical(pdf_preprocessing_res, pdf_preprocessing_exp)
-
 })
 
 test_that("pdf_preprocessing() deals with data frames containing only one row", {
-
   # df argument
   df <- data.frame(simple_dummy[1, 1:3])
   colnames(df) <- c("name1", "name2", "name3")
@@ -362,17 +341,15 @@ test_that("pdf_preprocessing() deals with data frames containing only one row", 
     as.matrix(simple_dummy[1, 1:3])
   ))
   colnames(pdf_preprocessing_exp) <- colnames(df)
-  rownames(pdf_preprocessing_exp) <- c(empty_rownames, 1:nrow(df))
+  rownames(pdf_preprocessing_exp) <- c(empty_rownames, seq_len(nrow(df)))
   pdf_preprocessing_exp <- pdf_preprocessing_exp[, c(2, 1, 3)]
   pdf_preprocessing_exp <- list(pdf_preprocessing_exp)
 
   # perform test
   expect_identical(pdf_preprocessing_res, pdf_preprocessing_exp)
-
 })
 
 test_that("pdf_preprocessing() changes column order due to reference column specification", {
-
   # df argument
   len <- 4
   df <- simple_dummy[1:2, 1:len]
@@ -399,8 +376,7 @@ test_that("pdf_preprocessing() changes column order due to reference column spec
   expect_identical(pdf_preprocessing_res, pdf_preprocessing_exp)
 })
 
-test_that("pdf_preprocessing() splits df into disjoint sub dataframes that form together the original df when ignoring labels", {
-
+test_that("pdf_preprocessing() splits df into disjoint sub dataframes that form together the original df when ignoring labels", { # nolint
   # df argument
   df <- dm_dummy[1:35, 1:10]
 
@@ -416,11 +392,9 @@ test_that("pdf_preprocessing() splits df into disjoint sub dataframes that form 
 
   # perform test
   expect_identical(apply(pdf_preprocessing_res, 2, as.character), apply(df, 2, as.character))
-
 })
 
 test_that("pdf_preprocessing() shortens entries that do not fit on one page", {
-
   # df argument
   df <- data.frame(cbind(
     c("entry", "entry", "entry"),
@@ -440,7 +414,6 @@ test_that("pdf_preprocessing() shortens entries that do not fit on one page", {
 
   # perform test
   expect_identical(pdf_preprocessing_res, pdf_preprocessing_exp)
-
 })
 
 
@@ -454,7 +427,6 @@ set_labels <- function(df) {
 }
 
 test_that("prep_export_data() throws an error when argument types mismatch", {
-
   # arguments
   data_selection_valid <- "single"
   data_selection_invalid <- list(NULL, 42, c("wrong", "type"), "wrong string")
@@ -499,7 +471,6 @@ test_that("prep_export_data() throws an error when argument types mismatch", {
 })
 
 test_that("prep_export_data() performs the correct transformation in the single dataset case", {
-
   # arguments
   data_selection_valid <- "single"
   dataset_list_valid <- list(data1 = data.frame(col1 = c(1, 2), col2 = c(3, 4)))
@@ -518,7 +489,6 @@ test_that("prep_export_data() performs the correct transformation in the single 
 })
 
 test_that("prep_export_data() performs the correct transformation in the multiple dataset case", {
-
   # arguments
   data_selection_valid <- "all"
   dataset_list_valid <- list("dummy1" = simple_dummy, "dummy2" = simple_dummy[1:5], "dummy3" = simple_dummy[5:10])
@@ -539,7 +509,6 @@ test_that("prep_export_data() performs the correct transformation in the multipl
 })
 
 test_that("prep_export_data() shortens dataset names if they exceed Excel's sheet name limit of 31 characters", {
-
   # arguments
   data_selection_valid <- "all"
   dataset_list_valid <- list("dummy1" = simple_dummy, "dummy2" = simple_dummy[1:5], "dummy3" = simple_dummy[5:10])
@@ -560,7 +529,6 @@ test_that("prep_export_data() shortens dataset names if they exceed Excel's shee
 
 
 test_that("excel_export() throws an error when argument types mismatch", {
-
   # arguments
   data_to_download_valid <- list("dummy1" = simple_dummy, "dummy2" = simple_dummy[1:5])
   data_to_download_invalid <- list(c("wrong", "type"), list(1, 2, "no dataframe"), NULL)
@@ -573,7 +541,6 @@ test_that("excel_export() throws an error when argument types mismatch", {
 })
 
 test_that("excel_export() exports the .xlsx file as intended", {
-
   # arguments
   data_to_download <- list("dummy1" = simple_dummy, "dummy2" = simple_dummy[2:7])
   file <- paste0(getwd(), "/testfile.xlsx")
@@ -584,7 +551,7 @@ test_that("excel_export() exports the .xlsx file as intended", {
 
   # expected
   exp_sheet2 <- data_to_download$dummy2
-  rownames(exp_sheet2) <- 1:nrow(exp_sheet2)
+  rownames(exp_sheet2) <- seq_len(nrow(exp_sheet2))
   colnames(exp_sheet2) <- paste0(colnames(exp_sheet2), " [", get_labels(exp_sheet2), "]")
 
   # perform tests
@@ -595,14 +562,13 @@ test_that("excel_export() exports the .xlsx file as intended", {
 })
 
 test_that("excel_export() generates the .xlsx file with a leading worksheet containing the disclaimer", {
-
   # arguments
   data_to_download <- list("dummy1" = simple_dummy, "dummy2" = simple_dummy[2:7])
   file <- paste0(getwd(), "/testfile.xlsx")
 
   # result
   excel_export(data_to_download, file, intended_use_label = "test label")
-  res_info_sheet <- openxlsx::read.xlsx(file, 1, sep.names = " ", colNames = FALSE) # 1 = leading
+  res_info_sheet <- openxlsx::read.xlsx(file, 1, sep.names = " ", colNames = FALSE) # 1 = leading # nolint
   colnames(res_info_sheet) <- NULL
 
   # expected
@@ -619,13 +585,12 @@ test_that("excel_export() generates the .xlsx file with a leading worksheet cont
 
 
 test_that("pdf_export() throws an error when argument types mismatch", {
-
   # arguments
   data_to_download_valid <- list("dummy_data" = simple_dummy)
   data_to_download_invalid <- list(
-    c("wrong", "type"),                                              # wrong type
-    list(1, 2, "no dataframe"),                                      # wrong element type
-    NULL,                                                            # NULL
+    c("wrong", "type"), # wrong type
+    list(1, 2, "no dataframe"), # wrong element type
+    NULL, # NULL
     list("dummy_data1" = simple_dummy, "dummy_data2" = simple_dummy) # more than one list entry
   )
   ref_valid <- c("var2 [No label]")
@@ -651,7 +616,6 @@ test_that("pdf_export() throws an error when argument types mismatch", {
 })
 
 test_that("pdf_export() exports the .pdf file as intended", {
-
   # arguments
   data_to_download <- list("dummy_data" = simple_dummy)
   ref <- c("var2 [No label]")
@@ -675,7 +639,6 @@ test_that("pdf_export() generates the .pdf file with a title page containing the
 
 
 test_that("warn_function() throws an error when argument types mismatch", {
-
   # arguments
   cond_valid <- TRUE
   cond_invalid <- list(NULL, c("wrong", "type"))

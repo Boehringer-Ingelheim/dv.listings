@@ -1,9 +1,9 @@
 # CONSTANTS FOR PDF DESIGN ----
-PDF_EXP <- pack_of_constants( #nolint
-  LABEL_WIDTH = 6,        # maximal number of rows that can be filled by the labels
-  COL_TRANSITION = 2,     # number of characters corresponding to the transition of one column to the next
-  N_ROWS = 32,            # allowed number of rows per page
-  N_COL_CHARS = 115       # allowed number of characters within one row per page
+PDF_EXP <- pack_of_constants( # nolint
+  LABEL_WIDTH = 6, # maximal number of rows that can be filled by the labels
+  COL_TRANSITION = 2, # number of characters corresponding to the transition of one column to the next
+  N_ROWS = 32, # allowed number of rows per page
+  N_COL_CHARS = 115 # allowed number of characters within one row per page
 )
 
 
@@ -21,7 +21,6 @@ PDF_EXP <- pack_of_constants( #nolint
 #'
 #' @keywords internal
 export_modal_content <- function(ns, file_name, cond, colnames, activate_checkbox = FALSE) {
-
   # Check validity of parameters
   checkmate::assert(
     checkmate::check_function(ns, args = c("id"), nargs = 1),
@@ -64,7 +63,7 @@ export_modal_content <- function(ns, file_name, cond, colnames, activate_checkbo
                   inline = TRUE,
                   circle = TRUE,
                   label = "Show more information",
-                  tooltip =  TRUE
+                  tooltip = TRUE
                 )
               )
             ),
@@ -84,7 +83,7 @@ export_modal_content <- function(ns, file_name, cond, colnames, activate_checkbo
                   inline = TRUE,
                   circle = TRUE,
                   label = "Show more information",
-                  tooltip =  TRUE
+                  tooltip = TRUE
                 )
               )
             )
@@ -115,7 +114,6 @@ export_modal_content <- function(ns, file_name, cond, colnames, activate_checkbo
 #'
 #' @keywords internal
 shorten_entries <- function(vec, len_max) {
-
   # Check validity of parameters
   checkmate::assert(
     checkmate::check_character(vec, null.ok = TRUE),
@@ -146,7 +144,6 @@ shorten_entries <- function(vec, len_max) {
 #'
 #' @keywords internal
 split_label <- function(label, min_width, max_width, label_width) {
-
   # Check validity of parameters
   checkmate::assert(
     checkmate::check_string(label, null.ok = FALSE),
@@ -157,7 +154,9 @@ split_label <- function(label, min_width, max_width, label_width) {
   )
 
   # Stop here if no label splitting needed
-  if (nchar(label) <= min_width) return(list(label_vec = label, col_width = min_width))
+  if (nchar(label) <= min_width) {
+    return(list(label_vec = label, col_width = min_width))
+  }
 
   # Shorten labels that are too long (first shorten single words, then whole labels)
   label <- paste(shorten_entries(unlist(strsplit(label, " ")), len_max = as.integer(max_width)), collapse = " ")
@@ -169,13 +168,13 @@ split_label <- function(label, min_width, max_width, label_width) {
   label <- unlist(strsplit(label, " "))
   label_vec_ind <- c(0, 0)
   label_vec <- c()
-  word_len_vec <-  nchar(label) + 1 # + 1 for the blank between the words
+  word_len_vec <- nchar(label) + 1 # + 1 for the blank between the words
   col_width <- min(max(
     min_width * ceiling(sum(as.numeric(word_len_vec <= min_width)) / label_width),
     ceiling(sum(word_len_vec) / label_width)
   ), max_width)
 
-  while (length(word_len_vec) > 0  && length(label_vec) < label_width) {
+  while (length(word_len_vec) > 0 && length(label_vec) < label_width) {
     col_width <- max(col_width, word_len_vec[1])
     word_cumsum <- cumsum(word_len_vec)
     label_vec_ind <- c(label_vec_ind[2] + 1, label_vec_ind[2] + sum(as.numeric(word_cumsum <= col_width)))
@@ -214,7 +213,6 @@ split_label <- function(label, min_width, max_width, label_width) {
 #'
 #' @keywords internal
 calculate_col_width <- function(df, ref) {
-
   # Check validity of parameters
   checkmate::assert(
     checkmate::check_data_frame(df, min.rows = 1, min.cols = 1, col.names = "unique", null.ok = FALSE),
@@ -281,7 +279,6 @@ calculate_col_width <- function(df, ref) {
 #'
 #' @keywords internal
 pdf_preprocessing <- function(df, ref) {
-
   # Check validity of parameters
   checkmate::assert(
     checkmate::check_data_frame(df, null.ok = FALSE),
@@ -307,7 +304,8 @@ pdf_preprocessing <- function(df, ref) {
   if (nrow(df) > 1) {
     df <- apply(
       apply(df, 2, as.character),
-      2, shorten_entries, len_max = as.integer(table_width)
+      2, shorten_entries,
+      len_max = as.integer(table_width)
     )
   } else {
     df <- t(data.frame(shorten_entries(
@@ -409,7 +407,6 @@ pdf_preprocessing <- function(df, ref) {
 #'
 #' @keywords internal
 prep_export_data <- function(data_selection, current_data, data_selection_name, dataset_list) {
-
   # check validity of parameters
   checkmate::assert(
     checkmate::check_string(data_selection),
@@ -453,7 +450,6 @@ prep_export_data <- function(data_selection, current_data, data_selection_name, 
 #'
 #' @keywords internal
 excel_export <- function(data_to_download, file, intended_use_label) {
-
   # Check validity of parameters
   checkmate::assert(
     checkmate::check_list(data_to_download, types = "data.frame", null.ok = FALSE),
@@ -495,7 +491,6 @@ excel_export <- function(data_to_download, file, intended_use_label) {
 #'
 #' @keywords internal
 pdf_export <- function(data_to_download, ref_cols, file, metadata, active_session = TRUE, intended_use_label) {
-
   # Check validity of parameters
   checkmate::assert(
     checkmate::check_list(data_to_download, types = "data.frame", len = 1, null.ok = FALSE),
@@ -505,7 +500,7 @@ pdf_export <- function(data_to_download, ref_cols, file, metadata, active_sessio
     checkmate::check_logical(active_session, len = 1),
     combine = "and"
   )
-    
+
   # PDF preprocessing
   res_preprocess <- pdf_preprocessing(data_to_download[[1]], ref_cols)
 
@@ -513,7 +508,8 @@ pdf_export <- function(data_to_download, ref_cols, file, metadata, active_sessio
   temp_report <- file.path(tempdir(), "create_pdf_export.Rmd")
   file.copy(
     system.file("rmd", "create_pdf_export.Rmd", package = "dv.listings", mustWork = TRUE),
-    temp_report, overwrite = TRUE
+    temp_report,
+    overwrite = TRUE
   )
 
   # Render pdf via RMarkdown file
@@ -551,7 +547,6 @@ pdf_export <- function(data_to_download, ref_cols, file, metadata, active_sessio
 #'
 #' @keywords internal
 warn_function <- function(cond, input_id, text) {
-
   # Check validity of parameters
   checkmate::assert(
     checkmate::check_logical(cond, len = 1),

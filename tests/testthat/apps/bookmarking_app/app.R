@@ -9,7 +9,7 @@ if (use_load_all) {
 source("../../dummy-data.R")
 
 # Test app
-test_UI <- function(request) {
+test_UI <- function(request) { # nolint
   shiny::fluidPage(
     shiny::bookmarkButton(),
     listings_UI("listings")
@@ -26,7 +26,7 @@ test_server <- function(input, output, session) {
 
   listings_server(
     "listings",
-    dataset_list =  shiny::reactive(data),
+    dataset_list = shiny::reactive(data),
     default_vars = def_vars,
     dataset_metadata = list(
       name = shiny::reactive("test_name"),

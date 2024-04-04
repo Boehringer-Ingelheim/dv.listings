@@ -11,7 +11,7 @@
 mock_listings_app <- function(mode = "single") {
   stopifnot(mode %in% c("single", "multi"))
 
-  mock_listings_UI <- function(id) { #nolint
+  mock_listings_UI <- function(id) { # nolint
     ns <- ifelse(is.character(id), shiny::NS(id), shiny::NS(NULL))
     shiny::fluidPage(listings_UI(ns("listings")))
   }
@@ -33,7 +33,7 @@ mock_listings_app <- function(mode = "single") {
 
     listings_server(
       "listings",
-      dataset_list =  shiny::reactive({
+      dataset_list = shiny::reactive({
         data
       }), default_vars = def_col,
       dataset_metadata = list(
@@ -61,7 +61,6 @@ mock_listings_app <- function(mode = "single") {
 #' @export
 #'
 mock_listings_mm <- function() {
-
   data <- list()
   data[["adsl"]] <- convert_data(pharmaverseadam::adsl)
   data[["adae"]] <- convert_data(pharmaverseadam::adae)

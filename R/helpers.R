@@ -11,10 +11,11 @@
 #'
 
 get_labels <- function(dataset) {
-
   # Catch special cases (e.g. when global filter returns empty dataset)
   return_null <- any(length(dataset) == 0, is.null(dataset))
-  if (return_null) return(NULL)
+  if (return_null) {
+    return(NULL)
+  }
 
   # Check validity of parameters
   # Note: In case you change something here, consider adding a check in generate_choices() instead
@@ -84,13 +85,11 @@ generate_choices <- function(dataset) {
 #'   every dataset. List entries are named according to the \code{dataset} names.
 #' @keywords internal
 fill_default_vars <- function(default_vars, dataset) {
-
   # Check arguments
   checkmate::assert(
     checkmate::check_list(dataset, types = "data.frame"),
     checkmate::check_names(names(dataset), type = "unique"),
     checkmate::check_list(default_vars, types = "character", null.ok = TRUE),
-
     combine = "and"
   )
   if (!is.null(default_vars)) {
@@ -138,7 +137,6 @@ fill_default_vars <- function(default_vars, dataset) {
 #' @keywords internal
 #'
 set_data <- function(base_data, selector) {
-
   # Check validity of parameters
   checkmate::assert(
     checkmate::check_data_frame(base_data, null.ok = TRUE),
@@ -148,7 +146,9 @@ set_data <- function(base_data, selector) {
 
   # Return NULL in case no columns were selected
   return_null <- any(is.null(selector), length(selector) == 0)
-  if (return_null) return(NULL)
+  if (return_null) {
+    return(NULL)
+  }
 
   # Select user specified (or default) columns from data and force order as determined by the user
   data <- base_data %>%
@@ -208,7 +208,6 @@ set_labels <- function(dataset, labels) {
 #' @return data.frame with converted data types of data.frame columns
 #' @export
 convert_data <- function(dataset) {
-
   # check validity of parameter
   checkmate::assert_data_frame(dataset)
 

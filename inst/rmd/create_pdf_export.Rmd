@@ -64,5 +64,4 @@ if (params$active_session) {
     detail = "Please wait..."
   )
 }
-
 ```
