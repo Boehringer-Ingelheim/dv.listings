@@ -81,8 +81,7 @@
 </h3>
 <p>This code piece produces essentially the same app behavior as using the <code>dataset_names</code> argument. That is, any selection made by the user in the global filter menu affects the module display.</p>
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span></span>
-<span><span class="fu">dv.listings</span><span class="fu">::</span><span class="fu"><a href="../reference/mod_listings.html">mod_listings</a></span><span class="op">(</span></span>
+<code class="sourceCode R"><span><span class="fu">dv.listings</span><span class="fu">::</span><span class="fu"><a href="../reference/mod_listings.html">mod_listings</a></span><span class="op">(</span></span>
 <span>  module_id <span class="op">=</span> <span class="st">"mod2a"</span>,</span>
 <span>  dataset_disp <span class="op">=</span> <span class="fu">dv.manager</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/dv.manager/man/mm_dispatch.html" class="external-link">mm_dispatch</a></span><span class="op">(</span></span>
 <span>    from <span class="op">=</span> <span class="st">"filtered_dataset"</span>,</span>
@@ -95,8 +94,7 @@
 </h3>
 <p>In case it is undesirable that global filter settings affect the listings displayed in a <em>dv.listings</em> module, it is possible to define the dispatcher such that it delivers always unfiltered data. This means that <span class="ul">any global filter will be ignored</span>!</p>
 <div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span></span>
-<span><span class="fu">dv.listings</span><span class="fu">::</span><span class="fu"><a href="../reference/mod_listings.html">mod_listings</a></span><span class="op">(</span></span>
+<code class="sourceCode R"><span><span class="fu">dv.listings</span><span class="fu">::</span><span class="fu"><a href="../reference/mod_listings.html">mod_listings</a></span><span class="op">(</span></span>
 <span>  module_id <span class="op">=</span> <span class="st">"mod2b"</span>,</span>
 <span>  dataset_disp <span class="op">=</span> <span class="fu">dv.manager</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/dv.manager/man/mm_dispatch.html" class="external-link">mm_dispatch</a></span><span class="op">(</span></span>
 <span>    from <span class="op">=</span> <span class="st">"unfiltered_dataset"</span>,</span>
