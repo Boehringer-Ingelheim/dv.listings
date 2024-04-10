@@ -228,12 +228,12 @@ mod_export_listings_server <- function(module_id,
         c(check_ref_cols(), input[[EXP$FILENAME_ID]], input[[EXP$DATAPROTECT_ID]], input[[EXP$SNAPSHOT_ID]]),
         {
           dataprotect <- ifelse(!is.null(intended_use_label), input[[EXP$DATAPROTECT_ID]], TRUE)
-
+          # nolint start
           if (!check_ref_cols() &
-              (input[[EXP$FILENAME_ID]] != "") &
-              dataprotect &
-              (ifelse(is.null(input[[EXP$SNAPSHOT_ID]]), 0, nchar(input[[EXP$SNAPSHOT_ID]])) <= 50)
-          ) {
+            (input[[EXP$FILENAME_ID]] != "") &
+            dataprotect &
+            (ifelse(is.null(input[[EXP$SNAPSHOT_ID]]), 0, nchar(input[[EXP$SNAPSHOT_ID]])) <= 50)
+          ) { # nolint end
             return(TRUE)
           } else {
             return(FALSE)
