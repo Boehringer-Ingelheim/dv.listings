@@ -8,7 +8,6 @@
 #' "No label" for missing labels.
 #'
 #' @keywords internal
-#' 
 get_labels <- function(dataset) {
   # Catch special cases (e.g. when global filter returns empty dataset)
   return_null <- any(length(dataset) == 0, is.null(dataset))
@@ -54,7 +53,6 @@ get_labels <- function(dataset) {
 #' @return Character vector of the type `<name> [<label>]`. Adds "No label" as placeholder for missing labels.
 #'
 #' @keywords internal
-#' 
 generate_choices <- function(dataset) {
   # No checkmate checks since it is catched in get_labels()
 
@@ -83,7 +81,6 @@ generate_choices <- function(dataset) {
 #' @return Named list of character vectors which Contain the names of columns to be displayed at module launch for
 #'   every dataset. List entries are named according to the \code{dataset} names.
 #' @keywords internal
-#' 
 fill_default_vars <- function(default_vars, dataset) {
   # Check arguments
   checkmate::assert(
@@ -135,7 +132,6 @@ fill_default_vars <- function(default_vars, dataset) {
 #'   vector of column names created by combining the variable names with their labels.
 #'   \code{row_names} is a character vector containing the number of the corresponding row.
 #' @keywords internal
-#' 
 set_data <- function(base_data, selector) {
   # Check validity of parameters
   checkmate::assert(
@@ -181,7 +177,6 @@ set_data <- function(base_data, selector) {
 #'
 #' @return A data.frame with column labels
 #' @keywords internal
-#' 
 set_labels <- function(dataset, labels) {
   checkmate::assert(
     checkmate::check_data_frame(dataset),
@@ -208,7 +203,6 @@ set_labels <- function(dataset, labels) {
 #'
 #' @return data.frame with converted data types of data.frame columns
 #' @export
-#' 
 convert_data <- function(dataset) {
   # check validity of parameter
   checkmate::assert_data_frame(dataset)

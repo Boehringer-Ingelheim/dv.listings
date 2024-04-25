@@ -8,8 +8,6 @@
 #' @import shiny
 #'
 #' @name simple_listing
-#'
-
 NULL
 
 #' @describeIn simple_listing UI
@@ -24,8 +22,6 @@ simple_listing_UI <- function(module_id) { # nolint
 #' @describeIn simple_listing server
 #'
 #' @param dataset a data.framish dataset that will be shown as a table
-#'
-#'
 simple_listing_server <- function(module_id, dataset) {
   module <- function(input, output, session) {
     output$table <- DT::renderDataTable({
@@ -42,9 +38,7 @@ utils::globalVariables("filtered_datasets")
 #' @param dataset_disp An mm_dispatch object.
 #' @template module_id-arg
 #'
-#'
 #' @family data_table
-
 mod_simple_listing <- function(dataset_disp, module_id) {
   mod <- list(
     ui = simple_listing_UI,

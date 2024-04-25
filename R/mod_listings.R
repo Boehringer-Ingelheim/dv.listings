@@ -21,7 +21,6 @@ TBL <- pack_of_constants( # nolint
 #'
 #' @export
 #' @family data_listings
-#' 
 listings_UI <- function(module_id) { # nolint
 
   # Check validity of arguments
@@ -76,7 +75,6 @@ listings_UI <- function(module_id) { # nolint
 #' NULL. The provided label will be displayed prior to the download and will also be included in the exported file.
 #'
 #' @export
-#'
 listings_server <- function(module_id,
                             dataset_list,
                             default_vars = NULL,
@@ -331,7 +329,6 @@ listings_server <- function(module_id,
 #'   module_list = module_list,
 #'   filter_data = "adsl"
 #' )
-#'
 mod_listings <- function(
     module_id,
     dataset_names,

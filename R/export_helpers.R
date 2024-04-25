@@ -20,7 +20,6 @@ PDF_EXP <- pack_of_constants( # nolint
 #' @return A shiny tagList.
 #'
 #' @keywords internal
-#' 
 export_modal_content <- function(ns, file_name, cond, colnames, activate_checkbox = FALSE) {
   # Check validity of parameters
   checkmate::assert(
@@ -114,7 +113,6 @@ export_modal_content <- function(ns, file_name, cond, colnames, activate_checkbo
 #' @return A character vector containing the shortened strings in case they exceeded the maximal length.
 #'
 #' @keywords internal
-#' 
 shorten_entries <- function(vec, len_max) {
   # Check validity of parameters
   checkmate::assert(
@@ -145,7 +143,6 @@ shorten_entries <- function(vec, len_max) {
 #' @return A list containing the `label_vec` which includes the splitted label and the actual width `col_width`.
 #'
 #' @keywords internal
-#' 
 split_label <- function(label, min_width, max_width, label_width) {
   # Check validity of parameters
   checkmate::assert(
@@ -215,7 +212,6 @@ split_label <- function(label, min_width, max_width, label_width) {
 #' and a logical indicating whether the reference columns specification is valid (`check_ref_cols`).
 #'
 #' @keywords internal
-#' 
 calculate_col_width <- function(df, ref) {
   # Check validity of parameters
   checkmate::assert(
@@ -282,7 +278,6 @@ calculate_col_width <- function(df, ref) {
 #' @return Named list containing a list of data frames (`list_of_df`) whose entries fit on one PDF page each.
 #'
 #' @keywords internal
-#' 
 pdf_preprocessing <- function(df, ref) {
   # Check validity of parameters
   checkmate::assert(
@@ -411,7 +406,6 @@ pdf_preprocessing <- function(df, ref) {
 #' @return Named list containing the data frames which are now ready for download.
 #'
 #' @keywords internal
-#' 
 prep_export_data <- function(data_selection, current_data, data_selection_name, dataset_list) {
   # check validity of parameters
   checkmate::assert(
@@ -455,7 +449,6 @@ prep_export_data <- function(data_selection, current_data, data_selection_name, 
 #' @param file `[character(1)]` A string specifying the filename with ending ".xlsx".
 #'
 #' @keywords internal
-#' 
 excel_export <- function(data_to_download, file, intended_use_label) {
   # Check validity of parameters
   checkmate::assert(
@@ -497,7 +490,6 @@ excel_export <- function(data_to_download, file, intended_use_label) {
 #' @return Number of PDF pages that are generated.
 #'
 #' @keywords internal
-#' 
 pdf_export <- function(data_to_download, ref_cols, file, metadata, active_session = TRUE, intended_use_label) {
   # Check validity of parameters
   checkmate::assert(
@@ -554,7 +546,6 @@ pdf_export <- function(data_to_download, ref_cols, file, metadata, active_sessio
 #' @param text `[character(1)]` A string containing the warning message to be displayed.
 #'
 #' @keywords internal
-#' 
 warn_function <- function(cond, input_id, text) {
   # Check validity of parameters
   checkmate::assert(

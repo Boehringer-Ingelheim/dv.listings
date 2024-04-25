@@ -7,7 +7,6 @@
 #'
 #' @keywords internal
 #' @family mock apps
-#'
 mock_listings_app <- function(mode = "single") {
   stopifnot(mode %in% c("single", "multi"))
 
@@ -59,7 +58,6 @@ mock_listings_app <- function(mode = "single") {
 #'
 #' @keywords internal
 #' @family mock apps
-#'
 mock_listings_mm <- function() {
   data <- list()
   data[["adsl"]] <- convert_data(pharmaverseadam::adsl)

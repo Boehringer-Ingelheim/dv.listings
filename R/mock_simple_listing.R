@@ -22,7 +22,6 @@ mock_simple_listing_server <- function(input, output, session) {
 }
 
 #' Mock function for simple listing
-#' 
 mock_simple_listing_mm <- function() {
   stopifnot(
     requireNamespace("dv.manager", quietly = TRUE),
