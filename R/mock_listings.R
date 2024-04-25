@@ -7,7 +7,6 @@
 #'
 #' @keywords internal
 #' @family mock apps
-#'
 mock_listings_app <- function(mode = "single") {
   stopifnot(mode %in% c("single", "multi"))
 
@@ -57,9 +56,8 @@ mock_listings_app <- function(mode = "single") {
 #' \code{mock_listings_mm} launches a mock app for the dv.listings shiny module by means of
 #' the module manager (dv.manager).
 #'
+#' @keywords internal
 #' @family mock apps
-#' @export
-#'
 mock_listings_mm <- function() {
   data <- list()
   data[["adsl"]] <- convert_data(pharmaverseadam::adsl)

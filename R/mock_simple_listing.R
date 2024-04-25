@@ -16,13 +16,12 @@ mock_simple_listing_UI <- function(id) { # nolint
   )
 }
 
-#'
 mock_simple_listing_server <- function(input, output, session) {
   simple_listing_server("listing", dataset = reactive(datasets::mtcars))
 }
 
 #' Mock function for simple listing
-#' @export
+#' @keywords internal
 mock_simple_listing_mm <- function() {
   stopifnot(
     requireNamespace("dv.manager", quietly = TRUE),

@@ -8,8 +8,6 @@
 #' "No label" for missing labels.
 #'
 #' @keywords internal
-#'
-
 get_labels <- function(dataset) {
   # Catch special cases (e.g. when global filter returns empty dataset)
   return_null <- any(length(dataset) == 0, is.null(dataset))
@@ -55,7 +53,6 @@ get_labels <- function(dataset) {
 #' @return Character vector of the type `<name> [<label>]`. Adds "No label" as placeholder for missing labels.
 #'
 #' @keywords internal
-#'
 generate_choices <- function(dataset) {
   # No checkmate checks since it is catched in get_labels()
 
@@ -79,7 +76,7 @@ generate_choices <- function(dataset) {
 #'   datasets.
 #' @param dataset `[list(data.frame)]`
 #'
-#' A list of data.framish dataset(s) that will be shown in tabular format.
+#' A list of data.framish dataset(s) that will be shown as listings.
 #'
 #' @return Named list of character vectors which Contain the names of columns to be displayed at module launch for
 #'   every dataset. List entries are named according to the \code{dataset} names.
@@ -135,7 +132,6 @@ fill_default_vars <- function(default_vars, dataset) {
 #'   vector of column names created by combining the variable names with their labels.
 #'   \code{row_names} is a character vector containing the number of the corresponding row.
 #' @keywords internal
-#'
 set_data <- function(base_data, selector) {
   # Check validity of parameters
   checkmate::assert(
@@ -201,7 +197,7 @@ set_labels <- function(dataset, labels) {
 #' Converts data types of data.frame columns to logical, integer, numeric, complex, character or factor as appropriate.
 #' Re-assigns column labels after converting data type.
 #'
-#' @param dataset  `[data.frame]`
+#' @param dataset `[data.frame]`
 #'
 #' Single data.frame to convert the column data types
 #'

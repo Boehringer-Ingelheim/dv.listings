@@ -71,11 +71,10 @@ listings_UI <- function(module_id) { # nolint
 #' @param pagination `[logical(1) | NULL]` Either a boolean indicating if pagination should be activated, or
 #' NULL for which pagination will be activated for large datasets (nrows > 1000) automatically.
 #'
-#' @param intended_use_label `[character(1) | NULL]` Either a character indicating the intended use for the download, or
-#' NULL. If a label is provided it will be shown before the download and will also be included in the downloaded file.
+#' @param intended_use_label `[character(1) | NULL]` Either a string indicating the intended use for export, or
+#' NULL. The provided label will be displayed prior to the download and will also be included in the exported file.
 #'
 #' @export
-#'
 listings_server <- function(module_id,
                             dataset_list,
                             default_vars = NULL,
@@ -265,15 +264,15 @@ listings_server <- function(module_id,
 }
 
 
-#' Data listings function for module manager
+#' Data listings module for DaVinci's module manager
 #'
 #' @description
 #'
-#' This module will present the dataset in a tabular form using the DT package.
+#' This module will present the dataset as listing using the DT package.
 #' @param dataset_names `[character(1+)]`
 #'
 #' Name(s) of the dataset(s) that will be displayed.
-#' Can not be used together with the parameter \code{dataset_disp}.
+#' Cannot be used together with the parameter \code{dataset_disp}.
 #'
 #' @inheritParams listings_server
 #'
@@ -330,7 +329,6 @@ listings_server <- function(module_id,
 #'   module_list = module_list,
 #'   filter_data = "adsl"
 #' )
-#'
 mod_listings <- function(
     module_id,
     dataset_names,
@@ -347,7 +345,6 @@ mod_listings <- function(
   }
 
   # skip assertions/checks for module_id and default_vars since they will be checked directly in listings_server()
-
   if (!missing(dataset_disp)) {
     checkmate::assert(
       checkmate::check_class(dataset_disp, "mm_dispatcher"),

@@ -9,3 +9,4 @@ mock_simple_listing_mm()
 \description{
 Mock function for simple listing
 }
+\keyword{internal}

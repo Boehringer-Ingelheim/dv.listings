@@ -15,3 +15,4 @@ Other mock apps:
 \code{\link{mock_listings_app}()}
 }
 \concept{mock apps}
+\keyword{internal}

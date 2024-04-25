@@ -11,4 +11,4 @@ if (use_load_all) {
   devtools::load_all(pkg_path, quiet = TRUE)
 }
 
-dv.listings::mock_simple_listing_mm()
+dv.listings:::mock_simple_listing_mm()

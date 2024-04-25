@@ -1,40 +1,41 @@
 
 # dv.listings
 
-DaVinci's *dv.listings* module displays arbitrary datasets as listings. 
+The listings module from DaVinci's {dv.listings} package displays arbitrary datasets as listings. 
 Users can select the dataset to be shown, and specify
 which columns of the dataset should be displayed as well as their order.
 The displayed columns can be sorted and filtered. Moreover, the
-table can be filtered to show only entries containing a keyword entered by the user. 
+listing can be filtered to show only entries containing a keyword specified by the user. 
 The module is not limited to usage of one data source,
 most notably, it can handle data from ADaM or SDTM.
 
 <img src="man/figures/table_main_view.PNG" width="100%" />
 
-The module is prepared to be used in combination with *dv.manager* and
+The module is prepared to be used in combination with DaVinci's {dv.manager} package and
 supports its bookmarking functionality.
 
 ## Installation
 
-Feel free to copy the following code chunk to install the latest version of *dv.listings*.
+Feel free to copy the following code chunk to install the latest version of {dv.listings}.
 
 ``` r
 if (!require("remotes")) install.packages("remotes")
 remotes::install_github("Boehringer-Ingelheim/dv.listings")
 ```
 
-Since the *dv.listings* module is intended to be used within an application
-created by means of DaVinci’s *dv.manager* package, make sure that you
-have installed *dv.manager* with a version number equally to or higher than 2.1.0
+Since the listings module is intended to be used within an application
+created by means of DaVinci's module manager, make sure that you
+have installed {dv.manager} with a version number equally to or higher than 2.1.0.
 
 ## Data requirements
 
-As stated above, *dv.listings* can display data from various data sources,
-such as (but not limited to) SDTM and ADaM. However, in order for the
-column filters to work, columns need to be converted to appropriate
-types, e.g. categorial data should be stored as factors, numbers as
-numeric, etc. The easiest way to convert the data is by using
-`convert_data()` which comes along the package. An example can be found
+As stated above, the listings module can display data from various data sources.
+However, for the column filters to function correctly, 
+columns need to be converted to the appropriate data
+types, e.g., categorical data should be stored as factor, numbers as
+numeric, etc. To simplify data conversion, 
+the package provides a convenient function called
+`convert_data()`. An example demonstrating the usage of this function can be found
 in the section below.
 
 Note that `dv.listings` drops row names. In case your dataset is equipped
@@ -49,19 +50,18 @@ attributes(my_data$index)$label <- "Former row names"
 
 ## Example
 
-To define an app containing *dv.listings* using *dv.manager*, you need to
+To define an app based on {dv.listings} and {dv.manager}, you need to
 
 1.  load data,
-2.  make sure that the provided data comply with the requirements of
-    *dv.listings*,
-3.  define a list of modules,
-4.  and launch the app via `run_app()` from *dv.manager*.
+2.  make sure that the provided data comply with the requirements of the listings module,
+3.  define a list of modules that contains the listings module,
+4.  and launch the app via `run_app()` from {dv.manager}.
 
 The following example contains the listed steps. For data protection
-purposes, the example uses dummy data from the *pharmaverseadam* package.
+purposes, the example uses dummy data from {pharmaverseadam}.
 
 ``` r
-library(dv.listing)
+library(dv.listings)
 
 # 1. Create a data list with example data
 data_list <- list(
@@ -105,10 +105,10 @@ dv.manager::run_app(
 ```
 ## Export functionality 
 
-The *dv.listings* module allows users to export listings. Users have the option to either download the currently displayed listing or all available listings.
+The listings module allows users to export listings. Users have the option to either download only the currently displayed listing or all available listings.
 
-For downloading only the currently active listing, the listing will be saved as it is displayed, either in .xlsx or .pdf format. In case any filters have been applied, the downloaded file will reflect this and only include the filtered data.
+To download the currently active listing, it will be saved exactly as it appears on the screen, either in .xlsx or .pdf format. In case any filters have been applied, the downloaded file will reflect these and only include the filtered data.
 
-For users who wish to download all listings, the module allows saving in .xlsx format exclusively. This process disregards any local filters, and each listing is saved in a separate worksheet within the file 
+For users who wish to download all listings, the module allows saving in .xlsx format exclusively. This process disregards any local filters, and each listing is saved in a separate worksheet within the file. 
 
 Please be aware that the PDF download feature is implemented using an RMarkdown file that is rendered into a PDF through LaTeX. As such, it is important to note that a LaTeX installation, along with the necessary packages, is required to use this feature.

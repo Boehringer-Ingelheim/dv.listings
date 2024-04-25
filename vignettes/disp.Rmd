@@ -1,8 +1,8 @@
 ---
-title: "Usage of dv.manager dispatchers"
+title: "Usage of {dv.manager} dispatchers"
 output: rmarkdown::html_vignette
 vignette: >
-  %\VignetteIndexEntry{Usage of dv.manager dispatchers}
+  %\VignetteIndexEntry{Usage of {dv.manager} dispatchers}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
@@ -15,13 +15,13 @@ knitr::opts_chunk$set(
 )
 ```
 
-## How to set up a *dv.listings* module using dispatchers
+## How to set up a listings module using dispatchers
 
-**Dispatchers** are helper functions that allow accessing data and utility functions inside module manager in a dynamic way. Refer to `?dv.manager::mm_dispatch` for more information about their functionalities. The boxes below show two examples on how they can be used to set up a *dv.listings* module. Note that it is not possible to use both arguments, `dataset_names` and `dataset_disp`, at the same time in a `mod_listings()` call.
+**Dispatchers** are helper functions that allow accessing data and utility functions inside module manager in a dynamic way. Refer to `?dv.manager::mm_dispatch` for more information about their functionalities. The boxes below show two examples on how they can be used to set up a listings module. Note that it is not possible to use both arguments, `dataset_names` and `dataset_disp`, at the same time in a `mod_listings()` call.
 
 ### a. Filtered data
 
-This code piece produces essentially the same app behavior as using the `dataset_names` argument. That is, any selection made by the user in the global filter menu affects the module display. 
+This code chunk produces essentially the same app behavior as using the `dataset_names` argument. That is, any selection made by the user in the global filter menu affects the module display. 
 
 ```{r filtered, eval = FALSE}
 dv.listings::mod_listings(
@@ -36,7 +36,7 @@ dv.listings::mod_listings(
 
 ### b. Unfiltered data
 
-In case it is undesirable that global filter settings affect the listings displayed in a *dv.listings* module, it is possible to define the dispatcher such that it delivers always unfiltered data. This means that [any global filter will be ignored]{.ul}!
+In case it is undesirable that global filter settings affect the listings displayed in a listings module, it is possible to define the dispatcher such that it delivers always unfiltered data. This means that [any global filter will be ignored]{.ul}!
 
 ```{r unfiltered, eval = FALSE}
 dv.listings::mod_listings(
