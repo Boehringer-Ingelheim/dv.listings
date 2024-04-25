@@ -1,6 +1,6 @@
 # dv.listings 3.1.0
 
-package was renamed to dv.listings
+Package was renamed to dv.listings.
 
 # dv.table 3.0.1
 

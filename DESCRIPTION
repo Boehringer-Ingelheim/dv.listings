@@ -10,10 +10,10 @@ Authors@R:
       person('Luis', 'Morís Fernández', email = 'luis.moris.fernandez.ext@boehringer-ingelheim.com', role = c('aut')),
       person('Jessica', 'Knizia', email = 'jessica.knizia@boehringer-ingelheim.com', role = c('ctb'))
     )
-Description: DaVinci’s dv.listings module displays a data listing of different dataset domains in tabular form. 
+Description: DaVinci’s dv.listings package provides a modules to display different dataset domains as listings. 
     Users can select the dataset to be shown, and specify which columns of the dataset should be displayed.
     The displayed columns can be sorted and filtered.
-    Moreover, the listing can be filtered to show only entries containing a keyword entered by the user.
+    Moreover, the listing can be filtered to show only entries containing a keyword specified by the user.
     The module is not limited to usage of one data source, most notably, it can handle data from ADaM or SDTM. 
 License: Apache License (>= 2)
 Encoding: UTF-8
@@ -41,7 +41,7 @@ Imports:
     shinyWidgets (>= 0.8.0),
     tibble (>= 3.2.1),
     dv.manager (>= 2.0.0-17)
-RoxygenNote: 7.3.0
+RoxygenNote: 7.3.1
 Roxygen: list(markdown = TRUE)
 Remotes: boehringer-ingelheim/dv.manager@main
 VignetteBuilder: knitr

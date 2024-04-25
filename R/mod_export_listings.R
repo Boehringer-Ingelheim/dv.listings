@@ -38,6 +38,7 @@ EXP <- pack_of_constants( # nolint
 #'
 #' @return A shiny \code{uiOutput} element.
 #' @keywords internal
+#' 
 mod_export_listings_UI <- function(module_id) { # nolint
 
   # Check validity of arguments
@@ -84,6 +85,7 @@ mod_export_listings_UI <- function(module_id) { # nolint
 #' NULL. If a label is provided it will be shown before the download and will also be included in the downloaded file.
 #'
 #' @keywords internal
+#' 
 mod_export_listings_server <- function(module_id,
                                        dataset_metadata,
                                        dataset_list,

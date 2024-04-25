@@ -2,7 +2,7 @@
 % Please edit documentation in R/mod_listings.R
 \name{mod_listings}
 \alias{mod_listings}
-\title{Data listings function for module manager}
+\title{Data listings module for DaVinci's module manager}
 \usage{
 mod_listings(
   module_id,
@@ -20,7 +20,7 @@ mod_listings(
 \item{dataset_names}{\verb{[character(1+)]}
 
 Name(s) of the dataset(s) that will be displayed.
-Can not be used together with the parameter \code{dataset_disp}.}
+Cannot be used together with the parameter \code{dataset_disp}.}
 
 \item{default_vars}{\verb{[list(characters(1+)) | NULL]}
 
@@ -31,8 +31,8 @@ dataset.}
 \item{pagination}{\verb{[logical(1) | NULL]} Either a boolean indicating if pagination should be activated, or
 NULL for which pagination will be activated for large datasets (nrows > 1000) automatically.}
 
-\item{intended_use_label}{\verb{[character(1) | NULL]} Either a character indicating the intended use for the download, or
-NULL. If a label is provided it will be shown before the download and will also be included in the downloaded file.}
+\item{intended_use_label}{\verb{[character(1) | NULL]} Either a string indicating the intended use for export, or
+NULL. The provided label will be displayed prior to the download and will also be included in the exported file.}
 
 \item{dataset_disp}{\verb{[dv.manager::mm_dispatch()]}
 
@@ -40,7 +40,7 @@ This is only for advanced usage. An mm_dispatch object.
 Can not be used together with the parameter \code{dataset_names}.}
 }
 \description{
-This module will present the dataset in a tabular form using the DT package.
+This module will present the dataset as listing using the DT package.
 }
 \examples{
 \dontshow{if (interactive()) (if (getRversion() >= "3.4") withAutoprint else force)(\{ # examplesIf}

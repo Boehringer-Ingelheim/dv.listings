@@ -15,7 +15,7 @@ datasets.}
 
 \item{dataset}{\verb{[list(data.frame)]}
 
-A list of data.framish dataset(s) that will be shown in tabular format.}
+A list of data.framish dataset(s) that will be shown as listings.}
 }
 \value{
 Named list of character vectors which Contain the names of columns to be displayed at module launch for

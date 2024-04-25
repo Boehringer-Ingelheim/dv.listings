@@ -38,8 +38,8 @@ Usually obtained from module manager.}
 \item{pagination}{\verb{[logical(1) | NULL]} Either a boolean indicating if pagination should be activated, or
 NULL for which pagination will be activated for large datasets (nrows > 1000) automatically.}
 
-\item{intended_use_label}{\verb{[character(1) | NULL]} Either a character indicating the intended use for the download, or
-NULL. If a label is provided it will be shown before the download and will also be included in the downloaded file.}
+\item{intended_use_label}{\verb{[character(1) | NULL]} Either a string indicating the intended use for export, or
+NULL. The provided label will be displayed prior to the download and will also be included in the exported file.}
 }
 \description{
 This module displays a given dataset as listing. It allows switching between datasets if it receives

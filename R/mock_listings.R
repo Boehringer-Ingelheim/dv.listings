@@ -57,8 +57,8 @@ mock_listings_app <- function(mode = "single") {
 #' \code{mock_listings_mm} launches a mock app for the dv.listings shiny module by means of
 #' the module manager (dv.manager).
 #'
+#' @keywords internal
 #' @family mock apps
-#' @export
 #'
 mock_listings_mm <- function() {
   data <- list()
