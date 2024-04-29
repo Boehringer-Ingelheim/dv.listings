@@ -75,7 +75,7 @@
 <div class="section level2">
 <h2 id="how-to-set-up-a-listings-module-using-dispatchers">How to set up a listings module using dispatchers<a class="anchor" aria-label="anchor" href="#how-to-set-up-a-listings-module-using-dispatchers"></a>
 </h2>
-<p><strong>Dispatchers</strong> are helper functions that allow accessing data and utility functions inside module manager in a dynamic way. Refer to <code><a href="https://rdrr.io/pkg/dv.manager/man/mm_dispatch.html" class="external-link">?dv.manager::mm_dispatch</a></code> for more information about their functionalities. The boxes below show two examples on how they can be used to set up a listings module. Note that it is not possible to use both arguments, <code>dataset_names</code> and <code>dataset_disp</code>, at the same time in a <code><a href="../reference/mod_listings.html">mod_listings()</a></code> call.</p>
+<p><strong>Dispatchers</strong> are helper functions that allow accessing data and utility functions inside module manager in a dynamic way. Refer to <code>?dv.manager::mm_dispatch</code> for more information about their functionalities. The boxes below show two examples on how they can be used to set up a listings module. Note that it is not possible to use both arguments, <code>dataset_names</code> and <code>dataset_disp</code>, at the same time in a <code><a href="../reference/mod_listings.html">mod_listings()</a></code> call.</p>
 <div class="section level3">
 <h3 id="a--filtered-data">a. Filtered data<a class="anchor" aria-label="anchor" href="#a--filtered-data"></a>
 </h3>
@@ -83,7 +83,7 @@
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu">dv.listings</span><span class="fu">::</span><span class="fu"><a href="../reference/mod_listings.html">mod_listings</a></span><span class="op">(</span></span>
 <span>  module_id <span class="op">=</span> <span class="st">"mod2a"</span>,</span>
-<span>  dataset_disp <span class="op">=</span> <span class="fu">dv.manager</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/dv.manager/man/mm_dispatch.html" class="external-link">mm_dispatch</a></span><span class="op">(</span></span>
+<span>  dataset_disp <span class="op">=</span> <span class="fu">dv.manager</span><span class="fu">::</span><span class="fu">mm_dispatch</span><span class="op">(</span></span>
 <span>    from <span class="op">=</span> <span class="st">"filtered_dataset"</span>,</span>
 <span>    selection <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"adsl"</span>, <span class="st">"adae"</span>, <span class="st">"adtte"</span><span class="op">)</span></span>
 <span>  <span class="op">)</span></span>
@@ -96,7 +96,7 @@
 <div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu">dv.listings</span><span class="fu">::</span><span class="fu"><a href="../reference/mod_listings.html">mod_listings</a></span><span class="op">(</span></span>
 <span>  module_id <span class="op">=</span> <span class="st">"mod2b"</span>,</span>
-<span>  dataset_disp <span class="op">=</span> <span class="fu">dv.manager</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/dv.manager/man/mm_dispatch.html" class="external-link">mm_dispatch</a></span><span class="op">(</span></span>
+<span>  dataset_disp <span class="op">=</span> <span class="fu">dv.manager</span><span class="fu">::</span><span class="fu">mm_dispatch</span><span class="op">(</span></span>
 <span>    from <span class="op">=</span> <span class="st">"unfiltered_dataset"</span>,</span>
 <span>    selection <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"adsl"</span>, <span class="st">"adae"</span>, <span class="st">"adtte"</span><span class="op">)</span></span>
 <span>  <span class="op">)</span></span>
