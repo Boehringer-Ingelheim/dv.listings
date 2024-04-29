@@ -21,7 +21,6 @@ LazyData: true
 Suggests: 
     datasets (>= 4.0.0),
     devtools (>= 2.4.0),
-    dv.manager (>= 2.0.0-17),
     knitr (>= 1.43),
     pharmaverseadam (>= 0.1.0),
     shinytest2 (>= 0.3.1),
@@ -31,6 +30,7 @@ Imports:
     checkmate (>= 2.1.0),
     dplyr (>= 1.0.5),
     DT (>= 0.18),
+    dv.manager (>= 2.0.0-17),
     htmlwidgets (>= 1.6.2),
     magrittr (>= 2.0.3),
     openxlsx (>= 4.2.5.2),
