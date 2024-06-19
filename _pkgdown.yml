@@ -3,6 +3,10 @@ template:
 
 navbar:
   type: inverse
+  components:
+    qc:
+      text: Quality Control
+      href: articles/qc.html 
 
 home:
   title: dv.listings
@@ -20,3 +24,7 @@ reference:
   - listings_UI
   - listings_server
   - mod_simple_listing
+- title: Quality Control
+  desc: Quality Control
+  contents:
+  - qc
