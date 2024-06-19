@@ -3,11 +3,12 @@ template:
 
 navbar:
   type: inverse
+  structure:
+    left: [intro, reference, articles, tutorials, news, qc]
   components:
     qc:
       text: Quality Control
-      href: articles/qc.html 
-
+      href: articles/qc.html
 home:
   title: dv.listings
   links:
@@ -24,7 +25,3 @@ reference:
   - listings_UI
   - listings_server
   - mod_simple_listing
-- title: Quality Control
-  desc: Quality Control
-  contents:
-  - qc
