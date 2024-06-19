@@ -28,7 +28,7 @@ test_that("mod_export_listings_UI fails when argument type mismatches", {
 
 test_that("mod_export_listings_UI returns a shiny tagList with three elements", {
   ui <- mod_export_listings_UI("test")
-  
+
   checkmate::expect_list(ui, len = 3)
   checkmate::expect_class(ui, "shiny.tag.list")
 })
@@ -40,7 +40,7 @@ test_that("mod_export_listings_server fails when argument type mismatches", {
     3, # wrong type
     "" # less than one character
   )
-  
+
   dataset_metadata_valid <- list(
     name = shiny::reactive("test"),
     date_range = shiny::reactive(c("01-01-2000", "01-01-2000"))
@@ -51,7 +51,7 @@ test_that("mod_export_listings_server fails when argument type mismatches", {
     list(name = shiny::reactive("test"), name = shiny::reactive("test2")), # not unique
     list(test1 = shiny::reactive("test"), test2 = shiny::reactive(c("01-01-2000", "01-01-2000"))) # wrong names
   )
-  
+
   dataset_list_valid <- shiny::reactive({
     list(dm = dm_dummy, ae = ae_dummy)
   })
@@ -67,28 +67,28 @@ test_that("mod_export_listings_server fails when argument type mismatches", {
       list(dm_dummy, ae_dummy)
     }) # unnamed
   )
-  
+
   data_valid <- shiny::reactive({
     list(data = dm_dummy, col_names = colnames(ae_dummy))
   })
   data_invalid <- list(
     c("wrong", "type") # wrong type
   )
-  
+
   data_selection_name_valid <- shiny::reactive("dm")
   data_selection_name_invalid <- list(
     shiny::reactive({
       3
     }) # wrong type
   )
-  
+
   current_rows_valid <- shiny::reactive(seq_len(dim(dm_dummy)[2]))
   current_rows_invalid <- list(
     shiny::reactive({
       c("wrong", "type")
     }) # wrong type
   )
-  
+
   # execute invalid test cases
   purrr::walk(id_invalid, ~ expect_error(
     shiny::testServer(
@@ -193,7 +193,7 @@ test_that("mod_export_listings_server fails when argument type mismatches", {
       )
     )
   ))
-  
+
   # verify that valid arguments launch the server as intended
   expect_success(
     shiny::testServer(
@@ -217,50 +217,50 @@ test_that("mod_export_listings_server fails when argument type mismatches", {
 })
 
 test_that("mod_export_listings_server updates file type choices when switching between single and all datasets" %>% # nolint
-            vdoc[["add_spec"]](specs$export), {
-              # server arguments
-              id <- "test"
-              dataset_metadata <- list(
-                name = shiny::reactive("test"),
-                date_range = shiny::reactive(c("01-01-2000", "01-01-2000"))
-              )
-              dataset_list <- shiny::reactive({
-                list(dm = dm_dummy, ae = ae_dummy)
-              })
-              data <- shiny::reactive({
-                list(data = dm_dummy, col_names = colnames(dm_dummy))
-              })
-              data_selection_name <- shiny::reactive("dm")
-              current_rows <- shiny::reactive(seq_len(dim(dm_dummy)[2]))
-              
-              # perform tests
-              shiny::testServer(
-                app = server_func,
-                expr = {
-                  # initial expectation
-                  # note: id is hard coded because pack of constants cannot be used within session$setInputs()
-                  session$setInputs(which_data = "single")
-                  actual_choices <- type_choices()
-                  expected_choices <- c("Excel" = ".xlsx", "PDF" = ".pdf")
-                  expect_equal(actual_choices, expected_choices)
-                  
-                  # after selection switch
-                  session$setInputs(which_data = "all")
-                  actual_choices <- type_choices()
-                  expected_choices <- c("Excel" = ".xlsx")
-                  expect_equal(actual_choices, expected_choices)
-                },
-                args = list(
-                  id = id,
-                  dataset_metadata = dataset_metadata,
-                  dataset_list = dataset_list,
-                  data = data,
-                  data_selection_name = data_selection_name,
-                  current_rows = current_rows,
-                  intended_use_label = NULL
-                )
-              )
-            })
+  vdoc[["add_spec"]](specs$export), {
+  # server arguments
+  id <- "test"
+  dataset_metadata <- list(
+    name = shiny::reactive("test"),
+    date_range = shiny::reactive(c("01-01-2000", "01-01-2000"))
+  )
+  dataset_list <- shiny::reactive({
+    list(dm = dm_dummy, ae = ae_dummy)
+  })
+  data <- shiny::reactive({
+    list(data = dm_dummy, col_names = colnames(dm_dummy))
+  })
+  data_selection_name <- shiny::reactive("dm")
+  current_rows <- shiny::reactive(seq_len(dim(dm_dummy)[2]))
+
+  # perform tests
+  shiny::testServer(
+    app = server_func,
+    expr = {
+      # initial expectation
+      # note: id is hard coded because pack of constants cannot be used within session$setInputs()
+      session$setInputs(which_data = "single")
+      actual_choices <- type_choices()
+      expected_choices <- c("Excel" = ".xlsx", "PDF" = ".pdf")
+      expect_equal(actual_choices, expected_choices)
+
+      # after selection switch
+      session$setInputs(which_data = "all")
+      actual_choices <- type_choices()
+      expected_choices <- c("Excel" = ".xlsx")
+      expect_equal(actual_choices, expected_choices)
+    },
+    args = list(
+      id = id,
+      dataset_metadata = dataset_metadata,
+      dataset_list = dataset_list,
+      data = data,
+      data_selection_name = data_selection_name,
+      current_rows = current_rows,
+      intended_use_label = NULL
+    )
+  )
+})
 
 test_that("mod_export_listings_server hides (shows) warning if checkbox is (not) ticked", {
   # server arguments
@@ -277,7 +277,7 @@ test_that("mod_export_listings_server hides (shows) warning if checkbox is (not)
   })
   data_selection_name <- shiny::reactive("dm")
   current_rows <- shiny::reactive(seq_len(dim(dm_dummy)[2]))
-  
+
   # perform tests
   shiny::testServer(
     app = server_func,
@@ -289,7 +289,7 @@ test_that("mod_export_listings_server hides (shows) warning if checkbox is (not)
       actual_label <- gsub("[\r\n] *", "", actual_label) # remove newline tags and multiple spacing
       expected_label <- paste(EXP$DATAPROTECT_LABEL, intended_use_label)
       expect_equal(actual_label, expected_label)
-      
+
       # after further selection switch
       session$setInputs(check = FALSE) # name must be set manually to avoid errors
       actual_label <- checkbox_label()
@@ -325,7 +325,7 @@ test_that("mod_export_listings_server en-/disables download button if prerequesi
   })
   data_selection_name <- shiny::reactive("dm")
   current_rows <- shiny::reactive(seq_len(dim(dm_dummy)[2]))
-  
+
   # perform tests
   shiny::testServer(
     app = server_func,
@@ -333,11 +333,11 @@ test_that("mod_export_listings_server en-/disables download button if prerequesi
       # ticking the checkbox and inserting file name should enable download button
       session$setInputs(name = "name", check = TRUE)
       expect_equal(download_enable(), TRUE)
-      
+
       # removing file name should disable download button
       session$setInputs(name = "")
       expect_equal(download_enable(), FALSE)
-      
+
       # reentering file name should enable download button
       session$setInputs(name = "test")
       expect_equal(download_enable(), TRUE)
@@ -365,22 +365,22 @@ test_that("mod_export_listings_server places exported files in the local downloa
 app_dir <- "./apps/mm_app"
 
 test_that("mock_listings_mm exports all pages when downloading the currently displayed table in case of pagination turned on" %>% # nolint
-            vdoc[["add_spec"]](specs$export_active_listing), { # nolint
-              # Initialize test app
-              app <- shinytest2::AppDriver$new(
-                app_dir = app_dir, name = "test_restore_row_order"
-              )
-              
-              # Click buttons
-              app$wait_for_idle()
-              app$click("multi-export-download_data")
-              app$wait_for_idle()
-              
-              # Check if length(current_rows()) > 10 (more than one page)
-              testthat::expect_identical(
-                length(app$get_value(export = "multi-export-current_rows")),
-                as.integer(100)
-              )
-              
-              app$stop()
-            })
+  vdoc[["add_spec"]](specs$export_active_listing), { # nolint
+  # Initialize test app
+  app <- shinytest2::AppDriver$new(
+    app_dir = app_dir, name = "test_restore_row_order"
+  )
+
+  # Click buttons
+  app$wait_for_idle()
+  app$click("multi-export-download_data")
+  app$wait_for_idle()
+
+  # Check if length(current_rows()) > 10 (more than one page)
+  testthat::expect_identical(
+    length(app$get_value(export = "multi-export-current_rows")),
+    as.integer(100)
+  )
+
+  app$stop()
+})
