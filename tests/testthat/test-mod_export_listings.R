@@ -216,7 +216,8 @@ test_that("mod_export_listings_server fails when argument type mismatches", {
   )
 })
 
-test_that("mod_export_listings_server updates file type choices when switching between single and all datasets", {
+test_that("mod_export_listings_server updates file type choices when switching between single and all datasets" %>% # nolint
+  vdoc[["add_spec"]](specs$export), {
   # server arguments
   id <- "test"
   dataset_metadata <- list(
@@ -309,7 +310,7 @@ test_that("mod_export_listings_server hides (shows) warning if checkbox is (not)
   )
 })
 
-test_that("mod_export_listings_server en-/disables download button if prerequesites are (not) met}", {
+test_that("mod_export_listings_server en-/disables download button if prerequesites are (not) met", {
   # server arguments
   id <- "test"
   dataset_metadata <- list(
@@ -363,7 +364,8 @@ test_that("mod_export_listings_server places exported files in the local downloa
 
 app_dir <- "./apps/mm_app"
 
-test_that("mock_listings_mm exports all pages when downloading the currently displayed table in case of pagination turned on", { # nolint
+test_that("mock_listings_mm exports all pages when downloading the currently displayed table in case of pagination turned on" %>% # nolint
+  vdoc[["add_spec"]](specs$export_active_listing), { # nolint
   # Initialize test app
   app <- shinytest2::AppDriver$new(
     app_dir = app_dir, name = "test_restore_row_order"

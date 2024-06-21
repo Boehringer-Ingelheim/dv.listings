@@ -251,7 +251,6 @@ empty_rownames <- purrr::imap(rep("", PDF_EXP$LABEL_WIDTH), ~ paste(rep(.x, .y),
 test_that("pdf_preprocessing() throws an error when argument types mismatch", {
   # arguments
   df_valid <- dm_dummy
-
   unnamed <- data.frame(test = cbind(1:10, 11:20))
   colnames(unnamed) <- NULL
   duplicated_names <- data.frame(test = cbind(1:10, 11:20))
@@ -349,7 +348,8 @@ test_that("pdf_preprocessing() deals with data frames containing only one row", 
   expect_identical(pdf_preprocessing_res, pdf_preprocessing_exp)
 })
 
-test_that("pdf_preprocessing() changes column order due to reference column specification", {
+test_that("pdf_preprocessing() changes column order due to reference column specification" %>%
+  vdoc[["add_spec"]](specs$export_pdf), {
   # df argument
   len <- 4
   df <- simple_dummy[1:2, 1:len]
@@ -488,10 +488,15 @@ test_that("prep_export_data() performs the correct transformation in the single 
   expect_identical(res, exp)
 })
 
-test_that("prep_export_data() performs the correct transformation in the multiple dataset case", {
+test_that("prep_export_data() performs the correct transformation in the multiple dataset case" %>%
+  vdoc[["add_spec"]](specs$export_excel), {
   # arguments
   data_selection_valid <- "all"
-  dataset_list_valid <- list("dummy1" = simple_dummy, "dummy2" = simple_dummy[1:5], "dummy3" = simple_dummy[5:10])
+  dataset_list_valid <- list(
+    "dummy1" = simple_dummy,
+    "dummy2" = simple_dummy[1:5],
+    "dummy3" = simple_dummy[5:10]
+  )
   attributes(dataset_list_valid$dummy1)$label <- "My Label 1"
   attributes(dataset_list_valid$dummy2)$label <- "My Label 2"
   attributes(dataset_list_valid$dummy3)$label <- "My Label 3"
@@ -499,7 +504,12 @@ test_that("prep_export_data() performs the correct transformation in the multipl
   data_selection_name_valid <- names(dataset_list_valid)[1]
 
   # result
-  res <- prep_export_data(data_selection_valid, current_data_valid, data_selection_name_valid, dataset_list_valid)
+  res <- prep_export_data(
+    data_selection_valid,
+    current_data_valid,
+    data_selection_name_valid,
+    dataset_list_valid
+  )
 
   # perform tests
   expect_identical(names(res), c("dummy1 (My Label 1)", "dummy2 (My Label 2)", "dummy3 (My Label 3)"))
@@ -540,7 +550,8 @@ test_that("excel_export() throws an error when argument types mismatch", {
   purrr::walk(file_invalid, ~ expect_error(excel_export(data_to_download_valid, .x)))
 })
 
-test_that("excel_export() exports the .xlsx file as intended", {
+test_that("excel_export() exports the .xlsx file as intended" %>%
+  vdoc[["add_spec"]](specs$export_excel), {
   # arguments
   data_to_download <- list("dummy1" = simple_dummy, "dummy2" = simple_dummy[2:7])
   file <- paste0(getwd(), "/testfile.xlsx")
@@ -615,7 +626,8 @@ test_that("pdf_export() throws an error when argument types mismatch", {
   )))
 })
 
-test_that("pdf_export() exports the .pdf file as intended", {
+test_that("pdf_export() exports the .pdf file as intended" %>%
+  vdoc[["add_spec"]](specs$export_pdf), {
   # arguments
   data_to_download <- list("dummy_data" = simple_dummy)
   ref <- c("var2 [No label]")

@@ -130,7 +130,8 @@ test_that("listings_server() fails when argument type mismatches", {
   )
 })
 
-test_that("listings_server() saves default_vars in the selected_columns_in_dataset at app launch", {
+test_that("listings_server() saves default_vars in the selected_columns_in_dataset at app launch" %>%
+  vdoc[["add_spec"]](specs$default_vars), {
   # Prepare test parameters
   dataset_list <- list(dm = dm_dummy, ae = ae_dummy)
   default_vars <- list(dm = c("USUBJID", "AGE", "SEX"), ae = c("USUBJID", "AETERM", "AESEV"))
@@ -156,7 +157,8 @@ test_that("listings_server() saves default_vars in the selected_columns_in_datas
   )
 })
 
-test_that("listings_server() adds default variables, if not specified by the app creator", {
+test_that("listings_server() adds default variables, if not specified by the app creator" %>%
+  vdoc[["add_spec"]](specs$default_vars), {
   # Prepare test parameters
   dataset_list <- list(dm = dm_dummy, ae = ae_dummy)
   default_vars <- list(dm = c("USUBJID", "AGE", "SEX"))
@@ -194,7 +196,8 @@ app <- shinytest2::AppDriver$new(
 
 app_dir <- app$get_url()
 
-test_that("listings_server() stores the selected_columns_in_dataset and the currently selected dataset for bookmarking", { # nolint
+test_that("listings_server() stores the selected_columns_in_dataset and the currently selected dataset for bookmarking" %>% # nolint
+  vdoc[["add_spec"]](specs$retain_last_selection), { # nolint
   # Initialize test app
   app <- shinytest2::AppDriver$new(
     app_dir = app_dir, name = "test_on_bookmark_TAB-SO-763"
@@ -213,13 +216,18 @@ test_that("listings_server() stores the selected_columns_in_dataset and the curr
   query_string_list <- parseQueryString(bmk_url, nested = TRUE)
 
   expected_elements <- c("dummy1", "var1", "var2", "var3", "dummy2", "var2", "var4")
-  exist <- purrr::map2_lgl(expected_elements, query_string_list$`listings-selected_columns_in_dataset`, grepl)
+  exist <- purrr::map2_lgl(
+    expected_elements,
+    query_string_list$`listings-selected_columns_in_dataset`,
+    grepl
+  )
 
   testthat::expect_true(all(exist))
   testthat::expect_true(grepl("dummy2", query_string_list$`listings-data_sel`))
 })
 
-test_that("listings_server() restores the selected_columns_in_dataset and the currently selected dataset for bookmarking", { # nolint
+test_that("listings_server() restores the selected_columns_in_dataset and the currently selected dataset for bookmarking" %>% # nolint
+  vdoc[["add_spec"]](specs$retain_last_selection), { # nolint
   # Initialize test app
   app <- shinytest2::AppDriver$new(
     app_dir = app_dir, name = "test_restore_bookmark_TAB-SO-777"
@@ -242,7 +250,8 @@ test_that("listings_server() restores the selected_columns_in_dataset and the cu
   testthat::expect_equal(actual, expected)
 })
 
-test_that("listings_server() allows bookmarking for dataset and column selections", {
+test_that("listings_server() allows bookmarking for dataset and column selections" %>%
+  vdoc[["add_spec"]](specs$bookmarking), {
   # Initialize test app
   app <- shinytest2::AppDriver$new(
     app_dir = app_dir, name = "test_on_bookmark_TAB-SO-777"
@@ -334,7 +343,14 @@ test_that("mod_listings() returns a list containing all information for dv.manag
 
 
 
-test_that("mod_listings() displays a data table, dataset selector and corresponding column selector at app launch", {
+test_that("mod_listings() displays a data table, dataset selector and corresponding column selector at app launch" %>%
+  vdoc[["add_spec"]](
+    c(
+      specs$display_listing,
+      specs$listing_selection,
+      specs$column_selection
+    )
+  ), {
   # Initialize test app
   app <- shinytest2::AppDriver$new(
     app_dir = app_dir, name = "test_initial_state"
@@ -348,7 +364,13 @@ test_that("mod_listings() displays a data table, dataset selector and correspond
   testthat::expect_true(!is.null(dataset_sel) && !is.null(column_sel) && !is.null(table_out))
 })
 
-test_that("mod_listings() restores row order of the whole table when restoring a sorted variable", {
+test_that("mod_listings() restores row order of the whole table when restoring a sorted variable" %>%
+  vdoc[["add_spec"]](
+    c(
+      specs$restore_row_order,
+      specs$sorting_columns
+    )
+  ), {
   # Initialize test app
   app <- shinytest2::AppDriver$new(
     app_dir = app_dir, name = "test_restore_row_order"
@@ -360,21 +382,17 @@ test_that("mod_listings() restores row order of the whole table when restoring a
 
   # Perform steps within test app
   app$wait_for_idle()
-  initial_rows <- (app$get_values(input = "listings-listing_rows_all"))[["input"]][["listings-listing_rows_all"]]
+  initial_rows <- app$get_value(input = "listings-listing_rows_all")
   app$click(selector = sort_selector)
   app$wait_for_idle()
-  sorted_rows <- (app$get_values(input = "listings-listing_rows_all"))[["input"]][["listings-listing_rows_all"]]
+  sorted_rows <- app$get_value(input = "listings-listing_rows_all")
   app$click(selector = reset_selector)
   app$wait_for_idle()
-  reset_rows <- (app$get_values(input = "listings-listing_rows_all"))[["input"]][["listings-listing_rows_all"]]
+  reset_rows <- app$get_value(input = "listings-listing_rows_all")
 
   # Perform test that row order changed and then gets restored
   testthat::expect_false(all(initial_rows == sorted_rows))
   testthat::expect_identical(initial_rows, reset_rows)
-})
-
-test_that("mod_listings() restores even from nested variable sorting", {
-  skip("Nested variable sorting not available.")
 })
 
 app_dir <- "./apps/mm_app" # applies for all tests within this describe()
@@ -410,7 +428,8 @@ test_that("mock_listings_mm() launches successfully the module via dv.manager", 
   testthat::expect_true((col_sel && data_sel && out_table))
 }) # integration
 
-test_that("mock_table_mm() displays the column names with the corresponding labels", {
+test_that("mock_table_mm() displays the column names with the corresponding labels" %>%
+  vdoc[["add_spec"]](specs$column_label), {
   # Initialize test app
   app <- shinytest2::AppDriver$new(
     app_dir = app_dir, name = "test_col_labels_TAB-SO-760"
@@ -429,7 +448,8 @@ test_that("mock_table_mm() displays the column names with the corresponding labe
   testthat::expect_equal(actual, expected)
 })
 
-test_that("mock_table_mm() updates dropdown choices on dataset change in dv.manager", {
+test_that("mock_table_mm() updates dropdown choices on dataset change in dv.manager" %>%
+  vdoc[["add_spec"]](specs$listings_label), {
   # Initialize test app
   app <- shinytest2::AppDriver$new(
     app_dir = app_dir, name = "test_update_labels"
