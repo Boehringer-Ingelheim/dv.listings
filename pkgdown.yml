@@ -3,5 +3,6 @@ pkgdown: 2.0.7
 pkgdown_sha: ~
 articles:
   disp: disp.html
-last_built: 2024-04-29T14:15Z
+  qc: qc.html
+last_built: 2024-06-21T10:44Z
 
