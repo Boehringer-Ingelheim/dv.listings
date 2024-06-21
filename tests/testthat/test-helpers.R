@@ -176,7 +176,13 @@ attributes(df1)$label <- "Test data 1"
 attributes(df1$mpg)$label <- "Col label 1"
 attributes(df1$type)$label <- "Col label 2"
 
-test_that("generate_choices() generates meaningful choices for datasets and columns to be used in the corresponding dropdown menues", { # nolint
+test_that("generate_choices() generates meaningful choices for datasets and columns to be used in the corresponding dropdown menues" %>% # nolint
+  vdoc[["add_spec"]](
+    c(
+      specs$listings_label,
+      specs$column_label
+    )
+  ), {
   df_list <- list(first = df1, second = df2)
 
   expected_df <- c("first [Test data 1]" = "first", "second [No label]" = "second")
