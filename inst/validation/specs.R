@@ -5,7 +5,7 @@ specs_list <- list
 listing <- specs_list(
   "display_listing" = "dv.listings displays a dataset as listing",
   "listing_selection" = "dv.listings includes a dropdown menu to select which dataset to be shown.",
-  "listings_label" = "dv.listings displays the label of a listing if available. The label is concatenated to the listing’s dataset name and the resulting strings are provided as choices in the listings dropdown menu.",
+  "listings_label" = "dv.listings displays the label of a dataset if available. The label is concatenated to the dataset name and the resulting strings are provided as choices in the module's dropdown menu.",
   "column_selection" = "dv.listings includes a dropdown menu to select the columns from the selected listing to be shown and arrange their order.",
   "column_label" = "dv.listings displays extended column headers consisting of the variable name pasted together with its label, if available. These extended column headers replace the original variable names in the column dropdown menu.",
   "sorting_columns" = "dv.listings includes sorting functionality for each of the column.",
