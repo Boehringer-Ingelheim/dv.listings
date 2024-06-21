@@ -1,5 +1,5 @@
 # Use a list to declare the specs
-# nolint start
+# nolint start line_length_linter
 specs_list <- list
 
 listing <- specs_list(
@@ -11,7 +11,7 @@ listing <- specs_list(
   "sorting_columns" = "dv.listings includes sorting functionality for each of the column.",
   "restore_row_order" = "dv.listings includes a button to restore the row order of a listing to the state as it is in the original data.",
   "default_vars" = "If pre-specifications for default columns are available, dv.listings will display them at app launch for the respective listing. If not, dv.listings will show the first six columns of the listing - or all columns, in case the number of columns is less than six.",
-  "retain_last_selection" = "dv.listings can remember and retain the last column selections after switching listings during the current session. It also restores the ",
+  "retain_last_selection" = "dv.listings can remember and retain the last column selections after switching listings during the current session. It also restores the remebered selections for all listings after bookmarking.",
   "bookmarking" = "The module is compatible with the bookmarking feature of the dv.manager."
 )
 export <- specs_list(
@@ -20,9 +20,9 @@ export <- specs_list(
   "export_excel" = "For downloading all listings, the tables can be saved in .xlsx format only without considering local filters. Each listing will be placed in an individual worksheet within the file.",
   "export_pdf" = "For downloading in .pdf format, users can select one or multiple reference column(s), which will be displayed on all document pages."
 )
+# nolint end line_length_linter
 
 specs <- c(
   listing,
   export
 )
-# nolint end
