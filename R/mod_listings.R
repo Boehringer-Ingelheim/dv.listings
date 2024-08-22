@@ -9,7 +9,9 @@ TBL <- pack_of_constants( # nolint
   DRPDBUTTON_LABEL = "Click to see inputs",
   TABLE_ID = "listing",
   NO_COL_MSG = "Please select at least one column.",
-  EXPORT_ID = "export"
+  EXPORT_ID = "export",
+  RESET_FILT_BUTTON_ID = "reset_filt_btn",
+  RESET_FILT_BUTTON_LABEL = "Reset all filters."
 )
 
 #' A module that displays datasets as listings
@@ -48,7 +50,12 @@ listings_UI <- function(module_id) { # nolint
       shiny::column(2, mod_export_listings_UI(module_id = ns(TBL$EXPORT_ID)), offset = 8)
     ),
     shiny::br(),
-    DT::dataTableOutput(ns(TBL$TABLE_ID), height = "80vh")
+    shiny::actionButton(ns(TBL$RESET_FILT_BUTTON_ID), 
+                        TBL$RESET_FILT_BUTTON_LABEL,
+                        icon = shiny::icon("filter-circle-xmark")),
+    shiny::br(),
+    DT::dataTableOutput(ns(TBL$TABLE_ID), height = "80vh"),
+    
   )
 }
 
@@ -204,7 +211,11 @@ listings_server <- function(module_id,
       current_rows = shiny::reactive(input[[paste0(TBL$TABLE_ID, "_rows_all")]]),
       intended_use_label = intended_use_label
     )
-
+    
+    # Proxy reference to dataTable
+    dt_proxy <- DT::dataTableProxy(TBL$TABLE_ID)
+    shiny::observeEvent(input[[TBL$RESET_FILT_BUTTON_ID]], DT::clearSearch(dt_proxy))
+    
     output[[TBL$TABLE_ID]] <- DT::renderDataTable({
       shiny::validate(shiny::need(!is.null(input[[TBL$COLUMNS_ID]]), TBL$NO_COL_MSG))
 
