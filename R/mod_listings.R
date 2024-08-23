@@ -11,7 +11,13 @@ TBL <- pack_of_constants( # nolint
   NO_COL_MSG = "Please select at least one column.",
   EXPORT_ID = "export",
   RESET_FILT_BUTTON_ID = "reset_filt_btn",
-  RESET_FILT_BUTTON_LABEL = "Reset all filters."
+  RESET_FILT_BUTTON_LABEL = "Reset all filters.",
+  SELECT_ALL_COLS_BUTTON_ID = "select_all_cols_btn",
+  SELECT_ALL_COLS_BUTTON_LABEL = "Select all variables.",
+  REMOVE_ALL_COLS_BUTTON_ID = "remove_all_cols_btn",
+  REMOVE_ALL_COLS_BUTTON_LABEL = "Remove all variables.",
+  RESET_COLS_DEFAULT_BUTTON_ID = "reset_cols_btn",
+  RESET_COLS_DEFAULT_BUTTON_LABEL = "Reset to default variables."
 )
 
 #' A module that displays datasets as listings
@@ -41,6 +47,9 @@ listings_UI <- function(module_id) { # nolint
           multiple = TRUE,
           options = list(plugins = list("remove_button", "drag_drop"))
         ),
+        shiny::actionButton(ns(TBL$SELECT_ALL_COLS_BUTTON_ID), TBL$SELECT_ALL_COLS_BUTTON_LABEL),
+        shiny::actionButton(ns(TBL$REMOVE_ALL_COLS_BUTTON_ID), TBL$REMOVE_ALL_COLS_BUTTON_LABEL),
+        shiny::actionButton(ns(TBL$RESET_COLS_DEFAULT_BUTTON_ID), TBL$RESET_COLS_DEFAULT_BUTTON_LABEL),
         circle = FALSE,
         icon = shiny::icon("cog"),
         width = TBL$DRPDBUTTON_WIDTH,
@@ -109,6 +118,9 @@ listings_server <- function(module_id,
       dataset_list()
     })
 
+    # Set choices as a reactive value item
+    rvs <- shiny::reactiveValues(dataset_choices = NA, variable_choices = NA)
+    
     # Listing selection (start)
     shiny::observeEvent(v_dataset_list(), {
       # Fill default in case bookmark or default columns do not have all the listings in the dataset
@@ -121,10 +133,10 @@ listings_server <- function(module_id,
       }
       bmk_dataset <<- NULL
 
-      choices <- generate_choices(v_dataset_list())
-      shiny::exportTestValues(dataset_choices = choices) # Export values for shinytest2  tests
+      rvs$dataset_choices <- generate_choices(v_dataset_list())
+      shiny::exportTestValues(dataset_choices = rvs$dataset_choices) # Export values for shinytest2  tests
 
-      shiny::updateSelectizeInput(inputId = TBL$DATASET_ID, choices = choices, selected = selected)
+      shiny::updateSelectizeInput(inputId = TBL$DATASET_ID, choices = rvs$dataset_choices, selected = selected)
     })
 
     listings_data <- shiny::reactive({
@@ -153,15 +165,35 @@ listings_server <- function(module_id,
           )
         }
 
-        choices <- generate_choices(listings_data())
+        rvs$variable_choices <- generate_choices(listings_data())
 
         shiny::updateSelectizeInput(
           inputId = TBL$COLUMNS_ID,
-          choices = choices,
+          choices = rvs$variable_choices,
           selected = r_selected_columns_in_dataset()[[input[[TBL$DATASET_ID]]]]
         )
       }
     )
+    
+    shiny::observeEvent(input[[TBL$SELECT_ALL_COLS_BUTTON_ID]], {
+      shiny::updateSelectizeInput(inputId  = TBL$COLUMNS_ID,
+                                  choices  = rvs$variable_choices, 
+                                  selected = rvs$variable_choices)
+    })
+    
+    shiny::observeEvent(input[[TBL$REMOVE_ALL_COLS_BUTTON_ID]], {
+      shiny::updateSelectizeInput(inputId  = TBL$COLUMNS_ID,
+                                  choices  = rvs$variable_choices, 
+                                  selected = NULL)
+    })
+    
+    shiny::observeEvent(input[[TBL$RESET_COLS_DEFAULT_BUTTON_ID]], {
+      r_selected_columns_in_dataset(fill_default_vars(default_vars, v_dataset_list()))
+      shiny::updateSelectizeInput(inputId  = TBL$COLUMNS_ID,
+                                  choices  = rvs$variable_choices, 
+                                  selected = r_selected_columns_in_dataset()[[input[[TBL$DATASET_ID]]]])
+    })
+    
 
     shiny::observeEvent(input[[TBL$COLUMNS_ID]], {
       selected_columns_in_dataset <- r_selected_columns_in_dataset()
