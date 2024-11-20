@@ -552,21 +552,21 @@ test_that("mock_table_mm() displays selected dataset after activating global fil
   app <- shinytest2::AppDriver$new(
     app_dir = app_dir, name = "test_global_filter_selected_dataset"
   )
-  
+
   selected <- "adae"
   # Switch dataset
   app$set_inputs(`multi-dataset` = selected)
   app$wait_for_idle()
-  
+
   # Activate global filter
   app$set_inputs(`global_filter-vars` = "RACE")
   app$wait_for_idle()
-  
+
   actual <- app$get_value(input = "multi-dataset")
-  
+
   # Kill test app
   app$stop()
-  
+
   testthat::expect_equal(actual, expected = selected)
 }) # integration
 
@@ -575,24 +575,24 @@ test_that("Select and Deselect All Columns work correctly", {
   app <- shinytest2::AppDriver$new(
     app_dir = app_dir, name = "test_select_deselect_columns"
   )
-  
+
   # Get initial column selection
-  initial_columns <- app$get_value(input = "col_sel") 
-  
+  initial_columns <- app$get_value(input = "col_sel")
+
   # Check "Select All Columns" button
   app$click("select_all_cols_btn")
   selected_columns <- app$get_value(input = "col_sel")
-  
+
   # Check all columns selected
   all_choices <- app$get_value(input = "col_sel-options")
   expect_setequal(selected_columns, all_choices)
-  
+
   # Check "Deselect All Columns" button
-  app$click("remove_all_cols_btn") 
+  app$click("remove_all_cols_btn")
   deselected_columns <- app$get_value(input = "col_sel")
-  
+
   # Check no columns are selected
   expect_equal(deselected_columns, NULL)
-  
+
   app$stop()
 })

@@ -50,7 +50,7 @@ mod_export_listings_UI <- function(module_id) { # nolint
     shinyjs::useShinyjs(), # needed to use shinyjs functionalities
 
     shiny::actionButton(
-      ns(EXP$EXPORTBTN_ID), 
+      ns(EXP$EXPORTBTN_ID),
       label = EXP$EXPORTBTN_LABEL,
       icon = shiny::icon("download")
     )

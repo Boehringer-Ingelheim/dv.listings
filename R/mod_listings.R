@@ -38,7 +38,7 @@ listings_UI <- function(module_id) { # nolint
   shiny::tagList(
     shiny::fluidRow(
       shiny::column(
-        2, 
+        2,
         shinyWidgets::dropdownButton(
           inputId = ns(TBL$DRPDBUTTON_ID),
           shiny::selectizeInput(ns(TBL$DATASET_ID), label = TBL$DATASET_LABEL, choices = NULL),
@@ -57,18 +57,18 @@ listings_UI <- function(module_id) { # nolint
           width = TBL$DRPDBUTTON_WIDTH,
           label = TBL$DRPDBUTTON_LABEL,
           tooltip = shinyWidgets::tooltipOptions(title = TBL$DRPDBUTTON_LABEL)
-        )),
+        )
+      ),
       shiny::column(2, mod_export_listings_UI(module_id = ns(TBL$EXPORT_ID)), offset = 8)
     ),
     shiny::br(),
     shiny::actionButton(
-      ns(TBL$RESET_FILT_BUTTON_ID), 
+      ns(TBL$RESET_FILT_BUTTON_ID),
       TBL$RESET_FILT_BUTTON_LABEL,
       icon = shiny::icon("filter-circle-xmark")
     ),
     shiny::br(),
     DT::dataTableOutput(ns(TBL$TABLE_ID), height = "80vh"),
-    
   )
 }
 
@@ -124,7 +124,7 @@ listings_server <- function(module_id,
 
     # Set choices as a reactive value item
     rvs <- shiny::reactiveValues(dataset_choices = NA, variable_choices = NA)
-    
+
     # Listing selection (start)
     shiny::observeEvent(v_dataset_list(), {
       # Fill default in case bookmark or default columns do not have all the listings in the dataset
@@ -178,32 +178,32 @@ listings_server <- function(module_id,
         )
       }
     )
-    
+
     shiny::observeEvent(input[[TBL$SELECT_ALL_COLS_BUTTON_ID]], {
       shiny::updateSelectizeInput(
         inputId  = TBL$COLUMNS_ID,
-        choices  = rvs$variable_choices, 
+        choices  = rvs$variable_choices,
         selected = rvs$variable_choices
       )
     })
-    
+
     shiny::observeEvent(input[[TBL$REMOVE_ALL_COLS_BUTTON_ID]], {
       shiny::updateSelectizeInput(
         inputId  = TBL$COLUMNS_ID,
-        choices  = rvs$variable_choices, 
+        choices  = rvs$variable_choices,
         selected = NULL
       )
     })
-    
+
     shiny::observeEvent(input[[TBL$RESET_COLS_DEFAULT_BUTTON_ID]], {
       r_selected_columns_in_dataset(fill_default_vars(default_vars, v_dataset_list()))
       shiny::updateSelectizeInput(
         inputId  = TBL$COLUMNS_ID,
-        choices  = rvs$variable_choices, 
+        choices  = rvs$variable_choices,
         selected = r_selected_columns_in_dataset()[[input[[TBL$DATASET_ID]]]]
       )
     })
-    
+
 
     shiny::observeEvent(input[[TBL$COLUMNS_ID]], {
       selected_columns_in_dataset <- r_selected_columns_in_dataset()
@@ -253,11 +253,11 @@ listings_server <- function(module_id,
       current_rows = shiny::reactive(input[[paste0(TBL$TABLE_ID, "_rows_all")]]),
       intended_use_label = intended_use_label
     )
-    
+
     # Proxy reference to dataTable
     dt_proxy <- DT::dataTableProxy(TBL$TABLE_ID)
     shiny::observeEvent(input[[TBL$RESET_FILT_BUTTON_ID]], DT::clearSearch(dt_proxy))
-    
+
     output[[TBL$TABLE_ID]] <- DT::renderDataTable({
       shiny::validate(shiny::need(!is.null(input[[TBL$COLUMNS_ID]]), TBL$NO_COL_MSG))
 
@@ -306,8 +306,8 @@ listings_server <- function(module_id,
           dom = "Bfrtilp",
           buttons = list(
             list(
-              extend = "collection", 
-              text = "Reset rows order", 
+              extend = "collection",
+              text = "Reset rows order",
               action = htmlwidgets::JS(js)
             )
           )
