@@ -196,7 +196,9 @@ listings_server <- function(module_id,
     })
 
     shiny::observeEvent(input[[TBL$RESET_COLS_DEFAULT_BUTTON_ID]], {
-      r_selected_columns_in_dataset(fill_default_vars(default_vars, v_dataset_list()))
+      r_selected_columns_in_dataset(
+        fill_default_vars(default_vars, v_dataset_list())
+      )
       shiny::updateSelectizeInput(
         inputId  = TBL$COLUMNS_ID,
         choices  = rvs$variable_choices,
@@ -207,7 +209,9 @@ listings_server <- function(module_id,
 
     shiny::observeEvent(input[[TBL$COLUMNS_ID]], {
       selected_columns_in_dataset <- r_selected_columns_in_dataset()
-      selected_columns_in_dataset[[input[[TBL$DATASET_ID]]]] <- input[[TBL$COLUMNS_ID]]
+      selected_columns_in_dataset[[input[[TBL$DATASET_ID]]]] <- input[[
+        TBL$COLUMNS_ID
+      ]]
       r_selected_columns_in_dataset(selected_columns_in_dataset)
     })
 
