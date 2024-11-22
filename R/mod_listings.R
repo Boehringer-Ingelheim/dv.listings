@@ -42,6 +42,11 @@ listings_UI <- function(module_id) { # nolint
         shinyWidgets::dropdownButton(
           inputId = ns(TBL$DRPDBUTTON_ID),
           shiny::selectizeInput(ns(TBL$DATASET_ID), label = TBL$DATASET_LABEL, choices = NULL),
+          shiny::tags[["style"]](shiny::HTML(paste0(
+            "#",
+            ns(TBL$COLUMNS_ID),
+            " + div.selectize-control div.selectize-input.items {max-height:200px; overflow-y:auto;}"
+          ))),
           shiny::selectizeInput(
             ns(TBL$COLUMNS_ID),
             label = TBL$COLUMNS_LABEL,
