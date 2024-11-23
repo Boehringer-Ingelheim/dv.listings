@@ -448,7 +448,7 @@ test_that("mock_table_mm() displays the column names with the corresponding labe
   testthat::expect_equal(actual, expected)
 })
 
-test_that("mock_table_mm() updates dropdown choices on dataset change in dv.manager" %>%
+test_that("mock_table_mm() updates dropdown choices with labels on dataset change in dv.manager" %>%
   vdoc[["add_spec"]](specs$listings_label), {
   # Initialize test app
   app <- shinytest2::AppDriver$new(
@@ -464,23 +464,34 @@ test_that("mock_table_mm() updates dropdown choices on dataset change in dv.mana
 
   actual <- app$get_value(export = "multi-dataset_choices")
 
+  app$stop()
+  
   # Verify that dataset choices are displayed properly with their labels
   testthat::expect_equal(actual, expected = expected)
-  rm(actual, expected)
 
-  # Switch overall dataset (via module manager)
-  app$set_inputs(selector = "demo no labels", wait_ = FALSE)
+}) # integration
 
+test_that("mock_table_mm() updates dropdown choices without labels on dataset change in dv.manager" %>%
+            vdoc[["add_spec"]](specs$listings_label), {
+  # Initialize test app
+  app <- shinytest2::AppDriver$new(
+    app_dir = app_dir, name = "test_update_no_labels"
+  )
+  
+  app$set_inputs(selector = "demo no labels", wait_ = FALSE) # Switch overall dataset (via module manager)
+  
   expected <- c(
     "adsl [No label]" = "adsl",
     "adae [No label]" = "adae",
     "small [No label]" = "small"
   )
-
+  
   actual <- app$get_value(export = "multi-dataset_choices")
-
-  # Verify that dataset choices were updated due to dataset switch
+  
+  app$stop()
+  
   testthat::expect_equal(actual, expected = expected)
+  
 }) # integration
 
 test_that("mock_table_mm() displays no table when global filter returns an empty data.frame", {
@@ -576,7 +587,7 @@ app_dir <- "./apps/listings_app" # applies for all tests within this describe()
 app <- shinytest2::AppDriver$new(app_dir = app_dir, name = "test_listings_app")
 app_dir <- app$get_url()
 
-test_that("Check select, unselect and reset all columns, works correctly", {
+test_that("Check select all columns works correctly", {
   app <- shinytest2::AppDriver$new(
     app_dir = app_dir, name = "test_select_all_columns"
   )
@@ -589,22 +600,47 @@ test_that("Check select, unselect and reset all columns, works correctly", {
   # CHECK ALL COLS SELECTED
   app$click("listings-select_all_cols_btn")
   actual <- app$get_value(input = "listings-col_sel")
+  app$stop()
+  
   expected <- names(simple_dummy)
-
   testthat::expect_equal(actual, expected)
+  
+}) # integration
+
+test_that("Check unselect all columns works correctly", {
+  app <- shinytest2::AppDriver$new(
+    app_dir = app_dir, name = "test_unselect_all_columns"
+  )
+  
+  # SET INITIAL DATASET
+  app$click("listings-dropdown_btn")
+  app$set_inputs(`listings-dropdown_btn_state` = TRUE, wait_ = FALSE)
+  app$set_inputs(`listings-dataset` = "dummy1", wait_ = FALSE) # set to simple_dummy data
 
   # CHECK ALL COLS UNSELECTED
   app$click("listings-remove_all_cols_btn")
   actual <- app$get_value(input = "listings-col_sel")
-
+  app$stop()
   testthat::expect_null(actual)
 
+}) # integration
+
+test_that("Check reset all columns works correctly", {
+  app <- shinytest2::AppDriver$new(
+    app_dir = app_dir, name = "test_reset_columns"
+  )
+  
+  # SET INITIAL DATASET
+  app$click("listings-dropdown_btn")
+  app$set_inputs(`listings-dropdown_btn_state` = TRUE, wait_ = FALSE)
+  app$set_inputs(`listings-dataset` = "dummy1", wait_ = FALSE) # set to simple_dummy data
+  
   # CHECK COLS RESET TO DEFAULT VARS
   app$click("listings-reset_cols_btn")
   actual <- app$get_value(input = "listings-col_sel")
-  expected <- names(simple_dummy)[1:3]
-
-  testthat::expect_equal(actual, expected)
-
   app$stop()
-})
+  expected <- names(simple_dummy)[1:3]
+  
+  testthat::expect_equal(actual, expected)
+  
+}) # integration
