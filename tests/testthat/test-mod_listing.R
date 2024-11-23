@@ -461,35 +461,27 @@ test_that("mock_table_mm() updates dropdown choices with labels on dataset chang
     "adae [Adverse Events]" = "adae",
     "small [Few columns]" = "small"
   )
-
   actual <- app$get_value(export = "multi-dataset_choices")
-
-  app$stop()
-
+  
   # Verify that dataset choices are displayed properly with their labels
   testthat::expect_equal(actual, expected = expected)
-}) # integration
+  
 
-test_that("mock_table_mm() updates dropdown choices without labels on dataset change in dv.manager" %>%
-  vdoc[["add_spec"]](specs$listings_label), {
-  # Initialize test app
-  app <- shinytest2::AppDriver$new(
-    app_dir = app_dir, name = "test_update_no_labels"
-  )
-
-  app$set_inputs(selector = "demo no labels", wait_ = FALSE) # Switch overall dataset (via module manager)
-
+  app$set_inputs(selector = "demo no labels") # Switch overall dataset (via module manager)
+  app$click("multi-dropdown_btn")
+  app$set_inputs(`multi-dropdown_btn_state` = TRUE)
+  app$wait_for_idle(500)
+  
   expected <- c(
     "adsl [No label]" = "adsl",
     "adae [No label]" = "adae",
     "small [No label]" = "small"
   )
-
-  actual <- app$get_value(export = "multi-dataset_choices")
-
+  actual <- app$wait_for_value(export = "multi-dataset_choices", ignore = list(actual), timeout = 10e3)
   app$stop()
-
   testthat::expect_equal(actual, expected = expected)
+  
+  
 }) # integration
 
 test_that("mock_table_mm() displays no table when global filter returns an empty data.frame", {
