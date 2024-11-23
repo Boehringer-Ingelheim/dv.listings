@@ -467,7 +467,7 @@ test_that("mock_table_mm() updates dropdown choices on dataset change in dv.mana
   # Verify that dataset choices are displayed properly with their labels
   testthat::expect_equal(actual, expected = expected)
   rm(actual, expected)
-  
+
   # Switch overall dataset (via module manager)
   app$set_inputs(selector = "demo no labels", wait_ = FALSE)
 
@@ -585,25 +585,25 @@ test_that("Check select, unselect and reset all columns, works correctly", {
   app$click("listings-dropdown_btn")
   app$set_inputs(`listings-dropdown_btn_state` = TRUE, wait_ = FALSE)
   app$set_inputs(`listings-dataset` = "dummy1", wait_ = FALSE) # set to simple_dummy data
-  
+
   # CHECK ALL COLS SELECTED
   app$click("listings-select_all_cols_btn")
-  actual   <- app$get_value(input = "listings-col_sel")
+  actual <- app$get_value(input = "listings-col_sel")
   expected <- names(simple_dummy)
-  
+
   testthat::expect_equal(actual, expected)
-  
+
   # CHECK ALL COLS UNSELECTED
   app$click("listings-remove_all_cols_btn")
   actual <- app$get_value(input = "listings-col_sel")
-  
+
   testthat::expect_null(actual)
-  
+
   # CHECK COLS RESET TO DEFAULT VARS
   app$click("listings-reset_cols_btn")
-  actual   <- app$get_value(input = "listings-col_sel")
+  actual <- app$get_value(input = "listings-col_sel")
   expected <- names(simple_dummy)[1:3]
-  
+
   testthat::expect_equal(actual, expected)
 
   app$stop()
