@@ -454,30 +454,35 @@ test_that("mock_table_mm() updates dropdown choices with labels on dataset chang
   app <- shinytest2::AppDriver$new(
     app_dir = app_dir, name = "test_update_labels"
   )
-
+  app$wait_for_idle()
+  
   app$set_inputs(selector = "demo", wait_ = FALSE)
+  app$wait_for_idle()
+  
   expected <- c(
     "adsl [Subject Level]" = "adsl",
     "adae [Adverse Events]" = "adae",
     "small [Few columns]" = "small"
   )
   actual <- app$get_value(export = "multi-dataset_choices")
-
-  # Verify that dataset choices are displayed properly with their labels
+  
+  actual <- app$wait_for_value(
+    export = "multi-dataset_choices", ignore = list(NULL), timeout = 5e3
+  )
   testthat::expect_equal(actual, expected = expected)
-
 
   app$set_inputs(selector = "demo no labels") # Switch overall dataset (via module manager)
   app$click("multi-dropdown_btn")
   app$set_inputs(`multi-dropdown_btn_state` = TRUE)
-  app$wait_for_idle(500)
 
   expected <- c(
     "adsl [No label]" = "adsl",
     "adae [No label]" = "adae",
     "small [No label]" = "small"
   )
-  actual <- app$wait_for_value(export = "multi-dataset_choices", ignore = list(actual), timeout = 10e3)
+  actual <- app$wait_for_value(
+    export = "multi-dataset_choices", ignore = list(actual), timeout = 10e3
+  )
   app$stop()
   testthat::expect_equal(actual, expected = expected)
 }) # integration
@@ -514,6 +519,7 @@ test_that("mock_table_mm() displays selected columns after activating global fil
   # Set selected columns
   selected_cols <- c("STUDYID", "USUBJID")
   app$set_inputs(`multi-col_sel` = selected_cols)
+  app$wait_for_idle()
 
   # Activate global filter
   app$set_inputs(`global_filter-vars` = "RACE")
@@ -628,4 +634,36 @@ test_that("Check reset all columns works correctly", {
   expected <- names(simple_dummy)[1:3]
 
   testthat::expect_equal(actual, expected)
+}) # integration
+
+test_that("Check reset filters works correctly", {
+  app <- shinytest2::AppDriver$new(
+    app_dir = app_dir, name = "test_reset_filters"
+  )
+  
+  # SET INITIAL DATASET
+  app$click("listings-dropdown_btn")
+  app$set_inputs(`listings-dropdown_btn_state` = TRUE, wait_ = FALSE)
+  app$set_inputs(`listings-dataset` = "dummy1", wait_ = FALSE) # set to simple_dummy data
+  
+  expected <- app$wait_for_value(output = "listings-listing", ignore = list(NULL), timeout = 5e3)
+  
+  # SET COL FILTERS
+  app$set_inputs(
+    `listings-listing_search_columns` = c("4 ... 31", "23 ... 48", "2 ... 30"), 
+    allow_no_input_binding_ = TRUE
+  )
+  
+  app$wait_for_idle()
+  interim_data <- app$get_value(output = "listings-listing")
+  
+  # PRESS RESET FILT BUTTON
+  app$click("listings-reset_filt_btn")
+  app$wait_for_idle()
+  
+  actual <- app$get_value(output = "listings-listing")
+  app$wait_for_idle()
+  
+  testthat::expect_equal(actual, expected)
+  
 }) # integration
