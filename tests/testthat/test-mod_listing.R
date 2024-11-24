@@ -448,7 +448,7 @@ test_that("mock_table_mm() displays the column names with the corresponding labe
   testthat::expect_equal(actual, expected)
 })
 
-test_that("mock_table_mm() updates dropdown choices with labels on dataset change in dv.manager" %>%
+test_that("mock_table_mm() updates dropdown choices on dataset change in dv.manager" %>%
   vdoc[["add_spec"]](specs$listings_label), {
   # Initialize test app
   app <- shinytest2::AppDriver$new(
