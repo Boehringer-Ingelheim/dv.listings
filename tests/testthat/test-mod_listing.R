@@ -455,17 +455,17 @@ test_that("mock_table_mm() updates dropdown choices on dataset change in dv.mana
     app_dir = app_dir, name = "test_update_labels"
   )
   app$wait_for_idle()
-
+  
   app$set_inputs(selector = "demo", wait_ = FALSE)
   app$wait_for_idle()
-
+  
   expected <- c(
     "adsl [Subject Level]" = "adsl",
     "adae [Adverse Events]" = "adae",
     "small [Few columns]" = "small"
   )
   actual <- app$get_value(export = "multi-dataset_choices")
-
+  
   actual <- app$wait_for_value(
     export = "multi-dataset_choices", ignore = list(NULL), timeout = 5e3
   )
@@ -640,21 +640,24 @@ test_that("Check reset filters works correctly", {
   app <- shinytest2::AppDriver$new(
     app_dir = app_dir, name = "test_reset_filters"
   )
-
+  
   # SET INITIAL DATASET
   app$click("listings-dropdown_btn")
   app$set_inputs(`listings-dropdown_btn_state` = TRUE, wait_ = FALSE)
   app$set_inputs(`listings-dataset` = "dummy1", wait_ = FALSE) # set to simple_dummy data
-
+  expected <- app$wait_for_value(
+    output = "listings-listing", ignore = list(NULL), timeout = 800
+  )
+  
   # SET COL FILTERS
   app$set_inputs(
-    `listings-listing_search_columns` = c("4 ... 31", "23 ... 48", "2 ... 30"),
+    `listings-listing_search_columns` = c("4 ... 31", "23 ... 48", "2 ... 30"), 
     allow_no_input_binding_ = TRUE
   )
-
+  
   # PRESS RESET FILT BUTTON
   app$click("listings-reset_filt_btn")
-  app$get_value(output = "listings-listing")
-
+  actual <- app$get_value(output = "listings-listing")
+  
   testthat::expect_equal(actual, expected)
 }) # integration
