@@ -1,3 +1,11 @@
+# dv.listings 4.0.1
+
+The module allows now to 
+- select all columns
+- unselect all columns
+- reset to default columns
+- reset filters
+
 # dv.listings 4.0.0
 
 Package was renamed to dv.listings.

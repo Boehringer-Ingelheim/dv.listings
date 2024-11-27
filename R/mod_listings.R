@@ -45,7 +45,7 @@ listings_UI <- function(module_id) { # nolint
           shiny::tags[["style"]](shiny::HTML(paste0(
             "#",
             ns(TBL$COLUMNS_ID),
-            " + div.selectize-control div.selectize-input.items {max-height:200px; overflow-y:auto;}"
+            " + div.selectize-control div.selectize-input.items {max-height:250px; overflow-y:auto;}"
           ))),
           shiny::selectizeInput(
             ns(TBL$COLUMNS_ID),
@@ -54,9 +54,21 @@ listings_UI <- function(module_id) { # nolint
             multiple = TRUE,
             options = list(plugins = list("remove_button", "drag_drop"))
           ),
-          shiny::actionButton(ns(TBL$SELECT_ALL_COLS_BUTTON_ID), TBL$SELECT_ALL_COLS_BUTTON_LABEL),
-          shiny::actionButton(ns(TBL$REMOVE_ALL_COLS_BUTTON_ID), TBL$REMOVE_ALL_COLS_BUTTON_LABEL),
-          shiny::actionButton(ns(TBL$RESET_COLS_DEFAULT_BUTTON_ID), TBL$RESET_COLS_DEFAULT_BUTTON_LABEL),
+          shiny::actionButton(
+            ns(TBL$SELECT_ALL_COLS_BUTTON_ID), 
+            TBL$SELECT_ALL_COLS_BUTTON_LABEL, 
+            icon = shiny::icon("check-double")
+          ),
+          shiny::actionButton(
+            ns(TBL$REMOVE_ALL_COLS_BUTTON_ID),
+            TBL$REMOVE_ALL_COLS_BUTTON_LABEL, 
+            icon = shiny::icon("xmark")
+          ),
+          shiny::actionButton(
+            ns(TBL$RESET_COLS_DEFAULT_BUTTON_ID),
+            TBL$RESET_COLS_DEFAULT_BUTTON_LABEL, 
+            icon = shiny::icon("rotate-left")
+          ), 
           circle = FALSE,
           icon = shiny::icon("cog"),
           width = TBL$DRPDBUTTON_WIDTH,

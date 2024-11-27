@@ -553,35 +553,12 @@ test_that("mock_table_mm() displays selected dataset after activating global fil
   testthat::expect_equal(actual, expected = selected)
 }) # integration
 
-
-test_that("mock_table_mm() displays selected dataset after activating global filter", {
-  # Initialize test app
-  app <- shinytest2::AppDriver$new(
-    app_dir = app_dir, name = "test_global_filter_selected_dataset"
-  )
-
-  selected <- "adae"
-  # Switch dataset
-  app$set_inputs(`multi-dataset` = selected)
-  app$wait_for_idle()
-
-  # Activate global filter
-  app$set_inputs(`global_filter-vars` = "RACE")
-  app$wait_for_idle()
-
-  actual <- app$get_value(input = "multi-dataset")
-
-  # Kill test app
-  app$stop()
-
-  testthat::expect_equal(actual, expected = selected)
-}) # integration
-
-app_dir <- "./apps/listings_app" 
+app_dir <- "./apps/listings_app" # applies for all tests within this describe()
 app <- shinytest2::AppDriver$new(app_dir = app_dir, name = "test_listings_app")
 app_dir <- app$get_url()
 
-test_that("Check select all columns works correctly", {
+test_that("selecting all columns works correctly" %>%
+            vdoc[["add_spec"]](specs$select_all_columns), {
   app <- shinytest2::AppDriver$new(
     app_dir = app_dir, name = "test_select_all_columns"
   )
@@ -598,9 +575,10 @@ test_that("Check select all columns works correctly", {
 
   expected <- names(simple_dummy)
   testthat::expect_equal(actual, expected)
-}) # integration
+})
 
-test_that("Check unselect all columns works correctly", {
+test_that("unselecting all columns works correctly" %>%
+            vdoc[["add_spec"]](specs$unselect_all_columns), {
   app <- shinytest2::AppDriver$new(
     app_dir = app_dir, name = "test_unselect_all_columns"
   )
@@ -615,9 +593,10 @@ test_that("Check unselect all columns works correctly", {
   actual <- app$get_value(input = "listings-col_sel")
   app$stop()
   testthat::expect_null(actual)
-}) # integration
+})
 
-test_that("Check reset all columns works correctly", {
+test_that("resetting all columns works correctly" %>%
+            vdoc[["add_spec"]](specs$reset_columns), {
   app <- shinytest2::AppDriver$new(
     app_dir = app_dir, name = "test_reset_columns"
   )
@@ -634,9 +613,10 @@ test_that("Check reset all columns works correctly", {
   expected <- names(simple_dummy)[1:3]
 
   testthat::expect_equal(actual, expected)
-}) # integration
+})
 
-test_that("Check reset filters works correctly", {
+test_that("resetting filters works correctly" %>%
+            vdoc[["add_spec"]](specs$reset_filters), {
   app <- shinytest2::AppDriver$new(
     app_dir = app_dir, name = "test_reset_filters"
   )
@@ -660,4 +640,4 @@ test_that("Check reset filters works correctly", {
   actual <- app$get_value(output = "listings-listing")
 
   testthat::expect_equal(actual, expected)
-}) # integration
+})

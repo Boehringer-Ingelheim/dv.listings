@@ -12,7 +12,11 @@ listing <- specs_list(
   "restore_row_order" = "dv.listings includes a button to restore the row order of a listing to the state as it is in the original data.",
   "default_vars" = "If pre-specifications for default columns are available, dv.listings will display them at app launch for the respective listing. If not, dv.listings will show the first six columns of the listing - or all columns, in case the number of columns is less than six.",
   "retain_last_selection" = "dv.listings can remember and retain the last column selections after switching listings during the current session. It also restores the remembered selections for all listings after bookmarking.",
-  "bookmarking" = "The module is compatible with the bookmarking feature of the dv.manager."
+  "bookmarking" = "The module is compatible with the bookmarking feature of the dv.manager.",
+  "select_all_columns" = "dv.listings includes functionality to select all the columns.",
+  "unselect_all_columns" = "dv.listings includes functionality to unselect all the columns.",
+  "reset_columns" = "dv.listings includes includes functionality to reset to the default columns.",
+  "reset_filters" = "dv.listings includes functionality to reset all filters."
 )
 export <- specs_list(
   "export" = "dv.listings includes a button to export the listing(s). A click to the button envokes a pop-up to appear that allows the user to decide whether the download should only contain the displayed listing or all available listings, provide a file name (defaulted to the dataset name), and select from available file types.",
