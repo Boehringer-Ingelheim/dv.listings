@@ -577,7 +577,7 @@ test_that("mock_table_mm() displays selected dataset after activating global fil
   testthat::expect_equal(actual, expected = selected)
 }) # integration
 
-app_dir <- "./apps/listings_app" # applies for all tests within this describe()
+app_dir <- "./apps/listings_app" 
 app <- shinytest2::AppDriver$new(app_dir = app_dir, name = "test_listings_app")
 app_dir <- app$get_url()
 
