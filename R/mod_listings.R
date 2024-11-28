@@ -260,7 +260,15 @@ listings_server <- function(module_id,
       "table_rows_selected",
       "table_cells_selected",
       "table_columns_selected",
-      "table_state"
+      "table_state",
+      "select_all_cols_btn",
+      "remove_all_cols_btn",
+      "reset_cols_btn",
+      "download_data",
+      "reset_filt_btn",
+      "download_data",
+      "dropdown_btn",
+      "clear_filters"
     ))
 
     # Bookmarking (end)
