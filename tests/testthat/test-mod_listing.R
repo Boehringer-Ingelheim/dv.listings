@@ -454,30 +454,36 @@ test_that("mock_table_mm() updates dropdown choices on dataset change in dv.mana
   app <- shinytest2::AppDriver$new(
     app_dir = app_dir, name = "test_update_labels"
   )
+  app$wait_for_idle()
+
+  app$set_inputs(selector = "demo", wait_ = FALSE)
+  app$wait_for_idle()
 
   expected <- c(
     "adsl [Subject Level]" = "adsl",
     "adae [Adverse Events]" = "adae",
     "small [Few columns]" = "small"
   )
-
   actual <- app$get_value(export = "multi-dataset_choices")
 
-  # Verify that dataset choices are displayed properly with their labels
+  actual <- app$wait_for_value(
+    export = "multi-dataset_choices", ignore = list(NULL), timeout = 5e3
+  )
   testthat::expect_equal(actual, expected = expected)
 
-  # Switch overall dataset (via module manager)
-  app$set_inputs(selector = "demo no labels")
+  app$set_inputs(selector = "demo no labels") # Switch overall dataset (via module manager)
+  app$click("multi-dropdown_btn")
+  app$set_inputs(`multi-dropdown_btn_state` = TRUE)
 
   expected <- c(
     "adsl [No label]" = "adsl",
     "adae [No label]" = "adae",
     "small [No label]" = "small"
   )
-
-  actual <- app$get_value(export = "multi-dataset_choices")
-
-  # Verify that dataset choices were updated due to dataset switch
+  actual <- app$wait_for_value(
+    export = "multi-dataset_choices", ignore = list(actual), timeout = 10e3
+  )
+  app$stop()
   testthat::expect_equal(actual, expected = expected)
 }) # integration
 
@@ -513,6 +519,7 @@ test_that("mock_table_mm() displays selected columns after activating global fil
   # Set selected columns
   selected_cols <- c("STUDYID", "USUBJID")
   app$set_inputs(`multi-col_sel` = selected_cols)
+  app$wait_for_idle()
 
   # Activate global filter
   app$set_inputs(`global_filter-vars` = "RACE")
@@ -545,3 +552,92 @@ test_that("mock_table_mm() displays selected dataset after activating global fil
 
   testthat::expect_equal(actual, expected = selected)
 }) # integration
+
+app_dir <- "./apps/listings_app" # applies for all tests within this describe()
+app <- shinytest2::AppDriver$new(app_dir = app_dir, name = "test_listings_app")
+app_dir <- app$get_url()
+
+test_that("selecting all columns works correctly" %>%
+            vdoc[["add_spec"]](specs$select_all_columns), {
+  app <- shinytest2::AppDriver$new(
+    app_dir = app_dir, name = "test_select_all_columns"
+  )
+
+  # SET INITIAL DATASET
+  app$click("listings-dropdown_btn")
+  app$set_inputs(`listings-dropdown_btn_state` = TRUE, wait_ = FALSE)
+  app$set_inputs(`listings-dataset` = "dummy1", wait_ = FALSE) # set to simple_dummy data
+
+  # CHECK ALL COLS SELECTED
+  app$click("listings-select_all_cols_btn")
+  actual <- app$get_value(input = "listings-col_sel")
+  app$stop()
+
+  expected <- names(simple_dummy)
+  testthat::expect_equal(actual, expected)
+})
+
+test_that("unselecting all columns works correctly" %>%
+            vdoc[["add_spec"]](specs$unselect_all_columns), {
+  app <- shinytest2::AppDriver$new(
+    app_dir = app_dir, name = "test_unselect_all_columns"
+  )
+
+  # SET INITIAL DATASET
+  app$click("listings-dropdown_btn")
+  app$set_inputs(`listings-dropdown_btn_state` = TRUE, wait_ = FALSE)
+  app$set_inputs(`listings-dataset` = "dummy1", wait_ = FALSE) # set to simple_dummy data
+
+  # CHECK ALL COLS UNSELECTED
+  app$click("listings-remove_all_cols_btn")
+  actual <- app$get_value(input = "listings-col_sel")
+  app$stop()
+  testthat::expect_null(actual)
+})
+
+test_that("resetting all columns works correctly" %>%
+            vdoc[["add_spec"]](specs$reset_columns), {
+  app <- shinytest2::AppDriver$new(
+    app_dir = app_dir, name = "test_reset_columns"
+  )
+
+  # SET INITIAL DATASET
+  app$click("listings-dropdown_btn")
+  app$set_inputs(`listings-dropdown_btn_state` = TRUE, wait_ = FALSE)
+  app$set_inputs(`listings-dataset` = "dummy1", wait_ = FALSE) # set to simple_dummy data
+
+  # CHECK COLS RESET TO DEFAULT VARS
+  app$click("listings-reset_cols_btn")
+  actual <- app$get_value(input = "listings-col_sel")
+  app$stop()
+  expected <- names(simple_dummy)[1:3]
+
+  testthat::expect_equal(actual, expected)
+})
+
+test_that("resetting filters works correctly" %>%
+            vdoc[["add_spec"]](specs$reset_filters), {
+  app <- shinytest2::AppDriver$new(
+    app_dir = app_dir, name = "test_reset_filters"
+  )
+
+  # SET INITIAL DATASET
+  app$click("listings-dropdown_btn")
+  app$set_inputs(`listings-dropdown_btn_state` = TRUE, wait_ = FALSE)
+  app$set_inputs(`listings-dataset` = "dummy1", wait_ = FALSE) # set to simple_dummy data
+  expected <- app$wait_for_value(
+    output = "listings-listing", ignore = list(NULL), timeout = 800
+  )
+
+  # SET COL FILTERS
+  app$set_inputs(
+    `listings-listing_search_columns` = c("4 ... 31", "23 ... 48", "2 ... 30"),
+    allow_no_input_binding_ = TRUE
+  )
+
+  # PRESS RESET FILT BUTTON
+  app$click("listings-reset_filt_btn")
+  actual <- app$get_value(output = "listings-listing")
+
+  testthat::expect_equal(actual, expected)
+})
