@@ -110,14 +110,32 @@ listings_UI <- function(module_id) { # nolint
 #'
 #' @param intended_use_label `[character(1) | NULL]` Either a string indicating the intended use for export, or
 #' NULL. The provided label will be displayed prior to the download and will also be included in the exported file.
+#' 
+#' @param subjid_var `[character(1)]`
 #'
+#' Column corresponding to subject ID. Default value is 'USUBJID'
+#' 
+#' @param receiver_id `[character(1) | NULL]`
+#'
+#' Character string defining the ID of the module to which to send a subject ID. The
+#' module must exist in the module list. The default is NULL which disables communication.
+#' 
+#' @param afmm_param `[list(2+) | NULL]`
+#'
+#' Named list of a selection of arguments from module manager. Expects
+#' at least two elements: \code{utils} and \code{module_names} defining a character vector
+#' whose entries have the corresponding module IDs as names.
+#' 
 #' @export
 listings_server <- function(module_id,
                             dataset_list,
                             default_vars = NULL,
                             dataset_metadata,
                             pagination = NULL,
-                            intended_use_label = NULL) {
+                            intended_use_label = NULL,
+                            subjid_var = "USUBJID",
+                            receiver_id = NULL,
+                            afmm_param = NULL) {
   checkmate::assert(
     checkmate::check_character(module_id, min.chars = 1),
     checkmate::check_multi_class(dataset_list, c("reactive", "shinymeta_reactive")),
@@ -127,6 +145,8 @@ listings_server <- function(module_id,
     checkmate::check_subset(names(dataset_metadata), choices = c("name", "date_range")),
     checkmate::check_logical(pagination, null.ok = TRUE),
     checkmate::check_string(intended_use_label, null.ok = TRUE),
+    checkmate::check_string(receiver_id, min.chars = 1, null.ok = TRUE),
+    checkmate::check_list(afmm_param, null.ok = TRUE),
     combine = "and"
   )
   if (!is.null(default_vars)) {
@@ -141,7 +161,14 @@ listings_server <- function(module_id,
 
     # Set choices as a reactive value item
     rvs <- shiny::reactiveValues(dataset_choices = NA, variable_choices = NA)
-
+    
+    shiny::observe({
+      shiny::req(afmm_param$module_names)
+      
+      # Check availability of receiver id
+      check_receiver(receiver_id, names(afmm_param$module_names))
+    })
+    
     # Listing selection (start)
     shiny::observeEvent(v_dataset_list(), {
       # Fill default in case bookmark or default columns do not have all the listings in the dataset
@@ -340,14 +367,30 @@ listings_server <- function(module_id,
               action = htmlwidgets::JS(js)
             )
           )
-        )
+        ),
+        callback = htmlwidgets::JS(
+          "table.on('dblclick', 'td',", 
+          "  function() {",
+          "    var row = table.cell(this).index().row;",
+          "    Shiny.setInputValue('dt_row_dblclicked', {row_clicked: row}, {priority: 'event'});",
+          "  }",
+          ");"
+        ),
+        selection = "single" # user restricted to row selection only.
       )
     })
 
+    selected_subject_id <- shiny::reactive({
+      shiny::req(input$dt_row_dblclicked)
+      dataset[[subjid_var]][input[[paste0(TBL$TABLE_ID, "__rows_selected")]]]
+    })
 
     shiny::exportTestValues(
       selected_columns_in_dataset = r_selected_columns_in_dataset()
     )
+    
+    return(list(selected_subject_id = selected_subject_id))
+    
   })
 }
 
@@ -425,13 +468,9 @@ mod_listings <- function(
     intended_use_label = "Use only for internal review and monitoring during the conduct of clinical trials.",
     dataset_disp) {
   # Check validity of parameters
-  if (!missing(dataset_names)) {
-    checkmate::assert_character(dataset_names)
-  }
-  if (!missing(dataset_disp)) {
-    checkmate::assert_list(dataset_disp, types = "character")
-  }
-
+  if (!missing(dataset_names)) checkmate::assert_character(dataset_names)
+  if (!missing(dataset_disp)) checkmate::assert_list(dataset_disp, types = "character")
+  
   # skip assertions/checks for module_id and default_vars since they will be checked directly in listings_server()
   if (!missing(dataset_disp)) {
     checkmate::assert(
@@ -449,10 +488,8 @@ mod_listings <- function(
   # check if dataset_disp should be used
   if (missing(dataset_disp)) {
     use_disp <- FALSE
-  } else {
-    use_disp <- TRUE
-  }
-
+  } else use_disp <- TRUE
+  
   mod <- list(
     ui = function(module_id) {
       listings_UI(module_id = module_id)
