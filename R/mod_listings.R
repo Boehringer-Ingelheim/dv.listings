@@ -85,7 +85,8 @@ listings_UI <- function(module_id) { # nolint
       icon = shiny::icon("filter-circle-xmark")
     ),
     shiny::br(),
-    DT::dataTableOutput(ns(TBL$TABLE_ID), height = "80vh")
+    DT::dataTableOutput(ns(TBL$TABLE_ID), height = "80vh"),
+    shiny::verbatimTextOutput(ns("tst1"))
   )
 }
 
@@ -369,14 +370,14 @@ listings_server <- function(module_id,
             )
           )
         ),
-        # callback = htmlwidgets::JS(
-        #   "table.on('dblclick', 'td',",
-        #   "  function() {",
-        #   "    var row = table.cell(this).index().row;",
-        #   "    Shiny.setInputValue('dt_row_dblclicked', {row_clicked: row}, {priority: 'event'});",
-        #   "  }",
-        #   ");"
-        # ),
+        callback = htmlwidgets::JS(
+          "table.on('click', 'td',",
+          "  function() {",
+          "    var row = table.cell(this).index().row;",
+          "    Shiny.setInputValue('dt_row_dblclicked', {row_clicked: row});",
+          "  }",
+          ");"
+        ),
         selection = "single" # user restricted to row selection only.
       )
     })
@@ -384,8 +385,9 @@ listings_server <- function(module_id,
     # start: jumping feature --------------------------------------------------
     
     selected_subject_id <- shiny::reactive({
-      shiny::req(paste0(TBL$TABLE_ID, "_rows_selected"))
+      shiny::req(input[[paste0(TBL$TABLE_ID, "_rows_selected")]])
       row_index <- input[[paste0(TBL$TABLE_ID, "_rows_selected")]]
+      
       listings_data() |> 
         dplyr::slice(row_index) |> 
         dplyr::pull(!!subjid_var) |> 
@@ -488,7 +490,9 @@ mod_listings <- function(
     default_vars = NULL,
     pagination = NULL,
     intended_use_label = "Use only for internal review and monitoring during the conduct of clinical trials.",
-    dataset_disp) {
+    dataset_disp,
+    subjid_var = "USUBJID",
+    receiver_id = NULL) {
   # Check validity of parameters
   if (!missing(dataset_names)) checkmate::assert_character(dataset_names)
   if (!missing(dataset_disp)) checkmate::assert_list(dataset_disp, types = "character")
@@ -533,7 +537,10 @@ mod_listings <- function(
         dataset_metadata = afmm$dataset_metadata,
         pagination = pagination,
         module_id = module_id,
-        intended_use_label = intended_use_label
+        intended_use_label = intended_use_label,
+        subjid_var = subjid_var,
+        receiver_id = receiver_id,
+        afmm_param = list(utils = afmm$utils, module_names = afmm$module_names)
       )
     },
     module_id = module_id
