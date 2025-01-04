@@ -55,20 +55,20 @@ listings_UI <- function(module_id) { # nolint
             options = list(plugins = list("remove_button", "drag_drop"))
           ),
           shiny::actionButton(
-            ns(TBL$SELECT_ALL_COLS_BUTTON_ID), 
-            TBL$SELECT_ALL_COLS_BUTTON_LABEL, 
+            ns(TBL$SELECT_ALL_COLS_BUTTON_ID),
+            TBL$SELECT_ALL_COLS_BUTTON_LABEL,
             icon = shiny::icon("check-double")
           ),
           shiny::actionButton(
             ns(TBL$REMOVE_ALL_COLS_BUTTON_ID),
-            TBL$REMOVE_ALL_COLS_BUTTON_LABEL, 
+            TBL$REMOVE_ALL_COLS_BUTTON_LABEL,
             icon = shiny::icon("xmark")
           ),
           shiny::actionButton(
             ns(TBL$RESET_COLS_DEFAULT_BUTTON_ID),
-            TBL$RESET_COLS_DEFAULT_BUTTON_LABEL, 
+            TBL$RESET_COLS_DEFAULT_BUTTON_LABEL,
             icon = shiny::icon("rotate-left")
-          ), 
+          ),
           circle = FALSE,
           icon = shiny::icon("cog"),
           width = TBL$DRPDBUTTON_WIDTH,
@@ -85,7 +85,7 @@ listings_UI <- function(module_id) { # nolint
       icon = shiny::icon("filter-circle-xmark")
     ),
     shiny::br(),
-    DT::dataTableOutput(ns(TBL$TABLE_ID), height = "80vh"),
+    DT::dataTableOutput(ns(TBL$TABLE_ID), height = "80vh")
   )
 }
 
@@ -110,22 +110,22 @@ listings_UI <- function(module_id) { # nolint
 #'
 #' @param intended_use_label `[character(1) | NULL]` Either a string indicating the intended use for export, or
 #' NULL. The provided label will be displayed prior to the download and will also be included in the exported file.
-#' 
+#'
 #' @param subjid_var `[character(1)]`
 #'
 #' Column corresponding to subject ID. Default value is 'USUBJID'
-#' 
+#'
 #' @param receiver_id `[character(1) | NULL]`
 #'
 #' Character string defining the ID of the module to which to send a subject ID. The
 #' module must exist in the module list. The default is NULL which disables communication.
-#' 
+#'
 #' @param afmm_param `[list(2+) | NULL]`
 #'
 #' Named list of a selection of arguments from module manager. Expects
 #' at least two elements: \code{utils} and \code{module_names} defining a character vector
 #' whose entries have the corresponding module IDs as names.
-#' 
+#'
 #' @export
 listings_server <- function(module_id,
                             dataset_list,
@@ -161,14 +161,14 @@ listings_server <- function(module_id,
 
     # Set choices as a reactive value item
     rvs <- shiny::reactiveValues(dataset_choices = NA, variable_choices = NA)
-    
+
     shiny::observe({
       shiny::req(afmm_param$module_names)
-      
+
       # Check availability of receiver id
       check_receiver(receiver_id, names(afmm_param$module_names))
     })
-    
+
     # Listing selection (start)
     shiny::observeEvent(v_dataset_list(), {
       # Fill default in case bookmark or default columns do not have all the listings in the dataset
@@ -179,6 +179,7 @@ listings_server <- function(module_id,
       } else {
         bmk_dataset
       }
+
       bmk_dataset <<- NULL
 
       rvs$dataset_choices <- generate_choices(v_dataset_list())
@@ -368,29 +369,50 @@ listings_server <- function(module_id,
             )
           )
         ),
-        callback = htmlwidgets::JS(
-          "table.on('dblclick', 'td',", 
-          "  function() {",
-          "    var row = table.cell(this).index().row;",
-          "    Shiny.setInputValue('dt_row_dblclicked', {row_clicked: row}, {priority: 'event'});",
-          "  }",
-          ");"
-        ),
+        # callback = htmlwidgets::JS(
+        #   "table.on('dblclick', 'td',",
+        #   "  function() {",
+        #   "    var row = table.cell(this).index().row;",
+        #   "    Shiny.setInputValue('dt_row_dblclicked', {row_clicked: row}, {priority: 'event'});",
+        #   "  }",
+        #   ");"
+        # ),
         selection = "single" # user restricted to row selection only.
       )
     })
 
+    # start: jumping feature --------------------------------------------------
+    
     selected_subject_id <- shiny::reactive({
-      shiny::req(input$dt_row_dblclicked)
-      dataset[[subjid_var]][input[[paste0(TBL$TABLE_ID, "__rows_selected")]]]
+      shiny::req(paste0(TBL$TABLE_ID, "_rows_selected"))
+      row_index <- input[[paste0(TBL$TABLE_ID, "_rows_selected")]]
+      listings_data() |> 
+        dplyr::slice(row_index) |> 
+        dplyr::pull(!!subjid_var) |> 
+        as.character()
     })
+
+    shiny::observeEvent(selected_subject_id(), {
+      
+      if (!receiver_id %in% names(afmm_param$module_names) && !is.null(receiver_id)) {
+        shiny::showNotification(
+          paste0("Can't find receiver module with ID ", receiver_id, "."),
+          id = NULL,
+          type = "message"
+        )
+      } else if (!is.null(receiver_id)) {
+        afmm_param$utils$switch2mod(receiver_id)
+      }
+      
+    })
+    
+    # end: jumping feature ----------------------------------------------------
 
     shiny::exportTestValues(
       selected_columns_in_dataset = r_selected_columns_in_dataset()
     )
-    
+
     return(list(selected_subject_id = selected_subject_id))
-    
   })
 }
 
@@ -470,7 +492,7 @@ mod_listings <- function(
   # Check validity of parameters
   if (!missing(dataset_names)) checkmate::assert_character(dataset_names)
   if (!missing(dataset_disp)) checkmate::assert_list(dataset_disp, types = "character")
-  
+
   # skip assertions/checks for module_id and default_vars since they will be checked directly in listings_server()
   if (!missing(dataset_disp)) {
     checkmate::assert(
@@ -488,8 +510,10 @@ mod_listings <- function(
   # check if dataset_disp should be used
   if (missing(dataset_disp)) {
     use_disp <- FALSE
-  } else use_disp <- TRUE
-  
+  } else {
+    use_disp <- TRUE
+  }
+
   mod <- list(
     ui = function(module_id) {
       listings_UI(module_id = module_id)
