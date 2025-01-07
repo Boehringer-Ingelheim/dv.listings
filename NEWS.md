@@ -1,3 +1,7 @@
+# dv.listings 4.0.2
+
+- add jumping feature
+
 # dv.listings 4.0.1
 
 The module allows now to 

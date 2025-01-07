@@ -11,7 +11,9 @@ mod_listings(
   pagination = NULL,
   intended_use_label =
     "Use only for internal review and monitoring during the conduct of clinical trials.",
-  dataset_disp
+  dataset_disp,
+  subjid_var = "USUBJID",
+  receiver_id = NULL
 )
 }
 \arguments{
@@ -38,6 +40,15 @@ NULL. The provided label will be displayed prior to the download and will also b
 
 This is only for advanced usage. An mm_dispatch object.
 Can not be used together with the parameter \code{dataset_names}.}
+
+\item{subjid_var}{\verb{[character(1)]}
+
+Column corresponding to subject ID. Default value is 'USUBJID'}
+
+\item{receiver_id}{\verb{[character(1) | NULL]}
+
+Character string defining the ID of the module to which to send a subject ID. The
+module must exist in the module list. The default is NULL which disables communication.}
 }
 \description{
 This module will present the dataset as listing using the DT package.

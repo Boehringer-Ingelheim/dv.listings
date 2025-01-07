@@ -14,6 +14,7 @@ listings_server(
   dataset_metadata,
   pagination = NULL,
   intended_use_label = NULL,
+  subjid_var = "USUBJID",
   receiver_id = NULL,
   afmm_param = NULL
 )
@@ -42,6 +43,10 @@ NULL for which pagination will be activated for large datasets (nrows > 1000) au
 
 \item{intended_use_label}{\verb{[character(1) | NULL]} Either a string indicating the intended use for export, or
 NULL. The provided label will be displayed prior to the download and will also be included in the exported file.}
+
+\item{subjid_var}{\verb{[character(1)]}
+
+Column corresponding to subject ID. Default value is 'USUBJID'}
 
 \item{receiver_id}{\verb{[character(1) | NULL]}
 
