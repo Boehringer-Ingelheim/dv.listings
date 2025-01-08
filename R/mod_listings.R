@@ -370,14 +370,14 @@ listings_server <- function(module_id,
             )
           )
         ),
-        callback = htmlwidgets::JS(
-          "table.on('click', 'td',",
-          "  function() {",
-          "    var row = table.cell(this).index().row;",
-          "    Shiny.setInputValue('dt_row_dblclicked', {row_clicked: row});",
-          "  }",
-          ");"
-        ),
+        # callback = htmlwidgets::JS(
+        #   "table.on('click', 'td',",
+        #   "  function() {",
+        #   "    var row = table.cell(this).index().row;",
+        #   "    Shiny.setInputValue('dt_row_dblclicked', {row_clicked: row});",
+        #   "  }",
+        #   ");"
+        # ),
         selection = "single" # user restricted to row selection only.
       )
     })
@@ -406,7 +406,7 @@ listings_server <- function(module_id,
         afmm_param$utils$switch2mod(receiver_id)
       }
       
-    })
+    }, ignoreInit = TRUE)
     
     # end: jumping feature ----------------------------------------------------
 
@@ -414,7 +414,7 @@ listings_server <- function(module_id,
       selected_columns_in_dataset = r_selected_columns_in_dataset()
     )
 
-    return(list(selected_subject_id = selected_subject_id))
+    return(list(subject = selected_subject_id))
   })
 }
 

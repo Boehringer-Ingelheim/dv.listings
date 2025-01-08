@@ -1,0 +1,113 @@
+---
+title: "Communication with DaVinci modules"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Communication with DaVinci modules}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+The dv.listings module is capable of communicating with other DaVinci modules like the Patient Profile module from {dv.papo} package. 
+Communication in this sense means that the listings module sends out a subject ID which can be received and further processed by other modules. At the same moment, the tab of a DaVinci app switches to the receiver module.
+
+The communication feature is optional and can be activated on the listings module side as follows. Note that there might be also activation needed on the counter module side (e.g. Patient Profile module side).
+
+
+## Activate communication on Clinical Timelines module side
+
+As a default the `receiver_id` parameter in the `mod_listings()` call of your module list definition is set to `NULL` which means that the communication functionality is disabled.
+To enable switching to another DaVinci module, set `receiver_id` to the module ID of your counterpart module.
+
+## Example
+
+Example code of a module list definition to turn the communication feature on between a listings and a Patient Profile module:
+
+```{r}
+library(dv.listings)
+
+# 1. Create a data list with example data
+data_list <- list(
+  adsl  = pharmaverseadam::adsl,
+  adae  = pharmaverseadam::adae,
+  adtte = pharmaverseadam::adtte_onco
+)
+
+# 2. Preprocessing
+# Convert data to appropriate types
+data_list$adsl <- convert_data(data_list$adsl)
+data_list$adae <- convert_data(data_list$adae)
+data_list$adtte <- convert_data(data_list$adtte)
+
+# Assign meaningful labels to data domain names
+attributes(data_list$adsl)$label <- "Subject Level"
+attributes(data_list$adae)$label <- "Adverse Events"
+attributes(data_list$adtte)$label <- "Time-to-Event"
+
+# Specify default variables
+default_vars <- list(
+  adsl = c("STUDYID", "USUBJID", "SITEID", "ARM"),
+  adae = c("STUDYID", "ASTDY", "AENDT", "AESER")
+)
+
+# 3. Module list
+module_list <- list(
+  "Exemplary listings" = mod_listings(
+    module_id = "listings1",
+    dataset_names = c("adsl", "adae", "adtte"),
+    default_vars = default_vars
+  ),
+  
+  # Note that the focus here lies on the sender_ids parameter, not on the set up of mod_patient_profile()
+  "Patient Profiles" = dv.papo::mod_patient_profile(
+    module_id = "papo1",
+    subjid_var = "USUBJID",
+    sender_ids = "listings1"
+  )
+)
+
+# 4. Launch the app
+dv.manager::run_app(
+  data = list("MyData" = data_list),
+  module_list = module_list,
+  filter_data = "adsl"
+)
+
+
+module_list <- list(
+  "Listings" = mod_clinical_timelines(
+    module_id = "mod1",
+    basic_info = set_basic_info(
+      subjet_level_dataset_name = "adsl",
+      trt_start_var = "TRTSDT",
+      trt_end_var = "TRTEDT",
+      icf_date_var = "RFICDT"
+    ),
+    mapping = list(
+      adsl = list("Treatment Start" = set_event(start_dt_var = "TRTSDT"))
+    ),
+    drug_admin = set_drug_admin(
+      dataset_name = "adex",
+      trt_var = "EXTRT",
+      start_var = "EXSTDTC",
+      end_var = "EXENDTC",
+      detail_var = "EXTRT",
+      label = "Drug Administration",
+      dose_var = "EXDOSE",
+      dose_unit_var = "EXDOSU"
+    ),
+    receiver_id = "mod2"
+  ),
+  # Note that the focus here lies on the sender_ids parameter, not on the set up of mod_patient_profile()
+  "Patient Profiles" = dv.papo::mod_patient_profile(
+    module_id = "mod2",
+    subjid_var = "USUBJID",
+    sender_ids = "mod1"
+  )
+)
