@@ -33,14 +33,15 @@ Example code of a module list definition to turn the communication feature on be
 library(dv.listings)
 
 # 1. Create a data list with example data
-data_list <- list(
+dataset_list <- list(
+  "demo" = dv.papo:::prep_safety_data(5),
+  "demo2" = dv.papo:::prep_safety_data(10),
   adsl  = pharmaverseadam::adsl,
   adae  = pharmaverseadam::adae,
-  adtte = pharmaverseadam::adtte_onco
+  adtte = pharmaverseadam::adtte_onco,
+  cm = pharmaverseadam::adcm
 )
-
-# 2. Preprocessing
-# Convert data to appropriate types
+#Convert data to appropriate types
 data_list$adsl <- convert_data(data_list$adsl)
 data_list$adae <- convert_data(data_list$adae)
 data_list$adtte <- convert_data(data_list$adtte)
@@ -55,59 +56,33 @@ default_vars <- list(
   adsl = c("STUDYID", "USUBJID", "SITEID", "ARM"),
   adae = c("STUDYID", "ASTDY", "AENDT", "AESER")
 )
-
-# 3. Module list
 module_list <- list(
   "Exemplary listings" = mod_listings(
     module_id = "listings1",
     dataset_names = c("adsl", "adae", "adtte"),
-    default_vars = default_vars
+    default_vars = default_vars,
+    receiver_id = "papo1"
   ),
-  
-  # Note that the focus here lies on the sender_ids parameter, not on the set up of mod_patient_profile()
-  "Patient Profiles" = dv.papo::mod_patient_profile(
+  "Patient Profile" = dv.papo::mod_patient_profile(
     module_id = "papo1",
+    subject_level_dataset_name = "adsl",
     subjid_var = "USUBJID",
+    summary = list(
+      vars = c("SUBJID", "SITEID", "ARM", "TRTSDT", "TRTEDT", "AGE", "RACE", "SEX"),
+      column_count = 3L
+    ),
+    listings = list(
+      "Adverse Events" = list(
+        dataset = "adae",
+        default_vars = c("ASTDT", "ASTDY", "AENDT", "AENDY", "AEDECOD", "AESEV")
+      )
+    ),
     sender_ids = "listings1"
   )
 )
 
-# 4. Launch the app
-# dv.manager::run_app(
-#   data = list("MyData" = data_list),
-#   module_list = module_list,
-#   filter_data = "adsl"
-# )
-# 
-# 
-# module_list <- list(
-#   "Listings" = mod_clinical_timelines(
-#     module_id = "mod1",
-#     basic_info = set_basic_info(
-#       subjet_level_dataset_name = "adsl",
-#       trt_start_var = "TRTSDT",
-#       trt_end_var = "TRTEDT",
-#       icf_date_var = "RFICDT"
-#     ),
-#     mapping = list(
-#       adsl = list("Treatment Start" = set_event(start_dt_var = "TRTSDT"))
-#     ),
-#     drug_admin = set_drug_admin(
-#       dataset_name = "adex",
-#       trt_var = "EXTRT",
-#       start_var = "EXSTDTC",
-#       end_var = "EXENDTC",
-#       detail_var = "EXTRT",
-#       label = "Drug Administration",
-#       dose_var = "EXDOSE",
-#       dose_unit_var = "EXDOSU"
-#     ),
-#     receiver_id = "mod2"
-#   ),
-#   # Note that the focus here lies on the sender_ids parameter, not on the set up of mod_patient_profile()
-#   "Patient Profiles" = dv.papo::mod_patient_profile(
-#     module_id = "mod2",
-#     subjid_var = "USUBJID",
-#     sender_ids = "mod1"
-#   )
-# )
+dv.manager::run_app(
+  data = list("MyData" = data_list),
+  module_list = module_list,
+  filter_data = "adsl"
+)

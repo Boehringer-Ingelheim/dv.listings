@@ -127,10 +127,6 @@ listings_UI <- function(module_id) { # nolint
 #' at least two elements: \code{utils} and \code{module_names} defining a character vector
 #' whose entries have the corresponding module IDs as names.
 #'
-#' @param on_sbj_click `[function()]`
-#'
-#' Function to invoke when a row is clicked in the subject listing table.
-#'
 #' @export
 listings_server <- function(module_id,
                             dataset_list,
@@ -140,8 +136,7 @@ listings_server <- function(module_id,
                             intended_use_label = NULL,
                             subjid_var = "USUBJID",
                             receiver_id = NULL,
-                            afmm_param = NULL,
-                            on_sbj_click = function(x){}) {
+                            afmm_param = NULL) {
   checkmate::assert(
     checkmate::check_character(module_id, min.chars = 1),
     checkmate::check_multi_class(dataset_list, c("reactive", "shinymeta_reactive")),
@@ -380,6 +375,8 @@ listings_server <- function(module_id,
     })
     
     # start: jumping feature --------------------------------------------------
+    subject <- NULL
+    
     if (!is.null(receiver_id)) {
       selected_subject_id <- shiny::reactiveVal()
       
@@ -391,11 +388,12 @@ listings_server <- function(module_id,
           as.character()
         selected_subject_id(subject)
         print(selected_subject_id())
-        on_sbj_click()
+        afmm_param$utils$switch2mod(receiver_id)
       })
+      subject <- list(subj_id = shiny::reactive(selected_subject_id())) # to papo
     }
-    
-    return(selected_subject_id) 
+
+    return(subject)
     
     # end: jumping feature ----------------------------------------------------
     
@@ -518,13 +516,13 @@ mod_listings <- function(
         })
       }
       
-      if (is.null(receiver_id)) {
-        on_sbj_click_fun <- function() NULL
-      } else {
-        on_sbj_click_fun <- function() {
-          afmm[["utils"]][["switch2mod"]](receiver_id)
-        }
-      }
+      # if (is.null(receiver_id)) {
+      #   on_sbj_click_fun <- function() NULL
+      # } else {
+      #   on_sbj_click_fun <- function() {
+      #     afmm[["utils"]][["switch2mod"]](receiver_id)
+      #   }
+      # }
 
       listings_server(
         dataset_list = dataset_list,
@@ -535,8 +533,7 @@ mod_listings <- function(
         intended_use_label = intended_use_label,
         subjid_var = subjid_var,
         receiver_id = receiver_id,
-        afmm_param = list(utils = afmm$utils, module_names = afmm$module_names),
-        on_sbj_click = on_sbj_click_fun
+        afmm_param = list(utils = afmm$utils, module_names = afmm$module_names)
       )
     },
     module_id = module_id
