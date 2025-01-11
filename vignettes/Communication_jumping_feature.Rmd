@@ -73,41 +73,41 @@ module_list <- list(
 )
 
 # 4. Launch the app
-dv.manager::run_app(
-  data = list("MyData" = data_list),
-  module_list = module_list,
-  filter_data = "adsl"
-)
-
-
-module_list <- list(
-  "Listings" = mod_clinical_timelines(
-    module_id = "mod1",
-    basic_info = set_basic_info(
-      subjet_level_dataset_name = "adsl",
-      trt_start_var = "TRTSDT",
-      trt_end_var = "TRTEDT",
-      icf_date_var = "RFICDT"
-    ),
-    mapping = list(
-      adsl = list("Treatment Start" = set_event(start_dt_var = "TRTSDT"))
-    ),
-    drug_admin = set_drug_admin(
-      dataset_name = "adex",
-      trt_var = "EXTRT",
-      start_var = "EXSTDTC",
-      end_var = "EXENDTC",
-      detail_var = "EXTRT",
-      label = "Drug Administration",
-      dose_var = "EXDOSE",
-      dose_unit_var = "EXDOSU"
-    ),
-    receiver_id = "mod2"
-  ),
-  # Note that the focus here lies on the sender_ids parameter, not on the set up of mod_patient_profile()
-  "Patient Profiles" = dv.papo::mod_patient_profile(
-    module_id = "mod2",
-    subjid_var = "USUBJID",
-    sender_ids = "mod1"
-  )
-)
+# dv.manager::run_app(
+#   data = list("MyData" = data_list),
+#   module_list = module_list,
+#   filter_data = "adsl"
+# )
+# 
+# 
+# module_list <- list(
+#   "Listings" = mod_clinical_timelines(
+#     module_id = "mod1",
+#     basic_info = set_basic_info(
+#       subjet_level_dataset_name = "adsl",
+#       trt_start_var = "TRTSDT",
+#       trt_end_var = "TRTEDT",
+#       icf_date_var = "RFICDT"
+#     ),
+#     mapping = list(
+#       adsl = list("Treatment Start" = set_event(start_dt_var = "TRTSDT"))
+#     ),
+#     drug_admin = set_drug_admin(
+#       dataset_name = "adex",
+#       trt_var = "EXTRT",
+#       start_var = "EXSTDTC",
+#       end_var = "EXENDTC",
+#       detail_var = "EXTRT",
+#       label = "Drug Administration",
+#       dose_var = "EXDOSE",
+#       dose_unit_var = "EXDOSU"
+#     ),
+#     receiver_id = "mod2"
+#   ),
+#   # Note that the focus here lies on the sender_ids parameter, not on the set up of mod_patient_profile()
+#   "Patient Profiles" = dv.papo::mod_patient_profile(
+#     module_id = "mod2",
+#     subjid_var = "USUBJID",
+#     sender_ids = "mod1"
+#   )
+# )

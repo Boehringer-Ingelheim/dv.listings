@@ -16,7 +16,9 @@ listings_server(
   intended_use_label = NULL,
   subjid_var = "USUBJID",
   receiver_id = NULL,
-  afmm_param = NULL
+  afmm_param = NULL,
+  on_sbj_click = function(x) {
+ }
 )
 }
 \arguments{
@@ -58,6 +60,10 @@ module must exist in the module list. The default is NULL which disables communi
 Named list of a selection of arguments from module manager. Expects
 at least two elements: \code{utils} and \code{module_names} defining a character vector
 whose entries have the corresponding module IDs as names.}
+
+\item{on_sbj_click}{\verb{[function()]}
+
+Function to invoke when a row is clicked in the subject listing table.}
 }
 \description{
 This module displays a given dataset as listing. It allows switching between datasets if it receives
