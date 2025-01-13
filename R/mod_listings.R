@@ -375,6 +375,7 @@ listings_server <- function(module_id,
     })
     
     # start: jumping feature --------------------------------------------------
+    
     subject <- NULL
     
     if (!is.null(receiver_id)) {

@@ -33,14 +33,12 @@ Example code of a module list definition to turn the communication feature on be
 library(dv.listings)
 
 # 1. Create a data list with example data
-dataset_list <- list(
-  "demo" = dv.papo:::prep_safety_data(5),
-  "demo2" = dv.papo:::prep_safety_data(10),
+data_list <- list(
   adsl  = pharmaverseadam::adsl,
   adae  = pharmaverseadam::adae,
-  adtte = pharmaverseadam::adtte_onco,
-  cm = pharmaverseadam::adcm
+  adtte = pharmaverseadam::adtte_onco
 )
+
 #Convert data to appropriate types
 data_list$adsl <- convert_data(data_list$adsl)
 data_list$adae <- convert_data(data_list$adae)
@@ -56,8 +54,10 @@ default_vars <- list(
   adsl = c("STUDYID", "USUBJID", "SITEID", "ARM"),
   adae = c("STUDYID", "ASTDY", "AENDT", "AESER")
 )
+
+# 2. Create list of modules - must include listings module and dv.papo module.
 module_list <- list(
-  "Exemplary listings" = mod_listings(
+  "Exemplary listings" = dv.listings::mod_listings(
     module_id = "listings1",
     dataset_names = c("adsl", "adae", "adtte"),
     default_vars = default_vars,
@@ -86,3 +86,4 @@ dv.manager::run_app(
   module_list = module_list,
   filter_data = "adsl"
 )
+```
