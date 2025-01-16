@@ -376,9 +376,8 @@ listings_server <- function(module_id,
     
     # start: jumping feature --------------------------------------------------
     
-    subject <- NULL
-    
     if (!is.null(receiver_id)) {
+      subject <- NULL
       selected_subject_id <- shiny::reactiveVal()
       
       shiny::observeEvent(input[[paste0(TBL$TABLE_ID, "_rows_selected")]], {
@@ -392,9 +391,8 @@ listings_server <- function(module_id,
         afmm_param$utils$switch2mod(receiver_id)
       })
       subject <- list(subj_id = shiny::reactive(selected_subject_id())) # to papo
+      return(subject)
     }
-
-    return(subject)
     
     # end: jumping feature ----------------------------------------------------
     
@@ -516,14 +514,6 @@ mod_listings <- function(
           afmm$filtered_dataset()[dataset_names]
         })
       }
-      
-      # if (is.null(receiver_id)) {
-      #   on_sbj_click_fun <- function() NULL
-      # } else {
-      #   on_sbj_click_fun <- function() {
-      #     afmm[["utils"]][["switch2mod"]](receiver_id)
-      #   }
-      # }
 
       listings_server(
         dataset_list = dataset_list,
