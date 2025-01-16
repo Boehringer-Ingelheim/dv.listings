@@ -1,3 +1,8 @@
+# dv.listings 4.1.0
+
+- Remove support for data dispatchers.
+- Provide early feedback of module misconfiguration.
+
 # dv.listings 4.0.1
 
 The module allows now to 

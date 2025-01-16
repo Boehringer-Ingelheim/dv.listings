@@ -35,16 +35,16 @@ utils::globalVariables("filtered_datasets")
 
 #' @describeIn simple_listing module
 #'
-#' @param dataset_disp An mm_dispatch object.
+#' @param dataset_name `[character(1)]`
 #' @template module_id-arg
 #'
 #' @family data_table
-mod_simple_listing <- function(dataset_disp, module_id) {
+mod_simple_listing <- function(dataset_name, module_id) {
   mod <- list(
     ui = simple_listing_UI,
     server = function(afmm) {
       simple_listing_server(
-        dataset = dv.manager::mm_resolve_dispatcher(dataset_disp, afmm, flatten = TRUE),
+        dataset = shiny::reactive(afmm$filtered_dataset()[[dataset_name]]),
         module_id = module_id
       )
     },
