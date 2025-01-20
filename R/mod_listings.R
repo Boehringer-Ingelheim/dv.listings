@@ -375,22 +375,19 @@ listings_server <- function(module_id,
     })
     
     # start: jumping feature --------------------------------------------------
-    
     if (!is.null(receiver_id)) {
-      subject <- NULL
       selected_subject_id <- shiny::reactiveVal()
       
       shiny::observeEvent(input[[paste0(TBL$TABLE_ID, "_rows_selected")]], {
         row_index <- input[[paste0(TBL$TABLE_ID, "_rows_selected")]]
-        subject <- listings_data() |>
-          dplyr::slice(row_index) |>
-          dplyr::pull(!!subjid_var) |>
-          as.character()
+        subject <- listings_data()[[subjid_var]][row_index] |> as.character()
+        
         selected_subject_id(subject)
-        print(selected_subject_id())
         afmm_param$utils$switch2mod(receiver_id)
       })
-      subject <- list(subj_id = shiny::reactive(selected_subject_id())) # to papo
+      
+      # N.B papo requires a list containing an element named 'subj_id', hence:
+      subject <- list(subj_id = selected_subject_id)
       return(subject)
     }
     
