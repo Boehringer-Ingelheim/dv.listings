@@ -496,7 +496,9 @@ mod_listings <- function(
   # check if dataset_disp should be used
   if (missing(dataset_disp)) {
     use_disp <- FALSE
-  } else use_disp <- TRUE
+  } else {
+    use_disp <- TRUE
+  }
   
 
   mod <- list(
