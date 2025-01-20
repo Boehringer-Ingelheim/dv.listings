@@ -20,7 +20,7 @@ Communication in this sense means that the listings module sends out a subject I
 The communication feature is optional and can be activated on the listings module side as follows. Note that there might be also activation needed on the counter module side (e.g. Patient Profile module side).
 
 
-## Activate communication on Clinical Timelines module side
+## Activate communication within listings module
 
 As a default the `receiver_id` parameter in the `mod_listings()` call of your module list definition is set to `NULL` which means that the communication functionality is disabled.
 To enable switching to another DaVinci module, set `receiver_id` to the module ID of your counterpart module.
