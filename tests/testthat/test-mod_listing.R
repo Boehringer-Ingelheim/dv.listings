@@ -641,3 +641,42 @@ test_that("resetting filters works correctly" %>%
 
   testthat::expect_equal(actual, expected)
 })
+
+test_that("jumping feature works correctly" %>% 
+            vdoc[["add_spec"]](specs$jumping_feature), {
+                       
+  app <- shinytest2::AppDriver$new(
+    app_dir = "./apps/jumping_feature_app", name = "test_jumping_feature"
+  )
+  
+  # SELECT A ROW
+  # row 2 subject is "01-701-1023"
+  app$set_inputs(
+    `listings1-listing_rows_selected` = 2, allow_no_input_binding_ = TRUE
+  )
+  app$set_inputs(
+    `listings1-listing_row_last_clicked` = 2, 
+    allow_no_input_binding_ = TRUE, priority_ = "event"
+  )
+  app$wait_for_idle()
+  
+  # CHECK PAPO SELECTED CORRECT SUBJECT
+  actual <- app$get_value(input = "papo1-patient_selector")
+  testthat::expect_equal(actual, "01-701-1023")
+  
+  # SELECT A ROW
+  # row 11 subject is "01-701-1118"
+  app$set_inputs(
+    `listings1-listing_rows_selected` = 11, allow_no_input_binding_ = TRUE
+  )
+  app$set_inputs(
+    `listings1-listing_row_last_clicked` = 11, 
+    allow_no_input_binding_ = TRUE, priority_ = "event"
+  )
+  app$wait_for_idle()
+  
+  # CHECK PAPO SELECTED CORRECT SUBJECT
+  actual <- app$get_value(input = "papo1-patient_selector")
+  testthat::expect_equal(actual, "01-701-1118")
+  
+})
