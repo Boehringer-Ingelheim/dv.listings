@@ -286,25 +286,6 @@ app <- shinytest2::AppDriver$new(
 app_dir <- app$get_url()
 
 test_that("mod_listings() fails when argument types mismatch", {
-  # Prepare parameters to test
-  disp_no_list <- "Not a list" # Parameter not a list at all
-  disp_no_char <- list(from = 3, selection = "adae") # Parameter not a list of characters
-
-  disp_no_names <- list("filtered_dataset", "adsl") # Parameter not named at all
-  class(disp_no_names) <- "mm_dispatcher" # correct
-
-  disp_wrong_names <- list(a = "filtered_dataset", b = "adsl") # Parameter not named correctly
-  class(disp_wrong_names) <- "mm_dispatcher" # correct
-
-  disp_wrong_class <- list(from = "unfiltered_dataset", selection = "adae") # Correct list structure but ...
-  class(disp_wrong_class) <- "character" # ... wrong class
-
-  test_cases <- c(disp_no_list, disp_no_char, disp_no_names, disp_wrong_names, disp_wrong_class)
-
-  # Perform tests
-  purrr::walk(test_cases, ~ expect_error(mod_listings(dataset_disp = .x, module_id = "test_id")))
-
-
   dataset_names_no_chr <- 1
   dataset_names_list <- list("adsl", "adae")
 
@@ -314,34 +295,20 @@ test_that("mod_listings() fails when argument types mismatch", {
   purrr::walk(names_test_cases, ~ expect_error(mod_listings(dataset_names = .x, module_id = "test_id")))
 })
 
-test_that("mod_listings() fails when both or none of dataset_names and dataset_disp are specified", {
-  dataset_disp <- dv.manager::mm_dispatch("filtered_dataset", c("adsl"))
-  dataset_names <- c("adsl")
-
-  # throw error because both are specified
-  expect_error(mod_listings(module_id = "test_id", dataset_names = dataset_names, dataset_disp = dataset_disp))
-
-  # throw error because both are not specified
-  expect_error(mod_listings(module_id = "test_id", dataset_names = NULL, dataset_disp = NULL))
-})
-
 test_that("mod_listings() returns a list containing all information for dv.manager", {
   # Valid parameters
-  disp <- dv.manager::mm_dispatch("filtered_dataset", "adsl")
   id <- "test_id"
 
   # Return value
-  outcome <- mod_listings(dataset_disp = disp, module_id = id)
+  outcome <- mod_listings(module_id = id, dataset_names = "adsl")
 
   # Perform tests
-  checkmate::expect_list(outcome, len = 3, names = "named") # Must be a list
-  checkmate::expect_names(names(outcome), permutation.of = c("ui", "server", "module_id")) # Must have those names
+  checkmate::expect_list(outcome, len = 4, names = "named") # Must be a list
+  checkmate::expect_names(names(outcome), permutation.of = c("ui", "server", "module_id", "meta")) # Must have those names
   checkmate::expect_function(outcome$ui) # ui entry must be a function
   checkmate::expect_function(outcome$server) # server entry must be a function
   expect_equal(outcome$module_id, id) # must not modify the id
 })
-
-
 
 test_that("mod_listings() displays a data table, dataset selector and corresponding column selector at app launch" %>%
   vdoc[["add_spec"]](

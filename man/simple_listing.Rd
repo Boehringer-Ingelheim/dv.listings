@@ -11,14 +11,14 @@ simple_listing_UI(module_id)
 
 simple_listing_server(module_id, dataset)
 
-mod_simple_listing(dataset_disp, module_id)
+mod_simple_listing(dataset_name, module_id)
 }
 \arguments{
 \item{module_id}{\verb{[character(1)]} Unique module_id identifier. It can only contain alphanumeric characters and underscores.}
 
 \item{dataset}{a data.framish dataset that will be shown as a table}
 
-\item{dataset_disp}{An mm_dispatch object.}
+\item{dataset_name}{\verb{[character(1)]}}
 }
 \description{
 This module shows a given dataset in a table form.

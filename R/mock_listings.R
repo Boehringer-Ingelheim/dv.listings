@@ -91,7 +91,7 @@ mock_listings_mm <- function() {
   # Define and launch mock app
   module_list <- list(
     "Multiple Listings" = dv.listings::mod_listings(
-      dataset_disp = dv.manager::mm_dispatch("filtered_dataset", c("adsl", "adae", "adtte", "small", "test")),
+      dataset_names = c("adsl", "adae", "adtte", "small", "test"),
       module_id = "multi",
       default_vars = default_vars_multi,
       pagination = TRUE

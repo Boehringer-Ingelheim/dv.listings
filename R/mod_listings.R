@@ -360,14 +360,8 @@ listings_server <- function(module_id,
 #' @param dataset_names `[character(1+)]`
 #'
 #' Name(s) of the dataset(s) that will be displayed.
-#' Cannot be used together with the parameter \code{dataset_disp}.
 #'
 #' @inheritParams listings_server
-#'
-#' @param dataset_disp `[dv.manager::mm_dispatch()]`
-#'
-#' This is only for advanced usage. An mm_dispatch object.
-#' Can not be used together with the parameter \code{dataset_names}.
 #'
 #' @template module_id-arg
 #'
@@ -422,49 +416,16 @@ mod_listings <- function(
     dataset_names,
     default_vars = NULL,
     pagination = NULL,
-    intended_use_label = "Use only for internal review and monitoring during the conduct of clinical trials.",
-    dataset_disp) {
+    intended_use_label = "Use only for internal review and monitoring during the conduct of clinical trials.") {
   # Check validity of parameters
-  if (!missing(dataset_names)) {
-    checkmate::assert_character(dataset_names)
-  }
-  if (!missing(dataset_disp)) {
-    checkmate::assert_list(dataset_disp, types = "character")
-  }
-
-  # skip assertions/checks for module_id and default_vars since they will be checked directly in listings_server()
-  if (!missing(dataset_disp)) {
-    checkmate::assert(
-      checkmate::check_class(dataset_disp, "mm_dispatcher"),
-      checkmate::check_names(names(dataset_disp), identical.to = c("from", "selection")),
-      combine = "and"
-    )
-  }
-
-  if (!missing(dataset_names) && !missing(dataset_disp)) {
-    stop("You specified both parameters dataset_names and dataset_disp, but only one can be used at the same time.")
-  } else if (missing(dataset_names) && missing(dataset_disp)) {
-    stop("Neither dataset_names nor dataset_disp is specified, please specify one of them.")
-  }
-  # check if dataset_disp should be used
-  if (missing(dataset_disp)) {
-    use_disp <- FALSE
-  } else {
-    use_disp <- TRUE
-  }
+  checkmate::assert_character(dataset_names)
 
   mod <- list(
     ui = function(module_id) {
       listings_UI(module_id = module_id)
     },
     server = function(afmm) {
-      dataset_list <- if (use_disp) {
-        dv.manager::mm_resolve_dispatcher(dataset_disp, afmm)
-      } else {
-        shiny::reactive({
-          afmm$filtered_dataset()[dataset_names]
-        })
-      }
+      dataset_list <- shiny::reactive(afmm$filtered_dataset()[dataset_names])
 
       listings_server(
         dataset_list = dataset_list,
@@ -479,3 +440,79 @@ mod_listings <- function(
   )
   return(mod)
 }
+
+# Listings module interface description ----
+# TODO: Fill in for dressing room and automatic generation of docs
+mod_listings_API_docs <- list(
+  "Listings",
+  module_id = "",
+  dataset_names = list(""),
+  default_vars = list(""),
+  pagination = list(""),
+  intended_use_label = list("")
+)
+
+mod_listings_API_spec <- TC$group(
+  module_id = TC$mod_ID(),
+  dataset_names = TC$dataset_name() |> TC$flag("one_or_more"),
+  default_vars = TC$group() |> TC$flag("ignore"),        # manually tested by check_mod_listings
+  pagination = TC$group() |> TC$flag("ignore"),          # manually tested by check_mod_listings
+  intended_use_label = TC$group() |> TC$flag("ignore")   # manually tested by check_mod_listings
+) |> TC$attach_docs(mod_listings_API_docs)
+
+dataset_info_listings <- function(dataset_names, ...) {
+  return(list(all = unique(dataset_names), subject_level = character(0)))
+}
+
+check_mod_listings <- function(afmm, datasets, module_id, dataset_names, default_vars, pagination, intended_use_label) {
+  warn <- CM$container()
+  err <- CM$container()
+
+  ok <- check_mod_listings_auto(
+    afmm, datasets,
+    module_id, dataset_names, default_vars, pagination, intended_use_label,
+    warn, err
+  )
+ 
+  # default_vars 
+  if (ok[["dataset_names"]] && !is.null(default_vars)) {
+    if (CM$assert(
+      container = err,
+      cond = (checkmate::test_list(default_vars, types = "character", names = "unique") &&
+              checkmate::test_subset(names(default_vars), dataset_names)),
+      msg = "`default_vars` should be a named list, whose names are unique references to elements of `dataset_names`."
+    )) {
+      for (name in names(default_vars)){
+        available_cols <- names(datasets[[name]])
+        
+        CM$assert(
+          container = err,
+          cond = checkmate::test_subset(default_vars[[name]], available_cols),
+          msg = sprintf("`default_vars[['%s']]` should be a subset of these columns: %s.", name,
+                        paste(available_cols, collapse = ", "))
+        )
+      }
+    }
+  }
+  
+  # pagination
+  CM$assert(
+    container = err,
+    cond = checkmate::test_logical(pagination, null.ok = TRUE, len = 1),
+    msg = "`pagination` should be either logical(1) or NULL."
+  )
+  
+  # intended_use_label
+  CM$assert(
+    container = err,
+    cond = checkmate::test_string(intended_use_label, null.ok = TRUE),
+    msg = "`intended_use_label` should be either character(1) or NULL."
+  )
+
+  res <- list(warnings = warn[["messages"]], errors = err[["messages"]])
+  return(res)
+}
+
+mod_listings <- CM$module(
+  mod_listings, check_mod_listings, dataset_info_listings
+)
