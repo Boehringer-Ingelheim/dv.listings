@@ -11,9 +11,15 @@ check_mod_listings_auto <- function(afmm, datasets, module_id, dataset_names, de
     flags <- list(one_or_more = TRUE)
     OK[["dataset_names"]] <- CM$check_dataset_name("dataset_names", dataset_names, flags, datasets, used_dataset_names,
         warn, err)
-    "TODO: default_vars (group)"
-    "TODO: pagination (group)"
-    "TODO: intended_use_label (group)"
+    "NOTE: default_vars (group) has no associated automated checks"
+    "      The expectation is that it does not require one or that"
+    "      the caller of this function has written manual checks near the call site."
+    "NOTE: pagination (group) has no associated automated checks"
+    "      The expectation is that it does not require one or that"
+    "      the caller of this function has written manual checks near the call site."
+    "NOTE: intended_use_label (group) has no associated automated checks"
+    "      The expectation is that it does not require one or that"
+    "      the caller of this function has written manual checks near the call site."
     return(OK)
 }
 

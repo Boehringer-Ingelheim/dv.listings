@@ -1,4 +1,4 @@
-# YT#VHadccc0c551b3269937d087c1e76ae699#VHde6a9599edfe700035a3a72b3c9bdf71#
+# YT#VH0ae1b0c3bf862b3b93194fa0f023686d#VHd74cfd54b905c92b95c251b87af2e842#
 CM <- local({ # _C_hecked _M_odule
   message_well <- function(title, contents, color = "f5f5f5") { # repeats #iewahg
     style <- sprintf(r"---(
@@ -280,7 +280,9 @@ CM <- local({ # _C_hecked _M_odule
           elem_name, elem_name, elem_name, elem$arg_count
         ))
       } else {
-        push(sprintf("'TODO: %s (%s)'\n", elem_name, elem$kind))
+        push(sprintf("'NOTE: %s (%s) has no associated automated checks'\n", elem_name, elem$kind))
+        push(sprintf("'      The expectation is that it either does not require them or that'\n"))
+        push(sprintf("'      the caller of this function has written manual checks near the call site.'\n"))
       }
     }
 
@@ -408,7 +410,7 @@ CM <- local({ # _C_hecked _M_odule
     return(res)
   }
 
-  # TODO: Extend to all checker functions
+  # TODO: use check_flags instead and remove
   optional_and_empty <- function(flags, value) {
     return(isTRUE(flags[["optional"]]) && length(value) == 0)
   }
@@ -510,9 +512,6 @@ CM <- local({ # _C_hecked _M_odule
   }
 
   check_choice_from_col_contents <- function(name, value, flags, dataset_name, dataset_value, column, warn, err) {
-    if (optional_and_empty(flags, value)) {
-      return(TRUE)
-    }
     ok <- check_flags(name, value, flags, warn, err) &&
       assert(
         err, all(value %in% dataset_value[[column]]),
