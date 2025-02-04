@@ -85,8 +85,7 @@ listings_UI <- function(module_id) { # nolint
       icon = shiny::icon("filter-circle-xmark")
     ),
     shiny::br(),
-    DT::dataTableOutput(ns(TBL$TABLE_ID), height = "80vh"),
-    shiny::verbatimTextOutput(ns("tst1"))
+    DT::dataTableOutput(ns(TBL$TABLE_ID), height = "80vh")
   )
 }
 
@@ -390,7 +389,6 @@ listings_server <- function(module_id,
       subject <- list(subj_id = selected_subject_id)
       return(subject)
     }
-    
     # end: jumping feature ----------------------------------------------------
     
     shiny::exportTestValues(
