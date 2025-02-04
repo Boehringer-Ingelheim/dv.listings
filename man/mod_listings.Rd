@@ -11,7 +11,6 @@ mod_listings(
   pagination = NULL,
   intended_use_label =
     "Use only for internal review and monitoring during the conduct of clinical trials.",
-  dataset_disp,
   subjid_var = "USUBJID",
   receiver_id = NULL
 )
@@ -35,11 +34,6 @@ NULL for which pagination will be activated for large datasets (nrows > 1000) au
 
 \item{intended_use_label}{\verb{[character(1) | NULL]} Either a string indicating the intended use for export, or
 NULL. The provided label will be displayed prior to the download and will also be included in the exported file.}
-
-\item{dataset_disp}{\verb{[dv.manager::mm_dispatch()]}
-
-This is only for advanced usage. An mm_dispatch object.
-Can not be used together with the parameter \code{dataset_names}.}
 
 \item{subjid_var}{\verb{[character(1)]}
 
