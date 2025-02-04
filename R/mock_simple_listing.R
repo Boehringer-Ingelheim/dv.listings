@@ -51,7 +51,7 @@ mock_simple_listing_mm <- function() {
     data = datasets,
     module_list = list(
       "Listing" = mod_simple_listing(
-        dv.manager::mm_dispatch("filtered_dataset", "mpg"),
+        dataset_name = "mpg",
         "mod_listing"
       )
     ),

@@ -20,8 +20,7 @@ mod_listings(
 
 \item{dataset_names}{\verb{[character(1+)]}
 
-Name(s) of the dataset(s) that will be displayed.
-Cannot be used together with the parameter \code{dataset_disp}.}
+Name(s) of the dataset(s) that will be displayed.}
 
 \item{default_vars}{\verb{[list(characters(1+)) | NULL]}
 
@@ -43,6 +42,7 @@ Column corresponding to subject ID. Default value is 'USUBJID'}
 
 Character string defining the ID of the module to which to send a subject ID. The
 module must exist in the module list. The default is NULL which disables communication.}
+
 }
 \description{
 This module will present the dataset as listing using the DT package.

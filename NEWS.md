@@ -1,6 +1,11 @@
-# dv.listings 4.0.2
+# dv.listings 4.0.1.9001
 
 - add jumping feature
+
+# dv.listings 4.0.1.9000
+
+- Remove support for data dispatchers.
+- Provide early feedback of module misconfiguration.
 
 # dv.listings 4.0.1
 

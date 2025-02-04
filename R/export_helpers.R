@@ -528,7 +528,9 @@ pdf_export <- function(data_to_download, ref_cols, file, metadata, active_sessio
     envir = new.env(parent = globalenv()),
     output_format = "pdf_document"
   )
-  file.rename(out[1], file)
+  # copy+remove instead of rename because we can't guarantee that the temp folder lives in the same filesystem as `file`
+  file.copy(out, file)
+  file.remove(out)
 
   # This is mainly needed for the progress bar
   return(length(res_preprocess))
