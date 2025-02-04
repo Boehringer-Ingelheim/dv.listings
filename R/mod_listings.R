@@ -419,11 +419,6 @@ listings_server <- function(module_id,
 #'
 #' @inheritParams listings_server
 #'
-#' @param dataset_disp `[dv.manager::mm_dispatch()]`
-#'
-#' This is only for advanced usage. An mm_dispatch object.
-#' Can not be used together with the parameter \code{dataset_names}.
-#'
 #' @template module_id-arg
 #'
 #' @export
@@ -478,47 +473,17 @@ mod_listings <- function(
     default_vars = NULL,
     pagination = NULL,
     intended_use_label = "Use only for internal review and monitoring during the conduct of clinical trials.",
-    dataset_disp,
     subjid_var = "USUBJID",
     receiver_id = NULL) {
   # Check validity of parameters
-  if (!missing(dataset_names)) checkmate::assert_character(dataset_names)
-  if (!missing(dataset_disp)) checkmate::assert_list(dataset_disp, types = "character")
-
-  # skip assertions/checks for module_id and default_vars since they will be checked directly in listings_server()
-  if (!missing(dataset_disp)) {
-    checkmate::assert(
-      checkmate::check_class(dataset_disp, "mm_dispatcher"),
-      checkmate::check_names(names(dataset_disp), identical.to = c("from", "selection")),
-      combine = "and"
-    )
-  }
-
-  if (!missing(dataset_names) && !missing(dataset_disp)) {
-    stop("You specified both parameters dataset_names and dataset_disp, but only one can be used at the same time.")
-  } else if (missing(dataset_names) && missing(dataset_disp)) {
-    stop("Neither dataset_names nor dataset_disp is specified, please specify one of them.")
-  }
-  # check if dataset_disp should be used
-  if (missing(dataset_disp)) {
-    use_disp <- FALSE
-  } else {
-    use_disp <- TRUE
-  }
-  
+  checkmate::assert_character(dataset_names)
 
   mod <- list(
     ui = function(module_id) {
       listings_UI(module_id = module_id)
     },
     server = function(afmm) {
-      dataset_list <- if (use_disp) {
-        dv.manager::mm_resolve_dispatcher(dataset_disp, afmm)
-      } else {
-        shiny::reactive({
-          afmm$filtered_dataset()[dataset_names]
-        })
-      }
+      dataset_list <- shiny::reactive({afmm$filtered_dataset()[dataset_names]})
 
       listings_server(
         dataset_list = dataset_list,
