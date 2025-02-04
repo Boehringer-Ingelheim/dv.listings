@@ -28,5 +28,5 @@ mod <- dv.listings::mod_listings(
   receiver_id = "papo"
 )
 
-trigger_input_id <- "mod-listing_rows_selected"
+trigger_input_id <- "mod-selected_subject_id"
 test_communication_with_papo(mod, data_list, trigger_input_id)

@@ -17,7 +17,8 @@ TBL <- pack_of_constants( # nolint
   REMOVE_ALL_COLS_BUTTON_ID = "remove_all_cols_btn",
   REMOVE_ALL_COLS_BUTTON_LABEL = "Remove all variables",
   RESET_COLS_DEFAULT_BUTTON_ID = "reset_cols_btn",
-  RESET_COLS_DEFAULT_BUTTON_LABEL = "Reset to default variables"
+  RESET_COLS_DEFAULT_BUTTON_LABEL = "Reset to default variables",
+  SEL_SUB_ID = "selected_subject_id"
 )
 
 #' A module that displays datasets as listings
@@ -346,6 +347,17 @@ listings_server <- function(module_id,
 
       # Export values for shinytest2 tests
       shiny::exportTestValues(output_table = data, column_names = set_up$col_names)
+      
+      # Custom DT javascript callback to resolve the subject ID on the client side and provide it as a shiny input
+      subjid_col_index <- which(names(dataset) == subjid_var)      
+      set_subject_id_js <- c("function(nRow, aData, iDisplayIndex, iDisplayIndexFull) {",
+                             "  $('td', nRow).click(function() {",
+                             "    Shiny.setInputValue(",
+                             "      '%s',"                          |> sprintf(session[["ns"]](TBL$SEL_SUB_ID)),
+                             "      aData[%d],"                     |> sprintf(subjid_col_index),
+                             "      {priority:'event'});",
+                             "  });",
+                             "}")
 
       DT::datatable(
         data,
@@ -367,7 +379,8 @@ listings_server <- function(module_id,
               text = "Reset rows order",
               action = htmlwidgets::JS(js)
             )
-          )
+          ),
+          rowCallback = DT::JS(set_subject_id_js)
         ),
         selection = "single"
       )
@@ -375,18 +388,13 @@ listings_server <- function(module_id,
     
     # start: jumping feature --------------------------------------------------
     if (!is.null(receiver_id)) {
-      selected_subject_id <- shiny::reactiveVal()
-      
-      shiny::observeEvent(input[[paste0(TBL$TABLE_ID, "_rows_selected")]], {
-        row_index <- input[[paste0(TBL$TABLE_ID, "_rows_selected")]]
-        subject <- listings_data()[[subjid_var]][row_index] |> as.character()
-        
-        selected_subject_id(subject)
+      shiny::observe({
+        shiny::req(!is.null(input[[TBL$SEL_SUB_ID]]))
         afmm_param$utils$switch2mod(receiver_id)
       })
       
       # N.B papo requires a list containing an element named 'subj_id', hence:
-      subject <- list(subj_id = selected_subject_id)
+      subject <- list(subj_id = shiny::reactive(input[[TBL$SEL_SUB_ID]]))
       return(subject)
     }
     # end: jumping feature ----------------------------------------------------
