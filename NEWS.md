@@ -1,5 +1,3 @@
-# dv.listings (development version)
-
 # dv.listings 4.0.1.9001
 
 - add jumping feature
