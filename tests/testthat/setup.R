@@ -50,7 +50,8 @@ test_communication_with_papo <- function(mod, data, trigger_input_id) {
 
   app <- shiny::shinyApp(ui = app_ui, server = app_server)
 
-  testthat::test_that("module adheres to send_subject_id_to_papo protocol", {
+  testthat::test_that("module adheres to send_subject_id_to_papo protocol" %>% 
+    vdoc[["add_spec"]](specs$jumping_feature), { 
     app <- shinytest2::AppDriver$new(app, name = "test_send_subject_id_to_papo_protocol")
 
     app$wait_for_idle()
