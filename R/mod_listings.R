@@ -472,7 +472,7 @@ mod_listings <- function(
     pagination = NULL,
     intended_use_label = "Use only for internal review and monitoring during the conduct of clinical trials.",
     subjid_var = "USUBJID",
-    receiver_id) {
+    receiver_id = NULL) {
   # Check validity of parameters
   checkmate::assert_character(dataset_names)
   
