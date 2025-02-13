@@ -14,7 +14,7 @@ knitr::opts_chunk$set(
 )
 ```
 
-The dv.listings module is capable of communicating with other DaVinci modules like the Patient Profile module from {dv.papo} package. 
+The listings module is capable of communicating with other DaVinci modules like the Patient Profile module from {dv.papo} package. 
 Communication in this sense means that the listings module sends out a subject ID which can be received and further processed by other modules. At the same moment, the tab of a DaVinci app switches to the receiver module.
 
 The communication feature is optional and can be activated on the listings module side as follows. Note that there might be also activation needed on the counter module side (e.g. Patient Profile module side).
