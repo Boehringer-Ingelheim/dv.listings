@@ -247,3 +247,34 @@ set_up_datatable <- function(dataset, selected_cols, pagination) {
     )
   )
 }
+
+#' Produce a warning for non-available receiver names
+#'
+#' @param receiver_id Character string defining the module that should receive a subject identifier
+#'   from the listings module.
+#' @param module_ids Vector of characters defining all available module IDs.
+#'
+#' @return Logical outcome of the test invisible.
+#' @keywords internal
+#'
+check_receiver <- function(receiver_id, module_ids) {
+  if (!is.null(receiver_id) && !receiver_id %in% module_ids) {
+    rlang::warn(
+      message = c(
+        "Listings: You tried to point to a receiver module
+              that does not exist in your module list.",
+        x = paste0("You have set '", receiver_id, "' as receiver_id."),
+        i = paste0(
+          "Your module list contains ",
+          paste(module_ids, collapse = ", "),
+          "."
+        ),
+        i = "Have you spelled receiver_id correctly?"
+      )
+    )
+    
+    return(invisible(FALSE))
+  }
+  
+  return(invisible(TRUE))
+}
