@@ -261,7 +261,7 @@ check_receiver <- function(receiver_id, module_ids) {
   if (!is.null(receiver_id) && !receiver_id %in% module_ids) {
     rlang::warn(
       message = c(
-        "Clinical Timelines: You tried to point to a receiver module
+        "Listings: You tried to point to a receiver module
               that does not exist in your module list.",
         x = paste0("You have set '", receiver_id, "' as receiver_id."),
         i = paste0(
