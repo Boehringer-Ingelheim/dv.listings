@@ -251,7 +251,7 @@ set_up_datatable <- function(dataset, selected_cols, pagination) {
 #' Produce a warning for non-available receiver names
 #'
 #' @param receiver_id Character string defining the module that should receive a subject identifier
-#'   from clinlines.
+#'   from the listings module.
 #' @param module_ids Vector of characters defining all available module IDs.
 #'
 #' @return Logical outcome of the test invisible.
