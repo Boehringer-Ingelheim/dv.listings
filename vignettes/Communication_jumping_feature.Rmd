@@ -39,7 +39,7 @@ data_list <- list(
   adtte = pharmaverseadam::adtte_onco
 )
 
-#Convert data to appropriate types
+# Convert data to appropriate types
 data_list$adsl <- convert_data(data_list$adsl)
 data_list$adae <- convert_data(data_list$adae)
 data_list$adtte <- convert_data(data_list$adtte)
