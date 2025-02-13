@@ -491,7 +491,8 @@ mod_listings <- function(
         module_id = module_id,
         intended_use_label = intended_use_label,
         subjid_var = subjid_var,
-        receiver_id = receiver_id
+        receiver_id = receiver_id,
+        afmm_param = list(utils = afmm$utils, module_names = afmm$module_names)
       )
     },
     module_id = module_id
@@ -535,8 +536,7 @@ check_mod_listings <- function(afmm, datasets, module_id, dataset_names,
   ok <- check_mod_listings_auto(
     afmm, datasets,
     module_id, dataset_names, default_vars, pagination, intended_use_label,
-    subjid_var, receiver_id
-    #warn, err
+    subjid_var, receiver_id, warn, err
   )
   
   # default_vars 
