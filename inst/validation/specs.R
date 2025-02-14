@@ -15,7 +15,7 @@ listing <- specs_list(
   "bookmarking" = "The module is compatible with the bookmarking feature of the dv.manager.",
   "select_all_columns" = "dv.listings includes functionality to select all the columns.",
   "unselect_all_columns" = "dv.listings includes functionality to unselect all the columns.",
-  "reset_columns" = "dv.listings includes includes functionality to reset to the default columns.",
+  "reset_columns" = "dv.listings includes functionality to reset to the default columns.",
   "reset_filters" = "dv.listings includes functionality to reset all filters.",
   "jumping_feature" = "dv.listings includes jumping feature."
 )
