@@ -1,3 +1,14 @@
+# dv.listings 4.1.0
+
+- Add jumping feature
+- The module allows now to 
+  - select all columns
+  - unselect all columns
+  - reset to default columns
+  - reset filters
+- Remove support for data dispatchers
+- Provide early feedback of module misconfiguration
+
 # dv.listings 4.0.0
 
 Package was renamed to dv.listings.

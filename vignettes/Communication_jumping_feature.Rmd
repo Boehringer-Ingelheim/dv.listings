@@ -1,0 +1,89 @@
+---
+title: "Communication with DaVinci modules"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Communication with DaVinci modules}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+The listings module is capable of communicating with other DaVinci modules like the Patient Profile module from {dv.papo} package. 
+Communication in this sense means that the listings module sends out a subject ID which can be received and further processed by other modules. At the same moment, the tab of a DaVinci app switches to the receiver module.
+
+The communication feature is optional and can be activated on the listings module side as follows. Note that there might be also activation needed on the counter module side (e.g. Patient Profile module side).
+
+
+## Activate communication within listings module
+
+As a default the `receiver_id` parameter in the `mod_listings()` call of your module list definition is set to `NULL` which means that the communication functionality is disabled.
+To enable switching to another DaVinci module, set `receiver_id` to the module ID of your counterpart module.
+
+## Example
+
+Example code of a module list definition to turn the communication feature on between a listings and a Patient Profile module:
+
+```{r, eval=FALSE}
+library(dv.listings)
+
+# 1. Create a data list with example data
+data_list <- list(
+  adsl  = pharmaverseadam::adsl,
+  adae  = pharmaverseadam::adae,
+  adtte = pharmaverseadam::adtte_onco
+)
+
+# Convert data to appropriate types
+data_list$adsl <- convert_data(data_list$adsl)
+data_list$adae <- convert_data(data_list$adae)
+data_list$adtte <- convert_data(data_list$adtte)
+
+# Assign meaningful labels to data domain names
+attributes(data_list$adsl)$label <- "Subject Level"
+attributes(data_list$adae)$label <- "Adverse Events"
+attributes(data_list$adtte)$label <- "Time-to-Event"
+
+# Specify default variables
+default_vars <- list(
+  adsl = c("STUDYID", "USUBJID", "SITEID", "ARM"),
+  adae = c("STUDYID", "ASTDY", "AENDT", "AESER")
+)
+
+# 2. Create list of modules - must include listings module and dv.papo module.
+module_list <- list(
+  "Exemplary listings" = dv.listings::mod_listings(
+    module_id = "listings1",
+    dataset_names = c("adsl", "adae", "adtte"),
+    default_vars = default_vars,
+    receiver_id = "papo1"
+  ),
+  "Patient Profile" = dv.papo::mod_patient_profile(
+    module_id = "papo1",
+    subject_level_dataset_name = "adsl",
+    subjid_var = "USUBJID",
+    summary = list(
+      vars = c("SUBJID", "SITEID", "ARM", "TRTSDT", "TRTEDT", "AGE", "RACE", "SEX"),
+      column_count = 3L
+    ),
+    listings = list(
+      "Adverse Events" = list(
+        dataset = "adae",
+        default_vars = c("ASTDT", "ASTDY", "AENDT", "AENDY", "AEDECOD", "AESEV")
+      )
+    ),
+    sender_ids = "listings1"
+  )
+)
+
+dv.manager::run_app(
+  data = list("MyData" = data_list),
+  module_list = module_list,
+  filter_data = "adsl"
+)
+```

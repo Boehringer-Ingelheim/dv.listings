@@ -9,7 +9,16 @@ TBL <- pack_of_constants( # nolint
   DRPDBUTTON_LABEL = "Click to see inputs",
   TABLE_ID = "listing",
   NO_COL_MSG = "Please select at least one column.",
-  EXPORT_ID = "export"
+  EXPORT_ID = "export",
+  RESET_FILT_BUTTON_ID = "reset_filt_btn",
+  RESET_FILT_BUTTON_LABEL = "Reset all filters",
+  SELECT_ALL_COLS_BUTTON_ID = "select_all_cols_btn",
+  SELECT_ALL_COLS_BUTTON_LABEL = "Select all variables",
+  REMOVE_ALL_COLS_BUTTON_ID = "remove_all_cols_btn",
+  REMOVE_ALL_COLS_BUTTON_LABEL = "Remove all variables",
+  RESET_COLS_DEFAULT_BUTTON_ID = "reset_cols_btn",
+  RESET_COLS_DEFAULT_BUTTON_LABEL = "Reset to default variables",
+  SEL_SUB_ID = "selected_subject_id"
 )
 
 #' A module that displays datasets as listings
@@ -22,30 +31,59 @@ TBL <- pack_of_constants( # nolint
 #' @export
 #' @family data_listings
 listings_UI <- function(module_id) { # nolint
-
+  
   # Check validity of arguments
   checkmate::assert_string(module_id, min.chars = 1)
   ns <- shiny::NS(module_id)
-
+  
   shiny::tagList(
     shiny::fluidRow(
-      shiny::column(2, shinyWidgets::dropdownButton(
-        inputId = ns(TBL$DRPDBUTTON_ID),
-        shiny::selectizeInput(ns(TBL$DATASET_ID), label = TBL$DATASET_LABEL, choices = NULL),
-        shiny::selectizeInput(
-          ns(TBL$COLUMNS_ID),
-          label = TBL$COLUMNS_LABEL,
-          choices = NULL,
-          multiple = TRUE,
-          options = list(plugins = list("remove_button", "drag_drop"))
-        ),
-        circle = FALSE,
-        icon = shiny::icon("cog"),
-        width = TBL$DRPDBUTTON_WIDTH,
-        label = TBL$DRPDBUTTON_LABEL,
-        tooltip = shinyWidgets::tooltipOptions(title = TBL$DRPDBUTTON_LABEL)
-      )),
+      shiny::column(
+        2,
+        shinyWidgets::dropdownButton(
+          inputId = ns(TBL$DRPDBUTTON_ID),
+          shiny::selectizeInput(ns(TBL$DATASET_ID), label = TBL$DATASET_LABEL, choices = NULL),
+          shiny::tags[["style"]](shiny::HTML(paste0(
+            "#",
+            ns(TBL$COLUMNS_ID),
+            " + div.selectize-control div.selectize-input.items {max-height:250px; overflow-y:auto;}"
+          ))),
+          shiny::selectizeInput(
+            ns(TBL$COLUMNS_ID),
+            label = TBL$COLUMNS_LABEL,
+            choices = NULL,
+            multiple = TRUE,
+            options = list(plugins = list("remove_button", "drag_drop"))
+          ),
+          shiny::actionButton(
+            ns(TBL$SELECT_ALL_COLS_BUTTON_ID), 
+            TBL$SELECT_ALL_COLS_BUTTON_LABEL, 
+            icon = shiny::icon("check-double")
+          ),
+          shiny::actionButton(
+            ns(TBL$REMOVE_ALL_COLS_BUTTON_ID),
+            TBL$REMOVE_ALL_COLS_BUTTON_LABEL, 
+            icon = shiny::icon("xmark")
+          ),
+          shiny::actionButton(
+            ns(TBL$RESET_COLS_DEFAULT_BUTTON_ID),
+            TBL$RESET_COLS_DEFAULT_BUTTON_LABEL, 
+            icon = shiny::icon("rotate-left")
+          ), 
+          circle = FALSE,
+          icon = shiny::icon("cog"),
+          width = TBL$DRPDBUTTON_WIDTH,
+          label = TBL$DRPDBUTTON_LABEL,
+          tooltip = shinyWidgets::tooltipOptions(title = TBL$DRPDBUTTON_LABEL)
+        )
+      ),
       shiny::column(2, mod_export_listings_UI(module_id = ns(TBL$EXPORT_ID)), offset = 8)
+    ),
+    shiny::br(),
+    shiny::actionButton(
+      ns(TBL$RESET_FILT_BUTTON_ID),
+      TBL$RESET_FILT_BUTTON_LABEL,
+      icon = shiny::icon("filter-circle-xmark")
     ),
     shiny::br(),
     DT::dataTableOutput(ns(TBL$TABLE_ID), height = "80vh")
@@ -74,13 +112,31 @@ listings_UI <- function(module_id) { # nolint
 #' @param intended_use_label `[character(1) | NULL]` Either a string indicating the intended use for export, or
 #' NULL. The provided label will be displayed prior to the download and will also be included in the exported file.
 #'
+#' @param subjid_var `[character(1) | NULL]`
+#'
+#' Column corresponding to subject ID. Default value is 'USUBJID'
+#'
+#' @param receiver_id `[character(1) | NULL]`
+#'
+#' Character string defining the ID of the module to which to send a subject ID. The
+#' module must exist in the module list. The default is NULL which disables communication.
+#'
+#' @param afmm_param `[list(2+) | NULL]`
+#'
+#' Named list of a selection of arguments from module manager. Expects
+#' at least two elements: \code{utils} and \code{module_names} defining a character vector
+#' whose entries have the corresponding module IDs as names.
+#'
 #' @export
 listings_server <- function(module_id,
                             dataset_list,
                             default_vars = NULL,
                             dataset_metadata,
                             pagination = NULL,
-                            intended_use_label = NULL) {
+                            intended_use_label = NULL,
+                            subjid_var = "USUBJID",
+                            receiver_id = NULL,
+                            afmm_param = NULL) {
   checkmate::assert(
     checkmate::check_character(module_id, min.chars = 1),
     checkmate::check_multi_class(dataset_list, c("reactive", "shinymeta_reactive")),
@@ -90,6 +146,8 @@ listings_server <- function(module_id,
     checkmate::check_subset(names(dataset_metadata), choices = c("name", "date_range")),
     checkmate::check_logical(pagination, null.ok = TRUE),
     checkmate::check_string(intended_use_label, null.ok = TRUE),
+    checkmate::check_string(receiver_id, min.chars = 1, null.ok = TRUE),
+    checkmate::check_list(afmm_param, null.ok = TRUE),
     combine = "and"
   )
   if (!is.null(default_vars)) {
@@ -101,36 +159,46 @@ listings_server <- function(module_id,
       checkmate::assert_list(dataset_list(), types = "data.frame", null.ok = TRUE, names = "named")
       dataset_list()
     })
-
+    
+    # Set choices as a reactive value item
+    rvs <- shiny::reactiveValues(dataset_choices = NA, variable_choices = NA)
+    
+    shiny::observe({
+      shiny::req(afmm_param$module_names)
+      
+      # Check availability of receiver id
+      check_receiver(receiver_id, names(afmm_param$module_names))
+    })
+    
     # Listing selection (start)
     shiny::observeEvent(v_dataset_list(), {
       # Fill default in case bookmark or default columns do not have all the listings in the dataset
       r_selected_columns_in_dataset(fill_default_vars(r_selected_columns_in_dataset(), v_dataset_list()))
-
+      
       selected <- if (is.null(bmk_dataset)) {
         if (input[[TBL$DATASET_ID]] == "") names(v_dataset_list())[1] else input[[TBL$DATASET_ID]]
       } else {
         bmk_dataset
       }
       bmk_dataset <<- NULL
-
-      choices <- generate_choices(v_dataset_list())
-      shiny::exportTestValues(dataset_choices = choices) # Export values for shinytest2  tests
-
-      shiny::updateSelectizeInput(inputId = TBL$DATASET_ID, choices = choices, selected = selected)
+      
+      rvs$dataset_choices <- generate_choices(v_dataset_list())
+      shiny::exportTestValues(dataset_choices = rvs$dataset_choices) # Export values for shinytest2  tests
+      
+      shiny::updateSelectizeInput(inputId = TBL$DATASET_ID, choices = rvs$dataset_choices, selected = selected)
     })
-
+    
     listings_data <- shiny::reactive({
       v_dataset_list()[[shiny::req(input[[TBL$DATASET_ID]])]]
     })
-
+    
     # Listing selection (end)
-
+    
     # Column selection (start)
-
+    
     # When switching datasets I want to go back to the same state I was before
     r_selected_columns_in_dataset <- shiny::reactiveVal(default_vars)
-
+    
     # Load options in the column menu
     shiny::observeEvent(
       # React to changes in the listings identity or full dataset change
@@ -145,42 +213,72 @@ listings_server <- function(module_id,
             type = "warning"
           )
         }
-
-        choices <- generate_choices(listings_data())
-
+        
+        rvs$variable_choices <- generate_choices(listings_data())
+        
         shiny::updateSelectizeInput(
           inputId = TBL$COLUMNS_ID,
-          choices = choices,
+          choices = rvs$variable_choices,
           selected = r_selected_columns_in_dataset()[[input[[TBL$DATASET_ID]]]]
         )
       }
     )
-
+    
+    shiny::observeEvent(input[[TBL$SELECT_ALL_COLS_BUTTON_ID]], {
+      shiny::updateSelectizeInput(
+        inputId  = TBL$COLUMNS_ID,
+        choices  = rvs$variable_choices,
+        selected = rvs$variable_choices
+      )
+    })
+    
+    shiny::observeEvent(input[[TBL$REMOVE_ALL_COLS_BUTTON_ID]], {
+      shiny::updateSelectizeInput(
+        inputId  = TBL$COLUMNS_ID,
+        choices  = rvs$variable_choices,
+        selected = NULL
+      )
+    })
+    
+    shiny::observeEvent(input[[TBL$RESET_COLS_DEFAULT_BUTTON_ID]], {
+      r_selected_columns_in_dataset(
+        fill_default_vars(default_vars, v_dataset_list())
+      )
+      shiny::updateSelectizeInput(
+        inputId  = TBL$COLUMNS_ID,
+        choices  = rvs$variable_choices,
+        selected = r_selected_columns_in_dataset()[[input[[TBL$DATASET_ID]]]]
+      )
+    })
+    
+    
     shiny::observeEvent(input[[TBL$COLUMNS_ID]], {
       selected_columns_in_dataset <- r_selected_columns_in_dataset()
-      selected_columns_in_dataset[[input[[TBL$DATASET_ID]]]] <- input[[TBL$COLUMNS_ID]]
+      selected_columns_in_dataset[[input[[TBL$DATASET_ID]]]] <- input[[
+        TBL$COLUMNS_ID
+      ]]
       r_selected_columns_in_dataset(selected_columns_in_dataset)
     })
-
+    
     # Column selection (end)
-
+    
     # Bookmarking (start)
-
+    
     bmk_dataset <- NULL
-
+    
     # for storing cache for bookmarking
     shiny::onBookmark(function(state) {
       state$values$selected_columns_in_dataset <- r_selected_columns_in_dataset()
       state$values$data_sel <- input[[TBL$DATASET_ID]]
     })
-
+    
     shiny::onRestore(function(state) {
       if (length(state$input) > 0) { # makes sure that the default_vars are displayed at app launch with SSO
         bmk_dataset <<- state$values$data_sel
         r_selected_columns_in_dataset(state$values$selected_columns_in_dataset)
       }
     })
-
+    
     shiny::setBookmarkExclude(c(
       "table_cell_clicked",
       "table_rows_current",
@@ -190,11 +288,19 @@ listings_server <- function(module_id,
       "table_rows_selected",
       "table_cells_selected",
       "table_columns_selected",
-      "table_state"
+      "table_state",
+      "select_all_cols_btn",
+      "remove_all_cols_btn",
+      "reset_cols_btn",
+      "download_data",
+      "reset_filt_btn",
+      "download_data",
+      "dropdown_btn",
+      "clear_filters"
     ))
-
+    
     # Bookmarking (end)
-
+    
     mod_export_listings_server(
       module_id = TBL$EXPORT_ID,
       dataset_metadata = dataset_metadata,
@@ -204,10 +310,14 @@ listings_server <- function(module_id,
       current_rows = shiny::reactive(input[[paste0(TBL$TABLE_ID, "_rows_all")]]),
       intended_use_label = intended_use_label
     )
-
+    
+    # Proxy reference to dataTable
+    dt_proxy <- DT::dataTableProxy(TBL$TABLE_ID)
+    shiny::observeEvent(input[[TBL$RESET_FILT_BUTTON_ID]], DT::clearSearch(dt_proxy))
+    
     output[[TBL$TABLE_ID]] <- DT::renderDataTable({
       shiny::validate(shiny::need(!is.null(input[[TBL$COLUMNS_ID]]), TBL$NO_COL_MSG))
-
+      
       # JS to restore original sort
       js <- c(
         "function(e, dt, node, config) {",
@@ -222,21 +332,32 @@ listings_server <- function(module_id,
         "  }).draw();",
         "}"
       )
-
+      
       selected_cols <- r_selected_columns_in_dataset()[[input[[TBL$DATASET_ID]]]]
-
+      
       dataset <- listings_data()[selected_cols]
-
+      
       # drop factor levels to ensure column filter of DT don't show non existing levels
       labels <- get_labels(dataset)
       data <- droplevels(dataset)
       data <- set_labels(data, labels)
-
+      
       set_up <- set_up_datatable(dataset = data, selected_cols = selected_cols, pagination = pagination)
-
+      
       # Export values for shinytest2 tests
       shiny::exportTestValues(output_table = data, column_names = set_up$col_names)
-
+      
+      # Custom DT javascript callback to resolve the subject ID on the client side and provide it as a shiny input
+      subjid_col_index <- which(names(dataset) == subjid_var)      
+      set_subject_id_js <- c("function(nRow, aData, iDisplayIndex, iDisplayIndexFull) {",
+                             "  $('td', nRow).click(function() {",
+                             "    Shiny.setInputValue(",
+                             "      '%s',"                          |> sprintf(session[["ns"]](TBL$SEL_SUB_ID)),
+                             "      aData[%d],"                     |> sprintf(subjid_col_index),
+                             "      {priority:'event'});",
+                             "  });",
+                             "}")
+      
       DT::datatable(
         data,
         colnames = set_up$col_names,
@@ -251,15 +372,36 @@ listings_server <- function(module_id,
           ordering = TRUE,
           columnDefs = list(list(className = "dt-center", targets = "_all")),
           dom = "Bfrtilp",
-          buttons = list(list(extend = "collection", text = "Reset Rows Order", action = htmlwidgets::JS(js)))
-        )
+          buttons = list(
+            list(
+              extend = "collection",
+              text = "Reset rows order",
+              action = htmlwidgets::JS(js)
+            )
+          ),
+          rowCallback = DT::JS(set_subject_id_js)
+        ),
+        selection = "single"
       )
     })
-
-
+    
+    # start: jumping feature --------------------------------------------------
+    if (!is.null(receiver_id)) {
+      shiny::observe({
+        shiny::req(!is.null(input[[TBL$SEL_SUB_ID]]))
+        afmm_param$utils$switch2mod(receiver_id)
+      })
+      
+      # N.B papo requires a list containing an element named 'subj_id', hence:
+      subject <- list(subj_id = shiny::reactive(input[[TBL$SEL_SUB_ID]]))
+      return(subject)
+    }
+    # end: jumping feature ----------------------------------------------------
+    
     shiny::exportTestValues(
       selected_columns_in_dataset = r_selected_columns_in_dataset()
     )
+    
   })
 }
 
@@ -272,14 +414,8 @@ listings_server <- function(module_id,
 #' @param dataset_names `[character(1+)]`
 #'
 #' Name(s) of the dataset(s) that will be displayed.
-#' Cannot be used together with the parameter \code{dataset_disp}.
 #'
 #' @inheritParams listings_server
-#'
-#' @param dataset_disp `[dv.manager::mm_dispatch()]`
-#'
-#' This is only for advanced usage. An mm_dispatch object.
-#' Can not be used together with the parameter \code{dataset_names}.
 #'
 #' @template module_id-arg
 #'
@@ -335,59 +471,127 @@ mod_listings <- function(
     default_vars = NULL,
     pagination = NULL,
     intended_use_label = "Use only for internal review and monitoring during the conduct of clinical trials.",
-    dataset_disp) {
+    subjid_var = "USUBJID",
+    receiver_id = NULL) {
   # Check validity of parameters
-  if (!missing(dataset_names)) {
-    checkmate::assert_character(dataset_names)
-  }
-  if (!missing(dataset_disp)) {
-    checkmate::assert_list(dataset_disp, types = "character")
-  }
-
-  # skip assertions/checks for module_id and default_vars since they will be checked directly in listings_server()
-  if (!missing(dataset_disp)) {
-    checkmate::assert(
-      checkmate::check_class(dataset_disp, "mm_dispatcher"),
-      checkmate::check_names(names(dataset_disp), identical.to = c("from", "selection")),
-      combine = "and"
-    )
-  }
-
-  if (!missing(dataset_names) && !missing(dataset_disp)) {
-    stop("You specified both parameters dataset_names and dataset_disp, but only one can be used at the same time.")
-  } else if (missing(dataset_names) && missing(dataset_disp)) {
-    stop("Neither dataset_names nor dataset_disp is specified, please specify one of them.")
-  }
-  # check if dataset_disp should be used
-  if (missing(dataset_disp)) {
-    use_disp <- FALSE
-  } else {
-    use_disp <- TRUE
-  }
-
+  checkmate::assert_character(dataset_names)
+  
   mod <- list(
     ui = function(module_id) {
       listings_UI(module_id = module_id)
     },
     server = function(afmm) {
-      dataset_list <- if (use_disp) {
-        dv.manager::mm_resolve_dispatcher(dataset_disp, afmm)
-      } else {
-        shiny::reactive({
-          afmm$filtered_dataset()[dataset_names]
-        })
-      }
-
+      dataset_list <- shiny::reactive(afmm$filtered_dataset()[dataset_names])
+      
       listings_server(
         dataset_list = dataset_list,
         default_vars = default_vars,
         dataset_metadata = afmm$dataset_metadata,
         pagination = pagination,
         module_id = module_id,
-        intended_use_label = intended_use_label
+        intended_use_label = intended_use_label,
+        subjid_var = subjid_var,
+        receiver_id = receiver_id,
+        afmm_param = list(utils = afmm$utils, module_names = afmm$module_names)
       )
     },
     module_id = module_id
   )
   return(mod)
 }
+
+# Listings module interface description ----
+# TODO: Fill in for dressing room and automatic generation of docs
+mod_listings_API_docs <- list(
+  "Listings",
+  module_id = "",
+  dataset_names = list(""),
+  default_vars = list(""),
+  pagination = list(""),
+  intended_use_label = list(""),
+  subjid_var = list(""), 
+  receiver_id = list("")
+)
+
+mod_listings_API_spec <- TC$group(
+  module_id = TC$mod_ID(),
+  dataset_names = TC$dataset_name() |> TC$flag("one_or_more"),
+  default_vars = TC$group() |> TC$flag("ignore"),         # manually tested by check_mod_listings
+  pagination = TC$group() |> TC$flag("ignore"),           # manually tested by check_mod_listings
+  intended_use_label = TC$group() |> TC$flag("ignore"),   # manually tested by check_mod_listings
+  subjid_var = TC$group() |> TC$flag("ignore"),           # manually tested by check_mod_listings
+  receiver_id = TC$group() |> TC$flag("ignore")           # manually tested by check_mod_listings
+) |> TC$attach_docs(mod_listings_API_docs)
+
+dataset_info_listings <- function(dataset_names, ...) {
+  return(list(all = unique(dataset_names), subject_level = character(0)))
+}
+
+check_mod_listings <- function(afmm, datasets, module_id, dataset_names, 
+                               default_vars, pagination, intended_use_label,
+                               subjid_var, receiver_id) {
+  warn <- CM$container()
+  err <- CM$container()
+  
+  ok <- check_mod_listings_auto(
+    afmm, datasets,
+    module_id, dataset_names, default_vars, pagination, intended_use_label,
+    subjid_var, receiver_id, warn, err
+  )
+  
+  # default_vars 
+  if (ok[["dataset_names"]] && !is.null(default_vars)) {
+    if (CM$assert(
+      container = err,
+      cond = (checkmate::test_list(default_vars, types = "character", names = "unique") &&
+              checkmate::test_subset(names(default_vars), dataset_names)),
+      msg = "`default_vars` should be a named list, whose names are unique references to elements of `dataset_names`."
+    )) {
+      for (name in names(default_vars)){
+        available_cols <- names(datasets[[name]])
+        
+        CM$assert(
+          container = err,
+          cond = checkmate::test_subset(default_vars[[name]], available_cols),
+          msg = sprintf("`default_vars[['%s']]` should be a subset of these columns: %s.", name,
+                        paste(available_cols, collapse = ", "))
+        )
+      }
+    }
+  }
+  
+  # pagination
+  CM$assert(
+    container = err,
+    cond = checkmate::test_logical(pagination, null.ok = TRUE, len = 1),
+    msg = "`pagination` should be either logical(1) or NULL."
+  )
+  
+  # intended_use_label
+  CM$assert(
+    container = err,
+    cond = checkmate::test_string(intended_use_label, null.ok = TRUE),
+    msg = "`intended_use_label` should be either character(1) or NULL."
+  )
+  
+  # subjid_var
+  CM$assert(
+    container = err,
+    cond = checkmate::test_string(subjid_var, null.ok = TRUE),
+    msg = "`subjid_var` should be either character(1) or NULL."
+  )
+  
+  # receiver_id
+  CM$assert(
+    container = err,
+    cond = checkmate::test_string(receiver_id, null.ok = TRUE),
+    msg = "`receiver_id` should be either character(1) or NULL."
+  )
+  
+  res <- list(warnings = warn[["messages"]], errors = err[["messages"]])
+  return(res)
+}
+
+mod_listings <- CM$module(
+  mod_listings, check_mod_listings, dataset_info_listings
+)

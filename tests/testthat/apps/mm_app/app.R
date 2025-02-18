@@ -36,12 +36,12 @@ module_list <- list(
     module_id = "multi",
     default_vars = default_vars_multi,
     pagination = TRUE,
-    dataset_disp = dv.manager::mm_dispatch("filtered_dataset", c("adsl", "adae", "small"))
+    dataset_names = c("adsl", "adae", "small")
   ),
   "Single listing" = dv.listings::mod_listings(
     module_id = "single",
     default_vars = default_vars_single,
-    dataset_disp = dv.manager::mm_dispatch("filtered_dataset", c("adsl"))
+    dataset_names = c("adsl")
   )
 )
 

@@ -1,16 +1,17 @@
 Package: dv.listings
 Type: Package
 Title: Data listings module
-Version: 4.0.0
+Version: 4.1.0
 Authors@R: 
     c(
       person("Boehringer-Ingelheim Pharma GmbH & Co.KG", role = c("cph", "fnd")),
       person('Isabel', 'Glauss', email = 'isabel.glauss@boehringer-ingelheim.com', role = c('aut', 'cre')),
       person('Korbinian', 'Matthias', email = 'korbinian.matthias@boehringer-ingelheim.com', role = c('aut')),
       person('Luis', 'Morís Fernández', email = 'luis.moris.fernandez.ext@boehringer-ingelheim.com', role = c('aut')),
-      person('Jessica', 'Knizia', email = 'jessica.knizia@boehringer-ingelheim.com', role = c('ctb'))
+      person('Jessica', 'Knizia', email = 'jessica.knizia@boehringer-ingelheim.com', role = c('ctb')),
+      person('Gurjinder', 'Mohan', email = 'gurjinder.mohan.ext@boehringer-ingelheim.com', role = c('ctb'))
     )
-Description: DaVinci’s dv.listings package provides modules to display different dataset domains as listings. 
+Description: DaVinci’s dv.listings package provides a module to display different dataset domains as listings. 
     Users can select the dataset to be shown, and specify which columns of the dataset should be displayed.
     The displayed columns can be sorted and filtered.
     Moreover, the listing can be filtered to show only entries containing a keyword specified by the user.
@@ -30,7 +31,7 @@ Imports:
     checkmate (>= 2.1.0),
     dplyr (>= 1.0.5),
     DT (>= 0.18),
-    dv.manager (>= 2.0.0-17),
+    dv.manager (>= 2.1.4),
     htmlwidgets (>= 1.6.2),
     magrittr (>= 2.0.3),
     openxlsx (>= 4.2.5.2),
@@ -41,7 +42,7 @@ Imports:
     shinyjs (>= 2.1.0),
     shinyWidgets (>= 0.8.0),
     tibble (>= 3.2.1)
-RoxygenNote: 7.3.1
+RoxygenNote: 7.3.2
 Roxygen: list(markdown = TRUE)
 Remotes: boehringer-ingelheim/dv.manager@main
 VignetteBuilder: knitr

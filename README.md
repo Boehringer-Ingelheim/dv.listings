@@ -112,3 +112,7 @@ To download the currently active listing, it will be saved exactly as it appears
 For users who wish to download all listings, the module allows saving in .xlsx format exclusively. This process disregards any local filters, and each listing is saved in a separate worksheet within the file. 
 
 Please be aware that the PDF download feature is implemented using an RMarkdown file that is rendered into a PDF through LaTeX. As such, it is important to note that a LaTeX installation, along with the necessary packages, is required to use this feature.
+
+## Jumping Feature
+
+Users can select a row from listings table to jump to a patient profile of the subject. The row turns blue once selected and remains grey on hover. To see a working example, please consult "Communication_jumping_feature" vignette.
