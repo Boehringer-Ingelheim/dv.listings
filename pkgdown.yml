@@ -2,7 +2,7 @@ pandoc: 2.9.2.1
 pkgdown: 2.0.7
 pkgdown_sha: ~
 articles:
-  disp: disp.html
+  Communication_jumping_feature: Communication_jumping_feature.html
   qc: qc.html
-last_built: 2024-06-21T10:44Z
+last_built: 2025-02-18T11:31Z
 

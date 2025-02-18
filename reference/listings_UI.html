@@ -12,7 +12,7 @@ more than one."><!-- mathjax --><script src="https://cdnjs.cloudflare.com/ajax/l
     
     <a class="navbar-brand me-2" href="../index.html">dv.listings</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">4.0.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">4.1.0</small>
 
     
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -26,8 +26,7 @@ more than one."><!-- mathjax --><script src="https://cdnjs.cloudflare.com/ajax/l
 <li class="nav-item dropdown">
   <a href="#" class="nav-link dropdown-toggle" data-bs-toggle="dropdown" role="button" aria-expanded="false" aria-haspopup="true" id="dropdown-articles">Articles</a>
   <div class="dropdown-menu" aria-labelledby="dropdown-articles">
-    <a class="dropdown-item" href="../articles/disp.html">Usage of {dv.manager} dispatchers</a>
-    <a class="dropdown-item" href="../articles/qc.html">Quality Control</a>
+    <a class="dropdown-item" href="../articles/Communication_jumping_feature.html">Communication with DaVinci modules</a>
   </div>
 </li>
 <li class="nav-item">
@@ -66,7 +65,10 @@ more than one.</p>
 <span>  default_vars <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  <span class="va">dataset_metadata</span>,</span>
 <span>  pagination <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>  intended_use_label <span class="op">=</span> <span class="cn">NULL</span></span>
+<span>  intended_use_label <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  subjid_var <span class="op">=</span> <span class="st">"USUBJID"</span>,</span>
+<span>  receiver_id <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  afmm_param <span class="op">=</span> <span class="cn">NULL</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -104,6 +106,24 @@ NULL for which pagination will be activated for large datasets (nrows &gt; 1000)
 <dt>intended_use_label</dt>
 <dd><p><code>[character(1) | NULL]</code> Either a string indicating the intended use for export, or
 NULL. The provided label will be displayed prior to the download and will also be included in the exported file.</p></dd>
+
+
+<dt>subjid_var</dt>
+<dd><p><code>[character(1) | NULL]</code></p>
+<p>Column corresponding to subject ID. Default value is 'USUBJID'</p></dd>
+
+
+<dt>receiver_id</dt>
+<dd><p><code>[character(1) | NULL]</code></p>
+<p>Character string defining the ID of the module to which to send a subject ID. The
+module must exist in the module list. The default is NULL which disables communication.</p></dd>
+
+
+<dt>afmm_param</dt>
+<dd><p><code>[list(2+) | NULL]</code></p>
+<p>Named list of a selection of arguments from module manager. Expects
+at least two elements: <code>utils</code> and <code>module_names</code> defining a character vector
+whose entries have the corresponding module IDs as names.</p></dd>
 
 </dl></div>
     <div class="section level2">

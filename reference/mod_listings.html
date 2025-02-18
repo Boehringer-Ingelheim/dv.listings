@@ -10,7 +10,7 @@
     
     <a class="navbar-brand me-2" href="../index.html">dv.listings</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">4.0.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">4.1.0</small>
 
     
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -24,8 +24,7 @@
 <li class="nav-item dropdown">
   <a href="#" class="nav-link dropdown-toggle" data-bs-toggle="dropdown" role="button" aria-expanded="false" aria-haspopup="true" id="dropdown-articles">Articles</a>
   <div class="dropdown-menu" aria-labelledby="dropdown-articles">
-    <a class="dropdown-item" href="../articles/disp.html">Usage of {dv.manager} dispatchers</a>
-    <a class="dropdown-item" href="../articles/qc.html">Quality Control</a>
+    <a class="dropdown-item" href="../articles/Communication_jumping_feature.html">Communication with DaVinci modules</a>
   </div>
 </li>
 <li class="nav-item">
@@ -62,7 +61,8 @@
 <span>  pagination <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  intended_use_label <span class="op">=</span></span>
 <span>    <span class="st">"Use only for internal review and monitoring during the conduct of clinical trials."</span>,</span>
-<span>  <span class="va">dataset_disp</span></span>
+<span>  subjid_var <span class="op">=</span> <span class="st">"USUBJID"</span>,</span>
+<span>  receiver_id <span class="op">=</span> <span class="cn">NULL</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -74,8 +74,7 @@
 
 <dt>dataset_names</dt>
 <dd><p><code>[character(1+)]</code></p>
-<p>Name(s) of the dataset(s) that will be displayed.
-Cannot be used together with the parameter <code>dataset_disp</code>.</p></dd>
+<p>Name(s) of the dataset(s) that will be displayed.</p></dd>
 
 
 <dt>default_vars</dt>
@@ -95,10 +94,15 @@ NULL for which pagination will be activated for large datasets (nrows &gt; 1000)
 NULL. The provided label will be displayed prior to the download and will also be included in the exported file.</p></dd>
 
 
-<dt>dataset_disp</dt>
-<dd><p><code>[dv.manager::mm_dispatch()]</code></p>
-<p>This is only for advanced usage. An mm_dispatch object.
-Can not be used together with the parameter <code>dataset_names</code>.</p></dd>
+<dt>subjid_var</dt>
+<dd><p><code>[character(1) | NULL]</code></p>
+<p>Column corresponding to subject ID. Default value is 'USUBJID'</p></dd>
+
+
+<dt>receiver_id</dt>
+<dd><p><code>[character(1) | NULL]</code></p>
+<p>Character string defining the ID of the module to which to send a subject ID. The
+module must exist in the module list. The default is NULL which disables communication.</p></dd>
 
 </dl></div>
     <div class="section level2">

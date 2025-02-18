@@ -10,7 +10,7 @@
     
     <a class="navbar-brand me-2" href="../index.html">dv.listings</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">4.0.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">4.1.0</small>
 
     
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -24,8 +24,7 @@
 <li class="nav-item dropdown">
   <a href="#" class="nav-link dropdown-toggle" data-bs-toggle="dropdown" role="button" aria-expanded="false" aria-haspopup="true" id="dropdown-articles">Articles</a>
   <div class="dropdown-menu" aria-labelledby="dropdown-articles">
-    <a class="dropdown-item" href="../articles/disp.html">Usage of {dv.manager} dispatchers</a>
-    <a class="dropdown-item" href="../articles/qc.html">Quality Control</a>
+    <a class="dropdown-item" href="../articles/Communication_jumping_feature.html">Communication with DaVinci modules</a>
   </div>
 </li>
 <li class="nav-item">
@@ -59,7 +58,7 @@
 <span></span>
 <span><span class="fu">simple_listing_server</span><span class="op">(</span><span class="va">module_id</span>, <span class="va">dataset</span><span class="op">)</span></span>
 <span></span>
-<span><span class="fu">mod_simple_listing</span><span class="op">(</span><span class="va">dataset_disp</span>, <span class="va">module_id</span><span class="op">)</span></span></code></pre></div>
+<span><span class="fu">mod_simple_listing</span><span class="op">(</span><span class="va">dataset_name</span>, <span class="va">module_id</span><span class="op">)</span></span></code></pre></div>
     </div>
 
     <div class="section level2">
@@ -72,8 +71,8 @@
 <dd><p>a data.framish dataset that will be shown as a table</p></dd>
 
 
-<dt>dataset_disp</dt>
-<dd><p>An mm_dispatch object.</p></dd>
+<dt>dataset_name</dt>
+<dd><p><code>[character(1)]</code></p></dd>
 
 </dl></div>
     <div class="section level2">
