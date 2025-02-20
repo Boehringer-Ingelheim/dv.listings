@@ -15,4 +15,4 @@ tests/testthat/app/shiny_bookmarks
 inst/doc
 /doc/
 /Meta/
-man/*.Rd
+
