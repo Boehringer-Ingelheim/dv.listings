@@ -342,7 +342,7 @@ listings_server <- function(module_id,
       data <- droplevels(dataset)
       data <- set_labels(data, labels)
       
-      set_up <- set_up_datatable(dataset = data, selected_cols = selected_cols, pagination = pagination)
+      set_up <- set_up_datatable(dataset = data, pagination = pagination)
       
       # Export values for shinytest2 tests
       shiny::exportTestValues(output_table = data, column_names = set_up$col_names)

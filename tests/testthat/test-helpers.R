@@ -319,10 +319,9 @@ test_that("set_up_datatable() returns correct column names, row names, and pagin
   attributes(df$A)$label <- "Label A"
   attributes(df$C)$label <- "Label C"
 
-  selected_cols <- c("A", "B", "C")
   pagination <- NULL
 
-  actual <- set_up_datatable(df, selected_cols, pagination)
+  actual <- set_up_datatable(df, pagination)
 
   expected <- list(
     col_names = c("A [Label A]", "B [No label]", "C [Label C]"),
@@ -339,10 +338,9 @@ test_that("set_up_datatable() automatically activates pagination for large datas
     C = sample(c("a", "b", "c"), 1001, replace = TRUE)
   )
 
-  selected_cols <- c("A", "B", "C")
   pagination <- NULL
 
-  actual <- set_up_datatable(df, selected_cols, pagination)
+  actual <- set_up_datatable(df, pagination)
 
   expect_true(actual$paging)
 })
@@ -354,10 +352,9 @@ test_that("set_up_datatable() automatically deactivates pagination for small dat
     C = sample(c("a", "b", "c"), 100, replace = TRUE)
   )
 
-  selected_cols <- c("A", "B", "C")
   pagination <- NULL
 
-  actual <- set_up_datatable(df, selected_cols, pagination)
+  actual <- set_up_datatable(df, pagination)
 
   expect_false(actual$paging)
 })

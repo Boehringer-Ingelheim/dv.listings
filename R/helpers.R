@@ -231,11 +231,11 @@ convert_data <- function(dataset) {
 #' @return List containing character vectors for column names and row names and
 #' a logical value for de-/activating paging
 #' @keywords internal
-set_up_datatable <- function(dataset, selected_cols, pagination) {
+set_up_datatable <- function(dataset, pagination) {
   # skip checkmate checks because this function only exists to be able to test paging
 
   labels <- get_labels(dataset) # Get labels for selected columns
-  col_names <- paste0(selected_cols, " [", labels, "]") # Combine names with labels
+  col_names <- paste0(names(dataset), " [", labels, "]") # Combine names with labels
   row_names <- as.character(seq_len(nrow(dataset)))
   paging <- if (is.null(pagination)) nrow(dataset) > 1000 else pagination
 
