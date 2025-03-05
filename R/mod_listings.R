@@ -163,13 +163,6 @@ listings_server <- function(module_id,
     # Set choices as a reactive value item
     rvs <- shiny::reactiveValues(dataset_choices = NA, variable_choices = NA)
     
-    shiny::observe({
-      shiny::req(afmm_param$module_names)
-      
-      # Check availability of receiver id
-      check_receiver(receiver_id, names(afmm_param$module_names))
-    })
-    
     # Listing selection (start)
     shiny::observeEvent(v_dataset_list(), {
       # Fill default in case bookmark or default columns do not have all the listings in the dataset
@@ -586,6 +579,12 @@ check_mod_listings <- function(afmm, datasets, module_id, dataset_names,
     container = err,
     cond = checkmate::test_string(receiver_id, null.ok = TRUE),
     msg = "`receiver_id` should be either character(1) or NULL."
+  ) && CM$assert(
+    container = err,
+    cond = is.null(receiver_id) || receiver_id %in% names(afmm$module_names),
+    msg = sprintf('`receiver_id` refers to "%s", which is not among the available module IDs: %s',
+                  receiver_id, paste(names(afmm$module_names), collapse = ", ")
+    )
   )
   
   res <- list(warnings = warn[["messages"]], errors = err[["messages"]])
