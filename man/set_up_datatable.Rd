@@ -5,21 +5,21 @@
 \title{Internal helper function to set up colnames, rownames, and paging arguments for DT's datatable.
 Main purpose is to easily test returned arguments.}
 \usage{
-set_up_datatable(dataset, selected_cols, pagination)
+set_up_datatable(dataset, pagination)
 }
 \arguments{
 \item{dataset}{\verb{[data.frame]}
 
 Single data.frame}
 
-\item{selected_cols}{\verb{[character(0+)]}
-
-Character vector of a selection of column names from the dataset}
-
 \item{pagination}{\verb{[logical(1) | NULL]}
 
 Either a boolean indicating if pagination should be activated, or
 NULL for which pagination will be activated for large datasets (nrows > 1000) automatically.}
+
+\item{selected_cols}{\verb{[character(0+)]}
+
+Character vector of a selection of column names from the dataset}
 }
 \value{
 List containing character vectors for column names and row names and

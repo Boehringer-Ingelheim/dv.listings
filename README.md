@@ -115,4 +115,4 @@ Please be aware that the PDF download feature is implemented using an RMarkdown 
 
 ## Jumping Feature
 
-Users can select a row from listings table to jump to a patient profile of the subject. The row turns blue once selected and remains grey on hover. To see a working example, please consult "Communication_jumping_feature" vignette.
+When this feature is enabled, users can click on the right-most "Details" column to drill down on details related to a specific subject. To see a working example, please refer to the "Communication_jumping_feature" vignette.

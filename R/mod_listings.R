@@ -340,21 +340,25 @@ listings_server <- function(module_id,
       # Export values for shinytest2 tests
       shiny::exportTestValues(output_table = data, column_names = set_up$col_names)
       
-      # Custom DT javascript callback to resolve the subject ID on the client side and provide it as a shiny input
-      subjid_col_index <- which(names(dataset) == subjid_var)      
-      set_subject_id_js <- c("function(nRow, aData, iDisplayIndex, iDisplayIndexFull) {",
-                             "  $('td', nRow).click(function() {",
-                             "    Shiny.setInputValue(",
-                             "      '%s',"                          |> sprintf(session[["ns"]](TBL$SEL_SUB_ID)),
-                             "      aData[%d],"                     |> sprintf(subjid_col_index),
-                             "      {priority:'event'});",
-                             "  });",
-                             "}")
+      if (!is.null(receiver_id)) {
+        # Adds extra column with button that jumps to data[[subjid_var]]
+        col <- "Details"
+        data[[col]] <- sprintf(
+          paste(
+            "<button class=\"\" onclick=\"Shiny.setInputValue('%s', '%s', {priority:'event'});\">",
+            "  <i class=\"far fa-address-card\" role=\"presentation\" aria-label=\"address-card icon\"></i>",
+            "</button>"
+          ), 
+          session[["ns"]](TBL$SEL_SUB_ID), data[[subjid_var]]
+        )
+        set_up$col_names <- c(set_up$col_names, "Details")
+      }
       
       DT::datatable(
         data,
         colnames = set_up$col_names,
         rownames = set_up$row_names,
+        escape = FALSE,
         filter = "top",
         extensions = "Buttons",
         fillContainer = TRUE,
@@ -371,10 +375,9 @@ listings_server <- function(module_id,
               text = "Reset rows order",
               action = htmlwidgets::JS(js)
             )
-          ),
-          rowCallback = DT::JS(set_subject_id_js)
+          )
         ),
-        selection = "single"
+        selection = "none"
       )
     })
     
