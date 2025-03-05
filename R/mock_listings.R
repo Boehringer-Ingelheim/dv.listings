@@ -87,6 +87,23 @@ mock_listings_mm <- function() {
 
   # No Label within column header
   attributes(data$adsl[["STUDYID"]])$label <- NULL
+  
+  mod_receiver <- function(module_id, sender_id) {
+    list(
+      ui = function(id) shiny::verbatimTextOutput(shiny::NS(id)("out")),
+      server = function(afmm) {
+        shiny::moduleServer(
+          module_id,
+          function(input, output, session) {
+            output[["out"]] <- shiny::reactive({
+              sprintf('Message from module "%s": %s', sender_id, afmm[["module_output"]]()[[sender_id]][["subj_id"]]())
+            })
+          }
+        )
+      },
+      module_id = module_id
+    )
+  }
 
   # Define and launch mock app
   module_list <- list(
@@ -94,14 +111,15 @@ mock_listings_mm <- function() {
       dataset_names = c("adsl", "adae", "adtte", "small", "test"),
       module_id = "multi",
       default_vars = default_vars_multi,
-      pagination = TRUE
+      pagination = TRUE, receiver_id = "receiver"
     ),
     "Single Listing" = dv.listings::mod_listings(
       dataset_names = "adsl",
       module_id = "single",
       default_vars = default_vars_single,
       intended_use_label = NULL
-    )
+    ),
+    "Message receiver" = mod_receiver(module_id = "receiver", sender_id = "multi")
   )
 
   dv.manager::run_app(
