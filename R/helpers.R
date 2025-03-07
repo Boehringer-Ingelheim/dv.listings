@@ -28,8 +28,8 @@ get_labels <- function(dataset) {
 
 
   # Gather labels
-  all_labels <- names(dataset) %>%
-    purrr::set_names() %>%
+  all_labels <- names(dataset) |>
+    purrr::set_names() |>
     purrr::map_chr(function(name) {
       label <- attributes(dataset[[name]])$label
       if (is.null(label)) {
@@ -147,8 +147,8 @@ set_data <- function(base_data, selector) {
   }
 
   # Select user specified (or default) columns from data and force order as determined by the user
-  data <- base_data %>%
-    dplyr::select(dplyr::all_of(selector)) %>%
+  data <- base_data |>
+    dplyr::select(dplyr::all_of(selector)) |>
     dplyr::relocate(dplyr::all_of(selector))
 
   # Get labels for selected columns
@@ -185,7 +185,7 @@ set_labels <- function(dataset, labels) {
     combine = "and"
   )
 
-  ret_dataset <- dataset %>%
+  ret_dataset <- dataset |>
     dplyr::mutate(dplyr::across(dplyr::everything(), ~ structure(.x, label = labels[[dplyr::cur_column()]])))
 
   return(ret_dataset)

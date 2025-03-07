@@ -140,7 +140,7 @@ mod_export_listings_server <- function(module_id,
           NULL
         } else {
           # subsetting using dplyr::filter() is needed to avoid attribute loss (in case of datasets as mtcars)
-          v_data()$df %>% dplyr::filter(rownames(v_data()$df) %in% rownames(v_data()$df)[current_rows()])
+          v_data()$df |> dplyr::filter(rownames(v_data()$df) %in% rownames(v_data()$df)[current_rows()])
         }
       })
 

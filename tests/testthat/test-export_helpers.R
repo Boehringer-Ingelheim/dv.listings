@@ -348,7 +348,7 @@ test_that("pdf_preprocessing() deals with data frames containing only one row", 
   expect_identical(pdf_preprocessing_res, pdf_preprocessing_exp)
 })
 
-test_that("pdf_preprocessing() changes column order due to reference column specification" %>%
+test_that("pdf_preprocessing() changes column order due to reference column specification" |>
   vdoc[["add_spec"]](specs$export_pdf), {
   # df argument
   len <- 4
@@ -488,7 +488,7 @@ test_that("prep_export_data() performs the correct transformation in the single 
   expect_identical(res, exp)
 })
 
-test_that("prep_export_data() performs the correct transformation in the multiple dataset case" %>%
+test_that("prep_export_data() performs the correct transformation in the multiple dataset case" |>
   vdoc[["add_spec"]](specs$export_excel), {
   # arguments
   data_selection_valid <- "all"
@@ -550,7 +550,7 @@ test_that("excel_export() throws an error when argument types mismatch", {
   purrr::walk(file_invalid, ~ expect_error(excel_export(data_to_download_valid, .x)))
 })
 
-test_that("excel_export() exports the .xlsx file as intended" %>%
+test_that("excel_export() exports the .xlsx file as intended" |>
   vdoc[["add_spec"]](specs$export_excel), {
   # arguments
   data_to_download <- list("dummy1" = simple_dummy, "dummy2" = simple_dummy[2:7])
@@ -626,7 +626,7 @@ test_that("pdf_export() throws an error when argument types mismatch", {
   )))
 })
 
-test_that("pdf_export() exports the .pdf file as intended" %>%
+test_that("pdf_export() exports the .pdf file as intended" |>
   vdoc[["add_spec"]](specs$export_pdf), {
   # arguments
   data_to_download <- list("dummy_data" = simple_dummy)
