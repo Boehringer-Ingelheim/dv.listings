@@ -1,0 +1,156 @@
+---
+title: "Review feature design document"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Review feature design document}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+## User Requirements
+
+These requirements are based on initial brainstorming conversations. Some of them are direct requests and some of them are educated guesses from the feature developer. All of them are subject to change until confirmed by the interested parties. The list is not exhaustive:
+
+- User can self-select a reviewer role and, under that capacity, annotate each row of any given dataset with a value chosen from those available on a dropdown menu.
+- Several users can interact under _strictly non-overlapping_ roles with the application, each annotating individual rows of _possibly overlapping_ datasets.
+- All decisions are stored. Even those that conflict (because they differ across roles). The last decision is the one visible by default.
+- Rows are identified by a subset of the dataset's columns (which we call `identifier` columns). That subset is dataset-specific. No two rows can share the same set of identifier values.
+- A subset of the columns (which we call `tracked` and does not overlap the `identifier` columns) is considered necessary and sufficient for review purposes.
+- Updates to the provided datasets are expected during the course of a study. 
+- Changes to contents of `tracked` columns of a previously reviewed dataset row will be highlighted in the user interface and require re-confirmation.
+
+#### Open questions
+- Is it possible to have more than one reviewer per role?
+- Do all datasets share the same decision dropdown choices?
+- Should we guard against or track "disappearing" rows (those whose `identifier` values vanish during a dataset update)?
+
+## API
+This feature can be implemented by adding an extra parameter to `mod_listings`. The names of fields and subfields are all temporary placeholders:
+```{r, eval = FALSE}
+review = list(
+  datasets = list(
+    dm = list(
+      id_vars = "USUBJID",
+      tracked_vars = c("RFENDTC", "RFXENDTC")
+    )
+    ae = list(
+      id_vars = c("USUBJID", "AESEQ"),
+      tracked_vars = c("AESEV")
+    ),
+    ...
+  ),
+  review_choices = c("Seen", "Should look into", "Looked into", "We don't seem to agree", "Clearly artifactual"),
+  review_roles = c("TSTAT", "SP", "Safety", "CTL"),
+  review_store_path = '/mnt/path/to/app/storage'
+)
+```
+All leafs are of type `character(n)`, except for `review_store_path` which is optional and of type character(1). 
+
+A possible simplification would be to make `"USUBJID"` optional on `id_vars`, since `subjid_var` is already a mandatory parameter to the module. The logic inside the module would be that `sorted(union(subjid_var, id_vars))` would be use to identify each row. Internally `tracked_vars` would also be sorted.
+
+**Beware**: Once the application is configured and run once, the only change permitted to the `datasets` subfield will be to *add* extra datasets. Changes to previously configured `id_vars` or `tracked_vars` sub-subfields could potentially render the collected review information inconsistent. The module should disallow the editing controls until such a situation is addressed. Review choices and roles do not suffer from that problem.
+
+## User Interface
+Basic features (sufficient for initial user feedback):
+
+- Isolated drop-down to choose reviewer role. Blank every time the application starts. Not bookmarked. Only when a non-empty role is selected can the user review data.
+- A listing set up for review will have *at least* two extra columns: 
+  - Latest decision
+  - Row status: unreviewed data, reviewed data, data modified after review.
+  Sorting/Filtering by "row status" should allow to conduct reviews of incremental changes to the underlying dataset.
+
+Future features (not requested, so not planned for this development phase):
+
+- Hover-on decision info detail: date and reviewer role.
+- Warn against simultaneous conflicting editing.
+- User upload/download of review information. For manual backup purposes. Stored data consists mostly of hashes, so plaintext download should be OK. However, if necessary we could encrypt it using a symmetric key configured as an app secret and provided as an extra parameter to the module.
+- Load content from concurrent sessions.
+- Warning of conflicting decisions.
+- Acceleration options (Bulk editting, keyboard controls, etc.) outside of initial implementation.
+- Latest reviewer role column to sort/filter.
+- Bulk editing.
+
+#### Open questions
+- The module allows to tweak column visibility. Is it OK to allow review actions performed while some `tracked_vars` are not visible?
+
+
+## Storage
+Currently, the two available forms of storage on Copernicus are:
+
+- Pins
+- Application bookmark folder
+
+The nature of this task requires concurrent multi-user (multi-session, multi-process) write access to a shared resource, which Posit deems incompatible with pins (https://docs.posit.co/connect/user/pins/, see redish box).
+
+This is the first DaVinci module that will serialize to permanent storage a substantial amount of study decisions taken over an extended period of time. Loss of data in this context is not acceptable. To guarantee data integrity, we propose the use of simple *append-only* data structures. Put simply, they are plain files opened in "append" mode. It's easy to demonstrate that they can't become the source of catastrophic loss of data of past review sessions. The granularity of the `pins` API (which only allows to load and store complete files) is incompatible with this design. 
+
+Use of data appending is also beneficial for performance, as only new changes are serialized. It's also useful for version tracking, as all editing operations can be replayed in the order in which they happened.
+
+Backing up review data can be accomplished by copying the contents of the container folder to an independent file system. Since all review operations are appendend, a delta-transmission tool such as `rsync` is a natural fit.
+
+Lastly, using plain file storage allows for easy local testing and for universal use of the review feature (running the application locally, on Connect, Openshift, ...).
+
+The optional `review_store_path` parameter allows to point to an arbitrary folder that should be available for reading and writing. If left unspecified, the module resorts to using the application bookmark folder.
+
+**Note:** If we do indeed end up using bookmarking space for storage, we should check that the application is set up to use server bookmarks and not URL bookmarks.
+
+#### Open questions
+- What are the properties of the Copernicus Connect bookmark folders? Are they backed up? Do we have a storage limit?
+- Will separate company mount points become available at some point on Copernicus?
+
+## Data structures
+There will use a small collection of files for each input dataset configured for review. If we take an imaginary "ae" domain, we would store the following files:
+
+- `ae_000.base` (first known "ae" dataset):
+  - 1 file magic code ("LISTBASE")
+  - 1 format version number (0)
+  - 1 domain string ("ae")
+  - 1 generation marker (0)
+  - 1 timestamp of creation date+time (UTC).
+  - 1 complete hash of "ae" data.frame.
+  - n `id_vars` column names.
+  - m `tracked_vars` column names.
+  - 1 per "ae" row: `hash(ae[id_vars])` + `hash(ae[tracked_vars])`
+- `ae_001.delta` (one per domain update):
+  - 1 file magic code ("LISTDELT")
+  - 1 format version number (0)
+  - 1 domain string ("ae")
+  - 1 generation marker (1)
+  - 1 delta timestamp (number of milliseconds ellapsed since "base" timestamp)
+  - 1 per *new/modified* "ae" row: `hash(ae[id_vars])` + `hash(ae[tracked_vars])`
+- `ae_<ROLE>.review` (one per <ROLE>):
+  - 1 file magic code ("LISTREVI")
+  - 1 format version number (0)
+  - 1 role string
+  - n reviews: `hash(ae[id_vars])` + `review_index` + delta timestamp
+- `ae_<ROLE>.codes` (one per <ROLE>):
+  - 1 file magic code ("LISTCODE")
+  - 1 format version number (0)
+  - n review texts
+
+The dominant factor governing the size of these files is the length of a hash, which is 16 bytes, as we discuss in the "Hashing" session below. Delta timestamps can be encoded in 8 bytes. Estimating an upper bound of 1 million rows per dataset, a `.base` file would take around 32 MiB. A comprehensive `.review` file for such a dataset would take around 24 MiB.
+
+These file structures are designed so that they start with a short heterogeneous header that reiterates the information that can be gleaned on the file name. The rest of the records are all homogeneous and of known size. That allows to load them into memory without the need for expensive parsing.
+
+These files won't benefit much from compression since their main content (the hashes) is by construction statistically indistinguishable from noise.
+
+## Hashing
+We store hashes for the values of `id_vars` and `tracked_vars` dataset columns. These hashes serve as content IDs. 
+
+With a perfect hash we would expect a collision after `2^(n/2)` entries have been hashed, where `n` is the output length in bits of the chosen hash. A hash that produces 64 bits is not strong enough as 2^32 is large but bound to collide if the review feature is used long enough. We opt instead for 128 bits, which makes the possibility of a collision extremely unlikely. We expect an upper bound of one million rows per dataset, which is 13 *orders of magnitude* lower than the mean amount of entries estimated necessary to get a collision. The chosen hash won't be perfect, but we have an ample safety margin. We also assume that data has not been created through adversarial means geared towards making hash collisions more likely.
+
+A popular choice for non-cryptographic hashing is the `xxh128` function (https://github.com/Cyan4973/xxHash/tree/dev?tab=readme-ov-file#xxhash---extremely-fast-hash-algorithm) for its balance of speed and perceived hash quality.
+Three independent R packages implement it:
+
+- rlang: Provides no control over serialization, so hashes are potentially not stable across R versions. 
+- digest: Maintained by Dirk Eddelbuettel, known for being a stickler for backwards compatibility. Provides serialization options.
+- xxhashlite: Substantially faster than the other two implementations for small input sizes (our scenario). Provides serialization options.
+
+It makes sense to use the fastest implementation available, as it respects the time of users and requires less energy . `xxhashlite` is then the clear winner, but migration to `digest` (or "vendoring" of `xxhashlite` inside this package) is always possible if this lesser-known package is somehow retired from CRAN.
