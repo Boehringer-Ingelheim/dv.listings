@@ -33,7 +33,7 @@ These requirements are based on initial brainstorming conversations. Some of the
 
 ## API
 This feature can be implemented by adding an extra parameter to `mod_listings`. The names of fields and subfields are all temporary placeholders:
-```{r, eval = FALSE}
+```
 review = list(
   datasets = list(
     dm = list(
@@ -82,7 +82,7 @@ Future features (not requested, so not planned for this development phase):
 
 
 ## Storage
-Currently, the two available forms of storage on Copernicus are:
+Currently, the two available forms of storage on Connect are:
 
 - Pins
 - Application bookmark folder
@@ -102,8 +102,8 @@ The optional `review_store_path` parameter allows to point to an arbitrary folde
 **Note:** If we do indeed end up using bookmarking space for storage, we should check that the application is set up to use server bookmarks and not URL bookmarks.
 
 #### Open questions
-- What are the properties of the Copernicus Connect bookmark folders? Are they backed up? Do we have a storage limit?
-- Will separate company mount points become available at some point on Copernicus?
+- What are the properties of the Connect bookmark folders? Are they backed up? Do we have a storage limit?
+- Will client-controlled mount points become available at some point on Connect?
 
 ## Data structures
 There will use a small collection of files for each input dataset configured for review. If we take an imaginary "ae" domain, we would store the following files:
