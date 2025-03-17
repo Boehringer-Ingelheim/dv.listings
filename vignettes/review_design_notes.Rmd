@@ -57,6 +57,9 @@ A possible simplification would be to make `"USUBJID"` optional on `id_vars`, si
 
 **Beware**: Once the application is configured and run once, the only change permitted to the `datasets` subfield will be to *add* extra datasets. Changes to previously configured `id_vars` or `tracked_vars` sub-subfields could potentially render the collected review information inconsistent. The module should disallow the editing controls until such a situation is addressed. Review choices and roles do not suffer from that problem.
 
+#### Open questions
+- Do we need to keep track of row numbers? They don't have an assigned column name, so this draft API would be insufficient to specify that they should/should not be tracked.
+
 ## User Interface
 Basic features (sufficient for initial user feedback):
 
@@ -111,31 +114,40 @@ There will use a small collection of files for each input dataset configured for
 - `ae_000.base` (first known "ae" dataset):
   - 1 file magic code ("LISTBASE")
   - 1 format version number (0)
-  - 1 domain string ("ae")
   - 1 generation marker (0)
-  - 1 timestamp of creation date+time (UTC).
-  - 1 complete hash of "ae" data.frame.
-  - n `id_vars` column names.
-  - m `tracked_vars` column names.
-  - 1 per "ae" row: `hash(ae[id_vars])` + `hash(ae[tracked_vars])`
+  - 1 timestamp of creation date+time (UTC)
+  - 1 complete hash of "ae" data.frame
+  - 1 domain string ("ae")
+  - n `id_vars` column names
+  - m `tracked_vars` column names
+  - 1 row count
+  - p (1 per "ae" row) `hash(ae[id_vars])`
+  - p (1 per "ae" row) `hash(ae[tracked_vars])`
 - `ae_001.delta` (one per domain update):
   - 1 file magic code ("LISTDELT")
   - 1 format version number (0)
-  - 1 domain string ("ae")
   - 1 generation marker (1)
-  - 1 delta timestamp (number of milliseconds ellapsed since "base" timestamp)
-  - 1 per *new/modified* "ae" row: `hash(ae[id_vars])` + `hash(ae[tracked_vars])`
-- `ae_<ROLE>.review` (one per <ROLE>):
-  - 1 file magic code ("LISTREVI")
-  - 1 format version number (0)
-  - 1 role string
-  - n reviews: `hash(ae[id_vars])` + `review_index` + delta timestamp
-- `ae_<ROLE>.codes` (one per <ROLE>):
+  - 1 timestamp delta (seconds ellapsed since "base" timestamp)
+  - 1 complete hash of new "ae" data.frame
+  - 1 domain string ("ae")
+  - 1 new row count
+  - n (1 per *new* "ae" row) `hash(ae[id_vars])`
+  - n (1 per *new* "ae" row) `hash(ae[tracked_vars])`
+  - 1 new modified row count
+  - p (1 per *modified* "ae" row) row index
+  - p (1 per *modified* "ae" row) `hash(ae[tracked_vars])`
+- `review.codes` (one):
   - 1 file magic code ("LISTCODE")
   - 1 format version number (0)
   - n review texts
+- `ae_<ROLE>.review` (one per ROLE):
+  - 1 file magic code ("LISTREVI")
+  - 1 format version number (0)
+  - 1 role string
+  - 1 domain string ("ae")
+  - n reviews: row index + `review_index` + delta timestamp
 
-The dominant factor governing the size of these files is the length of a hash, which is 16 bytes, as we discuss in the "Hashing" session below. Delta timestamps can be encoded in 8 bytes. Estimating an upper bound of 1 million rows per dataset, a `.base` file would take around 32 MiB. A comprehensive `.review` file for such a dataset would take around 24 MiB.
+The dominant factor governing the size of these files is the length of a hash, which is 16 bytes, as we discuss in the "Hashing" session below. Row indices and delta timestamps can be encoded in 4 bytes. Review indices take up 1 byte each. Estimating an upper bound of 1 million rows per dataset, a `.base` file would take around 32 MiB. A comprehensive `.review` file for such a dataset would take around 9 MiB.
 
 These file structures are designed so that they start with a short heterogeneous header that reiterates the information that can be gleaned on the file name. The rest of the records are all homogeneous and of known size. That allows to load them into memory without the need for expensive parsing.
 

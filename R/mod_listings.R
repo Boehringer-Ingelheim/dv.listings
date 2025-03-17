@@ -18,7 +18,8 @@ TBL <- pack_of_constants( # nolint
   REMOVE_ALL_COLS_BUTTON_LABEL = "Remove all variables",
   RESET_COLS_DEFAULT_BUTTON_ID = "reset_cols_btn",
   RESET_COLS_DEFAULT_BUTTON_LABEL = "Reset to default variables",
-  SEL_SUB_ID = "selected_subject_id"
+  SEL_SUB_ID = "selected_subject_id",
+  REVIEW_COL_ID = "__review__"
 )
 
 #' A module that displays datasets as listings
@@ -308,6 +309,25 @@ listings_server <- function(module_id,
     dt_proxy <- DT::dataTableProxy(TBL$TABLE_ID)
     shiny::observeEvent(input[[TBL$RESET_FILT_BUTTON_ID]], DT::clearSearch(dt_proxy))
     
+    add_review_column <- function(data, col_names) { 
+      data[[TBL$REVIEW_COL_ID]] <- ""
+      review_column_heading <- DTH$set_column_heading_hover_info(
+        "Review", "Double-click on any cell of this column to edit"
+      )
+      
+      editable <- list(
+        target = "cell", 
+        disable = list(
+          columns = c(
+            0, # row number column
+            seq_len(ncol(data) - 1) # all columns except for the newly added review column
+          )
+        )
+      )
+      
+      return(list(data = data, col_names = c(col_names, review_column_heading), editable = editable))
+    }
+    
     output[[TBL$TABLE_ID]] <- DT::renderDataTable({
       shiny::validate(shiny::need(!is.null(input[[TBL$COLUMNS_ID]]), TBL$NO_COL_MSG))
       
@@ -339,19 +359,35 @@ listings_server <- function(module_id,
       
       # Export values for shinytest2 tests
       shiny::exportTestValues(output_table = data, column_names = set_up$col_names)
+
+      if (TRUE) {
+        # TODO: Column fixing of subject and review columns; also of possibly dedicated jump-to column (visit first the DT docs page)
+        # https://stackoverflow.com/questions/51623584/fixing-a-column-in-shiny-datatable-while-scrolling-right-does-not-work
+        changes <- add_review_column(data, set_up$col_names)
+        data <- changes[["data"]]
+        set_up$col_names <- changes[["col_names"]]
+        editable <- changes[["editable"]]
+      }
       
       if (!is.null(receiver_id)) {
-        # Adds extra column with button that jumps to data[[subjid_var]]
-        col <- "Details"
-        data[[col]] <- sprintf(
-          paste(
-            "<button class=\"\" onclick=\"Shiny.setInputValue('%s', '%s', {priority:'event'});\">",
-            "  <i class=\"far fa-address-card\" role=\"presentation\" aria-label=\"address-card icon\"></i>",
-            "</button>"
-          ), 
-          session[["ns"]](TBL$SEL_SUB_ID), data[[subjid_var]]
-        )
-        set_up$col_names <- c(set_up$col_names, "Details")
+        # FIXME: These take for granted that a subject column will be present
+        if (FALSE) {
+          # Option A: Adds extra column with button that jumps to data[[subjid_var]]
+          col <- "Details" # nolint
+          data[[col]] <- sprintf(
+            paste(
+              "<button class=\"\" onclick=\"Shiny.setInputValue('%s', '%s', {priority:'event'});\">",
+              "  <i class=\"far fa-address-card\" role=\"presentation\" aria-label=\"address-card icon\"></i>",
+              "</button>"
+            ), 
+            session[["ns"]](TBL$SEL_SUB_ID), data[[subjid_var]]
+          )
+          set_up$col_names <- c(set_up$col_names, "Details")
+        } else {
+          # Option B: Style subject column as link
+          data[[subjid_var]] <- sprintf("<a title=\"Click for subject details\" href=\"\" onclick=\"Shiny.setInputValue('%s', '%s', {priority:'event'}); return false;\">%s</a>", 
+                                        session[["ns"]](TBL$SEL_SUB_ID), data[[subjid_var]], data[[subjid_var]])
+        }
       }
       
       DT::datatable(
@@ -359,8 +395,9 @@ listings_server <- function(module_id,
         colnames = set_up$col_names,
         rownames = set_up$row_names,
         escape = FALSE,
-        filter = "top",
-        extensions = "Buttons",
+        filter = "top", # FIXME: Interacts badly with fixedColumns
+        # Here's something that works: https://datatables.net/extensions/fixedcolumns/examples/styling/col_filter.html
+        extensions = c("Buttons", "FixedColumns"),
         fillContainer = TRUE,
         options = list(
           searching = TRUE,
@@ -368,20 +405,45 @@ listings_server <- function(module_id,
           scrollX = TRUE,
           ordering = TRUE,
           columnDefs = list(list(className = "dt-center", targets = "_all")),
-          dom = "Bfrtilp",
+          # FIXME: Update to use https://datatables.net/reference/option/layout
+          dom = "Bfrtilp", # Buttons, filtering, processing display element, table, information summary, length, pagination
           buttons = list(
             list(
               extend = "collection",
               text = "Reset rows order",
               action = htmlwidgets::JS(js)
             )
-          )
+          ),
+          fixedColumns = list(left = 3, right = 1) # Need to reorder subject id, if present, to the beginning of the table
         ),
-        selection = "none"
+        selection = "none",
+        editable = editable
       )
     })
     
-    # start: jumping feature --------------------------------------------------
+    # Action callbacks ----
+    ## Cell edit ----
+    
+    compute_stable_row_id <- function(row) {
+      # TODO: Flesh out
+      return(row[[subjid_var]])
+    }
+    
+    DT_hardcoded_cell_edit_suffix <- "_cell_edit"
+    cell_edit_id <- paste0(TBL$TABLE_ID, DT_hardcoded_cell_edit_suffix)
+    shiny::observeEvent(input[[cell_edit_id]], {
+      dataset_name <- input[[TBL$DATASET_ID]]
+      shiny::req(dataset_name)
+      edit_info <- input[[cell_edit_id]]
+      column <- edit_info[["col"]]
+      col_count <- length(r_selected_columns_in_dataset()[[dataset_name]])
+      shiny::req(column == col_count + 1) # row number counts as an editable column
+
+      row <- listings_data()[edit_info$row, ]
+      row_id <- compute_stable_row_id(row) #nolint
+    })
+    
+    ## Jumping feature ----
     if (!is.null(receiver_id)) {
       shiny::observe({
         shiny::req(!is.null(input[[TBL$SEL_SUB_ID]]))
@@ -392,7 +454,6 @@ listings_server <- function(module_id,
       subject <- list(subj_id = shiny::reactive(input[[TBL$SEL_SUB_ID]]))
       return(subject)
     }
-    # end: jumping feature ----------------------------------------------------
     
     shiny::exportTestValues(
       selected_columns_in_dataset = r_selected_columns_in_dataset()
