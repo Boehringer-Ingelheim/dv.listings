@@ -29,4 +29,4 @@ mod <- dv.listings::mod_listings(
 )
 
 trigger_input_id <- "mod-selected_subject_id"
-test_communication_with_papo(mod, data_list, trigger_input_id)
+test_communication_with_papo(mod, data_list, trigger_input_id, "specs$jumping_feature", specs$jumping_feature)
