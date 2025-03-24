@@ -1,5 +1,7 @@
-# YT#VHa53bd254d6ac8e6a19dfa057febb06b5#VH00000000000000000000000000000000#
+# YT#VHb3a67af97b323ee47762788154a489fd#VHa53bd254d6ac8e6a19dfa057febb06b5#
 CM <- local({ # _C_hecked _M_odule
+  # 2025-03-21: [feature] report errors for all loaded datasets and [fix] dehardcode "PARAM" string and use `par` argument
+
   message_well <- function(title, contents, color = "f5f5f5") {
     style <- sprintf("
       padding: 0.5rem;
@@ -47,16 +49,8 @@ CM <- local({ # _C_hecked _M_odule
               )
           }
 
-          err <- error_messages
-          if (length(err)) {
-            res[[length(res) + 1]] <-
-              message_well("Module configuration errors", {
-                tmp <- Map(function(x) htmltools::p(htmltools::HTML(paste("\u2022", x))), err)
-                if (!is.null(preface)) {
-                  tmp <- append(list(htmltools::p(htmltools::HTML(preface))), tmp)
-                }
-                tmp
-              }, color = "#f4d7d7")
+          if (length(error_messages)) {
+            res[[length(res) + 1]] <- message_well("Module configuration errors", error_messages, color = "#f4d7d7")
           }
 
           return(res)
@@ -109,7 +103,6 @@ CM <- local({ # _C_hecked _M_odule
 
       matched_args <- try(as.list(match.call(module)), silent = TRUE)
       error_message <- attr(matched_args, "condition")$message
-      error_message_dataset_index <- NULL
       if (is.null(error_message)) {
         missing_args <- setdiff(mandatory_module_args, names(matched_args))
         if (length(missing_args)) {
@@ -143,7 +136,12 @@ CM <- local({ # _C_hecked _M_odule
               #       - Here we also have access to the original datasets, which allows us to ensure call
               #         correctness independent of filter state or operation in a single pass.
               #       - "catch errors early"
-              for (i_dataset in seq_along(afmm[["data"]])) {
+              dataset_count <- length(afmm[["data"]])
+
+              res_by_dataset <- list()
+              error_count_by_dataset <- integer(0)
+              error_count <- 0
+              for (i_dataset in seq_len(dataset_count)) {
                 check_args <- append(
                   list(
                     afmm = afmm, # To check receiver_ids, among others
@@ -151,23 +149,67 @@ CM <- local({ # _C_hecked _M_odule
                   ),
                   args
                 )
-                res <- do.call(check_mod_fn, check_args)
-                # NOTE: Stop when errors are found on a single dataset to avoid overwhelming users with repeat messages
-                if (length(res[["errors"]])) { # NOTE: Not checking "warnings" because they are going away soon
-                  error_message_dataset_index <- i_dataset
-                  break
+                info <- do.call(check_mod_fn, check_args)
+                res_by_dataset[[i_dataset]] <- info
+                error_count_by_dataset[[i_dataset]] <- length(info[["errors"]])
+                error_count <- error_count + length(info[["errors"]])
+              }
+              
+              as_items <- function(x) htmltools::p(htmltools::HTML(paste("\u2022", x)))
+              
+              if (error_count == 0) NULL
+              else if (dataset_count == 1) {
+                # single dataset
+                res <- res_by_dataset[[1]]
+                res[["errors"]] <- Map(as_items, res[["errors"]])
+              } else {
+                # multiple datasets
+                
+                # FIXME(miguel): We don't do merge "warnings" here because it's a feature that goes unused and we will
+                #                remove it soon. We can't remove it _now_ because it would still require minor fixes
+                #                in at least five different packages and we want to roll a CM bugfix (unrelated to
+                #                the "multiple dataset" feature reporting) while avoiding cascading work.
+                errors <- list()
+                
+                dataset_names <- names(afmm[["datasets"]])
+               
+                errors <- c(
+                  list(htmltools::p(htmltools::HTML(
+                    "Issues have been grouped by input dataset. Expand/collapse the elements below to inspect them:"
+                  )))
+                )
+                
+                details_extra <- "open"
+                for (i_dataset in seq_len(dataset_count)){
+                  if (error_count_by_dataset[[i_dataset]] == 0) next
+                  
+                  details_pre <- htmltools::HTML(
+                    sprintf('
+                      <details %s>
+                        <summary style="display:list-item"><b>%s</b></summary>
+                     ', details_extra, names(afmm[["data"]]))[[i_dataset]]
+                  )
+                  details_extra <- ""
+                  
+                  details_post <- htmltools::HTML("</details>")
+                  
+                  errors <- c(errors, list(details_pre))
+                  
+                  errors <- c(
+                    errors, 
+                    list(htmltools::HTML("<div style='padding: 0.5rem; margin-bottom: 1rem; background-color: #FFFFFF55;
+                                         border: 1px solid #AAAAAA; border-radius: 4px;'>")),
+                    Map(as_items, res_by_dataset[[i_dataset]][["errors"]]),
+                    list(htmltools::HTML("</div>"))
+                  )
+                  
+                  errors <- c(errors, list(details_post))
+                  
+                  res[["errors"]] <- errors
                 }
               }
             }
             
-            if (!is.null(error_message_dataset_index) && length(afmm[["data"]]) > 1) {
-              dataset_name <- names(afmm[["data"]])[[error_message_dataset_index]]
-              res[["preface"]] <- paste(
-                "This application has been configured with more than one dataset.",
-                sprintf("The following error messages apply to the dataset named <b>%s</b>.<br>", dataset_name),
-                "No error checking has been performed on datasets specified after it. <hr>"
-              )
-            }
             return(res)
           })
 
@@ -738,7 +780,7 @@ CM <- local({ # _C_hecked _M_odule
         sprintf('%s <- dv.explorer.parameter::prefix_repeat_parameters(%s, cat_var = "%s", par_var = "%s")', 
                 ds_value, ds_value, cat, par)
 
-      mask <- unique_cat_par_combinations[["PARAM"]] %in% unique_repeat_params
+      mask <- unique_cat_par_combinations[[par]] %in% unique_repeat_params
       deduplicated_table <- df_to_string({
         cats <- unique_cat_par_combinations[mask, ][[cat]]
         pars <- unique_cat_par_combinations[mask, ][[par]]
