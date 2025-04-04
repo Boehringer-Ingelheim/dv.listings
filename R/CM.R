@@ -1,7 +1,9 @@
-# YT#VHf6c40bb7738a4549da708e6cffa92411#VHa84423515cdb57d0fffac288f003e279#
+# YT#VHb3a67af97b323ee47762788154a489fd#VHa53bd254d6ac8e6a19dfa057febb06b5#
 CM <- local({ # _C_hecked _M_odule
-  message_well <- function(title, contents, color = "f5f5f5") { # repeats #iewahg
-    style <- sprintf(r"---(
+  # 2025-03-21: [feature] report errors for all loaded datasets and [fix] dehardcode "PARAM" string and use `par` argument
+
+  message_well <- function(title, contents, color = "f5f5f5") {
+    style <- sprintf("
       padding: 0.5rem;
       padding-left: 1rem;
       margin-bottom: 20px;
@@ -10,7 +12,7 @@ CM <- local({ # _C_hecked _M_odule
       border-radius: 4px;
       -webkit-box-shadow: inset 0 1px 1px rgba(0,0,0,.05);
       box-shadow: inset 0 1px 1px rgba(0,0,0,.05);
-    )---", color)
+    ", color)
 
     res <- list(shiny::h3(title))
     if (length(contents)) res <- append(res, list(shiny::tags[["div"]](contents, style = style)))
@@ -47,16 +49,8 @@ CM <- local({ # _C_hecked _M_odule
               )
           }
 
-          err <- error_messages
-          if (length(err)) {
-            res[[length(res) + 1]] <-
-              message_well("Module configuration errors", {
-                tmp <- Map(function(x) htmltools::p(htmltools::HTML(paste("\u2022", x))), err)
-                if (!is.null(preface)) {
-                  tmp <- append(list(htmltools::p(htmltools::HTML(preface))), tmp)
-                }
-                tmp
-              }, color = "#f4d7d7")
+          if (length(error_messages)) {
+            res[[length(res) + 1]] <- message_well("Module configuration errors", error_messages, color = "#f4d7d7")
           }
 
           return(res)
@@ -109,7 +103,6 @@ CM <- local({ # _C_hecked _M_odule
 
       matched_args <- try(as.list(match.call(module)), silent = TRUE)
       error_message <- attr(matched_args, "condition")$message
-      error_message_dataset_index <- NULL
       if (is.null(error_message)) {
         missing_args <- setdiff(mandatory_module_args, names(matched_args))
         if (length(missing_args)) {
@@ -143,7 +136,12 @@ CM <- local({ # _C_hecked _M_odule
               #       - Here we also have access to the original datasets, which allows us to ensure call
               #         correctness independent of filter state or operation in a single pass.
               #       - "catch errors early"
-              for (i_dataset in seq_along(afmm[["data"]])) {
+              dataset_count <- length(afmm[["data"]])
+
+              res_by_dataset <- list()
+              error_count_by_dataset <- integer(0)
+              error_count <- 0
+              for (i_dataset in seq_len(dataset_count)) {
                 check_args <- append(
                   list(
                     afmm = afmm, # To check receiver_ids, among others
@@ -151,23 +149,67 @@ CM <- local({ # _C_hecked _M_odule
                   ),
                   args
                 )
-                res <- do.call(check_mod_fn, check_args)
-                # NOTE: Stop when errors are found on a single dataset to avoid overwhelming users with repeat messages
-                if (length(res[["errors"]])) { # NOTE: Not checking "warnings" because they are going away soon
-                  error_message_dataset_index <- i_dataset
-                  break
+                info <- do.call(check_mod_fn, check_args)
+                res_by_dataset[[i_dataset]] <- info
+                error_count_by_dataset[[i_dataset]] <- length(info[["errors"]])
+                error_count <- error_count + length(info[["errors"]])
+              }
+              
+              as_items <- function(x) htmltools::p(htmltools::HTML(paste("\u2022", x)))
+              
+              if (error_count == 0) NULL
+              else if (dataset_count == 1) {
+                # single dataset
+                res <- res_by_dataset[[1]]
+                res[["errors"]] <- Map(as_items, res[["errors"]])
+              } else {
+                # multiple datasets
+                
+                # FIXME(miguel): We don't do merge "warnings" here because it's a feature that goes unused and we will
+                #                remove it soon. We can't remove it _now_ because it would still require minor fixes
+                #                in at least five different packages and we want to roll a CM bugfix (unrelated to
+                #                the "multiple dataset" feature reporting) while avoiding cascading work.
+                errors <- list()
+                
+                dataset_names <- names(afmm[["datasets"]])
+               
+                errors <- c(
+                  list(htmltools::p(htmltools::HTML(
+                    "Issues have been grouped by input dataset. Expand/collapse the elements below to inspect them:"
+                  )))
+                )
+                
+                details_extra <- "open"
+                for (i_dataset in seq_len(dataset_count)){
+                  if (error_count_by_dataset[[i_dataset]] == 0) next
+                  
+                  details_pre <- htmltools::HTML(
+                    sprintf('
+                      <details %s>
+                        <summary style="display:list-item"><b>%s</b></summary>
+                     ', details_extra, names(afmm[["data"]]))[[i_dataset]]
+                  )
+                  details_extra <- ""
+                  
+                  details_post <- htmltools::HTML("</details>")
+                  
+                  errors <- c(errors, list(details_pre))
+                  
+                  errors <- c(
+                    errors, 
+                    list(htmltools::HTML("<div style='padding: 0.5rem; margin-bottom: 1rem; background-color: #FFFFFF55;
+                                         border: 1px solid #AAAAAA; border-radius: 4px;'>")),
+                    Map(as_items, res_by_dataset[[i_dataset]][["errors"]]),
+                    list(htmltools::HTML("</div>"))
+                  )
+                  
+                  errors <- c(errors, list(details_post))
+                  
+                  res[["errors"]] <- errors
                 }
               }
             }
             
-            if (!is.null(error_message_dataset_index) && length(afmm[["data"]]) > 1) {
-              dataset_name <- names(afmm[["data"]])[[error_message_dataset_index]]
-              res[["preface"]] <- paste(
-                "This application has been configured with more than one dataset.",
-                sprintf("The following error messages apply to the dataset named <b>%s</b>.<br>", dataset_name),
-                "No error checking has been performed on datasets specified after it. <hr>"
-              )
-            }
             return(res)
           })
 
@@ -599,7 +641,7 @@ CM <- local({ # _C_hecked _M_odule
     } else if (is.character(v)) {
       res <- sprintf('"%s"', unique(v))
     } else {
-      browser()
+      stop(sprintf('Unsuported class "%s" as argument to `list_values`', class(v)))
     }
 
     res <- paste(res, collapse = ", ")
@@ -719,9 +761,9 @@ CM <- local({ # _C_hecked _M_odule
 
     unique_cat_par_combinations <- unique(dataset[c(cat, par)])
     dup_mask <- duplicated(unique_cat_par_combinations[par])
-    unique_repeat_params <- unique_cat_par_combinations[[par]][dup_mask]
     
-    ok <- assert(err, length(unique_repeat_params) == 0, {
+    ok <- assert(err, !any(dup_mask), {
+      unique_repeat_params <- unique_cat_par_combinations[[par]][dup_mask]
       dups <- df_to_string(
         data.frame(
           check.names = FALSE,
@@ -738,7 +780,7 @@ CM <- local({ # _C_hecked _M_odule
         sprintf('%s <- dv.explorer.parameter::prefix_repeat_parameters(%s, cat_var = "%s", par_var = "%s")', 
                 ds_value, ds_value, cat, par)
 
-      mask <- unique_cat_par_combinations[["PARAM"]] %in% unique_repeat_params
+      mask <- unique_cat_par_combinations[[par]] %in% unique_repeat_params
       deduplicated_table <- df_to_string({
         cats <- unique_cat_par_combinations[mask, ][[cat]]
         pars <- unique_cat_par_combinations[mask, ][[par]]
@@ -764,21 +806,47 @@ CM <- local({ # _C_hecked _M_odule
     })
 
     supposedly_unique <- dataset[c(sub, cat, par, vis)]
-    dups <- duplicated(supposedly_unique)
+    dup_mask <- duplicated(supposedly_unique)
 
-    ok <- ok && assert(err, !any(dups), {
+    ok <- ok && assert(err, !any(dup_mask), {
       prefixes <- c(
         rep("Subject:", length(sub)), rep("Category:", length(cat)),
         rep("Parameter:", length(par)), rep("Visit:", length(vis))
       )
 
-      first_duplicates <- head(supposedly_unique[dups, ], 5)
+      first_duplicates <- head(supposedly_unique[dup_mask, ], 5)
       names(first_duplicates) <- paste(prefixes, names(first_duplicates))
       dups <- df_to_string(first_duplicates)
+      
+      unique_repeats <- unique(supposedly_unique[dup_mask, ])
+      target <- unique_repeats[1, ]
+      target_rows <- which(supposedly_unique[[sub]] == target[[sub]] & supposedly_unique[[cat]] == target[[cat]] &
+                             supposedly_unique[[par]] == target[[par]] & supposedly_unique[[vis]] == target[[vis]])
+      
+      row_a <- dataset[target_rows[[1]], ]
+      row_b <- dataset[target_rows[[2]], ]
+      diff_cols <- character(0)
+      for (col in names(row_a)) if (!identical(row_a[[col]], row_b[[col]])) diff_cols <- c(diff_cols, col)
+     
+      col_diff_report <- "are identical." 
+      if (length(diff_cols)) { 
+        col_diff_report <- paste0(
+          "have indeed identical subject, category, parameter and visit values, but differ in columns: ",
+          paste(diff_cols, collapse = ", "), ".",
+          "<pre>", 
+          df_to_string(dataset[target_rows[1:2], c(sub, cat, par, vis, diff_cols)]),
+          "</pre>"
+        )
+      }
+        
       paste(
         sprintf("The dataset provided by `%s` (%s) contains repeated rows with identical subject, category, parameter", ds_name, ds_value),
-        "and visit values. This module expects them to be unique. Here are the first few duplicates:",
-        paste0("<pre>", dups, "</pre>")
+        sprintf("and visit values. This module expects them to be unique. There are a total of %d duplicates.", sum(dup_mask)),
+        "Here are the first few:",
+        paste0("<pre>", dups, "</pre>"),
+        sprintf("These findings can be partially confirmed by examining that rows <b>%d</b> and <b>%d</b> of that dataset", 
+                target_rows[[1]], target_rows[[2]]),
+        col_diff_report
       )
     })
 
