@@ -19,7 +19,8 @@ TBL <- pack_of_constants( # nolint
   RESET_COLS_DEFAULT_BUTTON_ID = "reset_cols_btn",
   RESET_COLS_DEFAULT_BUTTON_LABEL = "Reset to default variables",
   SEL_SUB_ID = "selected_subject_id",
-  REVIEW_COL_ID = "__review__"
+  REVIEW_UI_ID = "review_ui_id",
+  REVIEW_UI_LABEL = "Annotations"
 )
 
 #' A module that displays datasets as listings
@@ -40,7 +41,7 @@ listings_UI <- function(module_id) { # nolint
   shiny::tagList(
     shiny::fluidRow(
       shiny::column(
-        2,
+        5,
         shinyWidgets::dropdownButton(
           inputId = ns(TBL$DRPDBUTTON_ID),
           shiny::selectizeInput(ns(TBL$DATASET_ID), label = TBL$DATASET_LABEL, choices = NULL),
@@ -78,7 +79,8 @@ listings_UI <- function(module_id) { # nolint
           tooltip = shinyWidgets::tooltipOptions(title = TBL$DRPDBUTTON_LABEL)
         )
       ),
-      shiny::column(2, mod_export_listings_UI(module_id = ns(TBL$EXPORT_ID)), offset = 8)
+      shiny::column(5, shiny::uiOutput(ns(TBL$REVIEW_UI_ID))),
+      shiny::column(2, mod_export_listings_UI(module_id = ns(TBL$EXPORT_ID)))
     ),
     shiny::br(),
     shiny::actionButton(
@@ -159,6 +161,8 @@ listings_server <- function(module_id,
   
   # Initiate module server
   shiny::moduleServer(module_id, function(input, output, session) {
+    ns <- session[["ns"]]
+    
     v_dataset_list <- shiny::reactive({
       checkmate::assert_list(dataset_list(), types = "data.frame", null.ok = TRUE, names = "named")
       dataset_list()
@@ -311,24 +315,11 @@ listings_server <- function(module_id,
     # Proxy reference to dataTable
     dt_proxy <- DT::dataTableProxy(TBL$TABLE_ID)
     shiny::observeEvent(input[[TBL$RESET_FILT_BUTTON_ID]], DT::clearSearch(dt_proxy))
-    
-    add_review_column <- function(data, col_names) { 
-      data[[TBL$REVIEW_COL_ID]] <- ""
-      review_column_heading <- DTH$set_column_heading_hover_info(
-        "Review", "Double-click on any cell of this column to edit"
-      )
-      
-      editable <- list(
-        target = "cell", 
-        disable = list(
-          columns = c(
-            0, # row number column
-            seq_len(ncol(data) - 1) # all columns except for the newly added review column
-          )
-        )
-      )
-      
-      return(list(data = data, col_names = c(col_names, review_column_heading), editable = editable))
+   
+    enable_review <- TRUE 
+    if(enable_review){
+      output[[TBL$REVIEW_UI_ID]] <- shiny::renderUI(REV_UI(ns))
+      REV_logic(input)
     }
     
     output[[TBL$TABLE_ID]] <- DT::renderDataTable({
@@ -365,34 +356,19 @@ listings_server <- function(module_id,
         shiny::exportTestValues(output_table = data, column_names = col_names)
       }
 
-      if (TRUE) {
+      if (enable_review) {
         # TODO: Column fixing of subject and review columns; also of possibly dedicated jump-to column (visit first the DT docs page)
         # https://stackoverflow.com/questions/51623584/fixing-a-column-in-shiny-datatable-while-scrolling-right-does-not-work
-        changes <- add_review_column(data, set_up$col_names)
+        changes <- REV_add_review_column(ns, data, set_up$col_names)
         data <- changes[["data"]]
         set_up$col_names <- changes[["col_names"]]
-        editable <- changes[["editable"]]
       }
       
       if (!is.null(receiver_id)) {
-        # FIXME: These take for granted that a subject column will be present
-        if (FALSE) {
-          # Option A: Adds extra column with button that jumps to data[[subjid_var]]
-          col <- "Details" # nolint
-          data[[col]] <- sprintf(
-            paste(
-              "<button class=\"\" onclick=\"Shiny.setInputValue('%s', '%s', {priority:'event'});\">",
-              "  <i class=\"far fa-address-card\" role=\"presentation\" aria-label=\"address-card icon\"></i>",
-              "</button>"
-            ), 
-            session[["ns"]](TBL$SEL_SUB_ID), data[[subjid_var]]
-          )
-          set_up$col_names <- c(set_up$col_names, "Details")
-        } else {
-          # Option B: Style subject column as link
-          data[[subjid_var]] <- sprintf("<a title=\"Click for subject details\" href=\"\" onclick=\"Shiny.setInputValue('%s', '%s', {priority:'event'}); return false;\">%s</a>", 
-                                        session[["ns"]](TBL$SEL_SUB_ID), data[[subjid_var]], data[[subjid_var]])
-        }
+        # FIXME? Assumes that the subject column will be present
+        # Style subject column as link
+        data[[subjid_var]] <- sprintf("<a title=\"Click for subject details\" href=\"\" onclick=\"Shiny.setInputValue('%s', '%s', {priority:'event'}); return false;\">%s</a>", 
+                                      session[["ns"]](TBL$SEL_SUB_ID), data[[subjid_var]], data[[subjid_var]])
       }
       
       DT::datatable(
@@ -421,32 +397,11 @@ listings_server <- function(module_id,
           ),
           fixedColumns = list(left = 3, right = 1) # Need to reorder subject id, if present, to the beginning of the table
         ),
-        selection = "none",
-        editable = editable
+        selection = "none"
       )
     })
     
     # Action callbacks ----
-    ## Cell edit ----
-    
-    compute_stable_row_id <- function(row) {
-      # TODO: Flesh out
-      return(row[[subjid_var]])
-    }
-    
-    DT_hardcoded_cell_edit_suffix <- "_cell_edit"
-    cell_edit_id <- paste0(TBL$TABLE_ID, DT_hardcoded_cell_edit_suffix)
-    shiny::observeEvent(input[[cell_edit_id]], {
-      dataset_name <- input[[TBL$DATASET_ID]]
-      shiny::req(dataset_name)
-      edit_info <- input[[cell_edit_id]]
-      column <- edit_info[["col"]]
-      col_count <- length(r_selected_columns_in_dataset()[[dataset_name]])
-      shiny::req(column == col_count + 1) # row number counts as an editable column
-
-      row <- listings_data()[edit_info$row, ]
-      row_id <- compute_stable_row_id(row) #nolint
-    })
     
     ## Jumping feature ----
     if (!is.null(receiver_id)) {
