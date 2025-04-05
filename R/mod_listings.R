@@ -154,6 +154,9 @@ listings_server <- function(module_id,
   if (!is.null(default_vars)) {
     checkmate::assert_names(names(default_vars), type = "unique")
   }
+  
+  testing <- isTRUE(getOption("shiny.testmode"))
+  
   # Initiate module server
   shiny::moduleServer(module_id, function(input, output, session) {
     v_dataset_list <- shiny::reactive({
@@ -357,8 +360,10 @@ listings_server <- function(module_id,
       
       set_up <- set_up_datatable(dataset = data, pagination = pagination)
       
-      # Export values for shinytest2 tests
-      shiny::exportTestValues(output_table = data, column_names = set_up$col_names)
+      if (testing) {
+        col_names <- set_up[["col_names"]]
+        shiny::exportTestValues(output_table = data, column_names = col_names)
+      }
 
       if (TRUE) {
         # TODO: Column fixing of subject and review columns; also of possibly dedicated jump-to column (visit first the DT docs page)

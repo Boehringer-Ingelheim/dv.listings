@@ -344,7 +344,8 @@ test_that("mod_listings() restores row order of the whole table when restoring a
   )
 
   # Needed buttons to click
-  sort_selector <- '.dt-center.sorting[aria-label="var1 [My 1st label]: activate to sort column ascending"]'
+  sort_selector <- paste(".dataTables_scrollHead",
+                         '.dt-center.sorting[aria-label="var1 [My 1st label]: activate to sort column ascending"]')
   reset_selector <- "div.dt-buttons>button"
 
   # Perform steps within test app
