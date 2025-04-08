@@ -19,8 +19,9 @@ TBL <- pack_of_constants( # nolint
   RESET_COLS_DEFAULT_BUTTON_ID = "reset_cols_btn",
   RESET_COLS_DEFAULT_BUTTON_LABEL = "Reset to default variables",
   SEL_SUB_ID = "selected_subject_id",
+  REVIEW_DROPDOWN_ID = "review_dropdown_id",
   REVIEW_UI_ID = "review_ui_id",
-  REVIEW_UI_LABEL = "Annotations"
+  REVIEW_DROPDOWN_LABEL = "Annotations"
 )
 
 #' A module that displays datasets as listings
@@ -79,7 +80,13 @@ listings_UI <- function(module_id) { # nolint
           tooltip = shinyWidgets::tooltipOptions(title = TBL$DRPDBUTTON_LABEL)
         )
       ),
-      shiny::column(5, shiny::uiOutput(ns(TBL$REVIEW_UI_ID))),
+      shiny::column(
+        5, 
+        shinyWidgets::dropdownButton(
+          inputId = ns(TBL$REVIEW_DROPDOWN_ID), label = TBL$REVIEW_DROPDOWN_LABEL, circle = FALSE,
+          shiny::uiOutput(ns(TBL$REVIEW_UI_ID))
+        )
+      ),
       shiny::column(2, mod_export_listings_UI(module_id = ns(TBL$EXPORT_ID)))
     ),
     shiny::br(),
@@ -138,6 +145,7 @@ listings_server <- function(module_id,
                             pagination = NULL,
                             intended_use_label = NULL,
                             subjid_var = "USUBJID",
+                            review = NULL,
                             receiver_id = NULL,
                             afmm_param = NULL) {
   checkmate::assert(
@@ -316,17 +324,81 @@ listings_server <- function(module_id,
     dt_proxy <- DT::dataTableProxy(TBL$TABLE_ID)
     shiny::observeEvent(input[[TBL$RESET_FILT_BUTTON_ID]], DT::clearSearch(dt_proxy))
    
-    enable_review <- TRUE 
-    if(enable_review){
-      output[[TBL$REVIEW_UI_ID]] <- shiny::renderUI(REV_UI(ns))
-      REV_logic(input)
+    show_review_dropdown <- !is.null(review)
+    show_review_column <- function() FALSE
+    REV_state <- list()
+    if (show_review_dropdown) {
+      output[[TBL$REVIEW_UI_ID]] <- shiny::renderUI(REV_UI(ns = ns, roles = review[["roles"]]))
+      shiny::outputOptions(output, TBL$REVIEW_UI_ID, suspendWhenHidden = FALSE)
+      REV_state <- REV_logic_1(input, review, afmm_param[["datasets"]])
+      show_review_column <- shiny::reactive(REV_state[["connected"]])
     }
+    
+    output_table_data <- shiny::reactive({
+      shiny::validate(                        # TODO: Explain why these are necessary
+        shiny::need(
+          !is.null(input[[TBL$COLUMNS_ID]]), 
+          TBL$NO_COL_MSG
+        )
+      )
+      
+      selected_cols <- r_selected_columns_in_dataset()[[input[[TBL$DATASET_ID]]]]
+      
+      dataset <- listings_data()[selected_cols]
+      
+      # drop factor levels to ensure column filter of DT don't show non-existing levels
+      labels <- get_labels(dataset)
+      data <- droplevels(dataset)
+      data <- set_labels(data, labels)
+      
+      set_up <- set_up_datatable(dataset = data, pagination = pagination)
+      
+      if (testing) {
+        col_names <- set_up[["col_names"]]
+        shiny::exportTestValues(output_table = data, column_names = col_names)
+      }
+
+      if (show_review_column()) {
+        selected_dataset_list_name <- afmm_param[["selected_dataset"]]()
+        selected_dataset_name <- input[[TBL$DATASET_ID]]
+        annotation_info <- REV_state[["annotation_info"]]
+        reviews <- annotation_info[[selected_dataset_list_name]][[selected_dataset_name]]
+        
+        # TODO: Column fixing of subject and review columns; also of possibly dedicated jump-to column (visit first the DT docs page)
+        # https://stackoverflow.com/questions/51623584/fixing-a-column-in-shiny-datatable-while-scrolling-right-does-not-work
+        changes <- REV_add_review_column(ns, data, review[["choices"]], reviews)
+        data <- changes[["data"]]
+        set_up[["col_names"]] <- c(set_up[["col_names"]], changes[["extra_column_names"]])
+      }
+      
+      if (!is.null(receiver_id)) {
+        # FIXME? Assumes the subject column is present
+        # Style subject column as link
+        data[[subjid_var]] <- sprintf("<a title=\"Click for subject details\" href=\"\" onclick=\"Shiny.setInputValue('%s', '%s', {priority:'event'}); return false;\">%s</a>", 
+                                      session[["ns"]](TBL$SEL_SUB_ID), data[[subjid_var]], data[[subjid_var]])
+      }
+      
+      return(
+        list(
+          data = data, 
+          row_names = set_up[["row_names"]], 
+          col_names = set_up[["col_names"]],
+          paging = set_up[["paging"]]
+        )
+      )
+    })
+   
+    REV_logic_2(
+      ns = ns, state = REV_state, input = input, review = review, datasets = afmm_param[["datasets"]],
+      selected_dataset_list_name = afmm_param[["selected_dataset"]],
+      selected_dataset_name = shiny::reactive(input[[TBL$DATASET_ID]]),
+      data = shiny::reactive(output_table_data()[["data"]]), dt_proxy = dt_proxy
+    )
     
     output[[TBL$TABLE_ID]] <- DT::renderDataTable({
       shiny::validate(shiny::need(!is.null(input[[TBL$COLUMNS_ID]]), TBL$NO_COL_MSG))
       
-      # JS to restore original sort
-      js <- c(
+      js_restore_original_order <- c(
         "function(e, dt, node, config) {",
         "  dt.iterator('table', function(s) {",
         "    s.aaSorting.length = 0;",
@@ -340,41 +412,12 @@ listings_server <- function(module_id,
         "}"
       )
       
-      selected_cols <- r_selected_columns_in_dataset()[[input[[TBL$DATASET_ID]]]]
-      
-      dataset <- listings_data()[selected_cols]
-      
-      # drop factor levels to ensure column filter of DT don't show non existing levels
-      labels <- get_labels(dataset)
-      data <- droplevels(dataset)
-      data <- set_labels(data, labels)
-      
-      set_up <- set_up_datatable(dataset = data, pagination = pagination)
-      
-      if (testing) {
-        col_names <- set_up[["col_names"]]
-        shiny::exportTestValues(output_table = data, column_names = col_names)
-      }
-
-      if (enable_review) {
-        # TODO: Column fixing of subject and review columns; also of possibly dedicated jump-to column (visit first the DT docs page)
-        # https://stackoverflow.com/questions/51623584/fixing-a-column-in-shiny-datatable-while-scrolling-right-does-not-work
-        changes <- REV_add_review_column(ns, data, set_up$col_names)
-        data <- changes[["data"]]
-        set_up$col_names <- changes[["col_names"]]
-      }
-      
-      if (!is.null(receiver_id)) {
-        # FIXME? Assumes that the subject column will be present
-        # Style subject column as link
-        data[[subjid_var]] <- sprintf("<a title=\"Click for subject details\" href=\"\" onclick=\"Shiny.setInputValue('%s', '%s', {priority:'event'}); return false;\">%s</a>", 
-                                      session[["ns"]](TBL$SEL_SUB_ID), data[[subjid_var]], data[[subjid_var]])
-      }
+      table_data <- output_table_data()
       
       DT::datatable(
-        data,
-        colnames = set_up$col_names,
-        rownames = set_up$row_names,
+        data = table_data[["data"]],
+        colnames = table_data[["col_names"]],
+        rownames = table_data[["row_names"]],
         escape = FALSE,
         filter = "top", # FIXME: Interacts badly with fixedColumns
         # Here's something that works: https://datatables.net/extensions/fixedcolumns/examples/styling/col_filter.html
@@ -382,7 +425,7 @@ listings_server <- function(module_id,
         fillContainer = TRUE,
         options = list(
           searching = TRUE,
-          paging = set_up$paging,
+          paging = table_data[["paging"]],
           scrollX = TRUE,
           ordering = TRUE,
           columnDefs = list(list(className = "dt-center", targets = "_all")),
@@ -392,7 +435,7 @@ listings_server <- function(module_id,
             list(
               extend = "collection",
               text = "Reset rows order",
-              action = htmlwidgets::JS(js)
+              action = htmlwidgets::JS(js_restore_original_order)
             )
           ),
           fixedColumns = list(left = 3, right = 1) # Need to reorder subject id, if present, to the beginning of the table
@@ -489,6 +532,7 @@ mod_listings <- function(
     pagination = NULL,
     intended_use_label = "Use only for internal review and monitoring during the conduct of clinical trials.",
     subjid_var = "USUBJID",
+    review = NULL,
     receiver_id = NULL) {
   # Check validity of parameters
   checkmate::assert_character(dataset_names)
@@ -509,7 +553,9 @@ mod_listings <- function(
         intended_use_label = intended_use_label,
         subjid_var = subjid_var,
         receiver_id = receiver_id,
-        afmm_param = list(utils = afmm$utils, module_names = afmm$module_names)
+        review = review,
+        afmm_param = list(utils = afmm$utils, module_names = afmm$module_names, 
+                          datasets = afmm[["data"]], selected_dataset = afmm[["dataset_metadata"]][["name"]])
       )
     },
     module_id = module_id
@@ -527,6 +573,7 @@ mod_listings_API_docs <- list(
   pagination = list(""),
   intended_use_label = list(""),
   subjid_var = list(""), 
+  review = list(""), 
   receiver_id = list("")
 )
 
@@ -537,6 +584,7 @@ mod_listings_API_spec <- TC$group(
   pagination = TC$group() |> TC$flag("ignore"),           # manually tested by check_mod_listings
   intended_use_label = TC$group() |> TC$flag("ignore"),   # manually tested by check_mod_listings
   subjid_var = TC$group() |> TC$flag("ignore"),           # manually tested by check_mod_listings
+  review = TC$group() |> TC$flag("ignore"),               # functionality is a WIP, so not definining for now
   receiver_id = TC$group() |> TC$flag("ignore")           # manually tested by check_mod_listings
 ) |> TC$attach_docs(mod_listings_API_docs)
 
@@ -546,7 +594,7 @@ dataset_info_listings <- function(dataset_names, ...) {
 
 check_mod_listings <- function(afmm, datasets, module_id, dataset_names, 
                                default_vars, pagination, intended_use_label,
-                               subjid_var, receiver_id) {
+                               subjid_var, review, receiver_id) {
   warn <- CM$container()
   err <- CM$container()
   
@@ -597,6 +645,9 @@ check_mod_listings <- function(afmm, datasets, module_id, dataset_names,
     cond = checkmate::test_string(subjid_var, null.ok = TRUE),
     msg = "`subjid_var` should be either character(1) or NULL."
   )
+  
+  # review
+  # TODO:
   
   # receiver_id
   CM$assert(

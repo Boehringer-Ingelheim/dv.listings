@@ -247,7 +247,7 @@ RE_compute_review_codes_memory <- function(review_codes){
   res <- c(
     charToRaw("LISTCODE"), # file magic code
     as.raw(0),             # format version number
-    pcodes                 # codes WITHOUT an integer saying how many of them there area
+    pcodes                 # codes WITHOUT an integer saying how many of them there are (allows extending codes)
   )
   
   return(res)
@@ -265,6 +265,52 @@ RE_parse_review_codes <- function(contents){
   while(!is.null(code)){
     res <- c(res, code)
     code <- SE$read_string_from_con(con) 
+  }
+  
+  close(con)
+
+  return(res)
+}
+
+RE_compute_review_reviews_memory <- function(role, dataset){
+  checkmate::assert_string(role, min.chars = 1)
+  
+  prole <- SE$string_to_raw(role)
+  
+  res <- c(
+    charToRaw("LISTREVI"),     # file magic code
+    as.raw(0),                 # format version number
+    prole,                     # role string
+    SE$string_to_raw(dataset)  # domain/dataset
+  )
+  
+  return(res)
+}
+
+RE_parse_review_reviews <- function(contents, row_count, expected_role, expected_domain){
+  res <- data.frame(review = rep(0L, row_count), timestamp = rep(0., row_count))
+  
+  con <- rawConnection(contents, open = "r")
+  file_magic_code <- readBin(con, raw(), 8L) |> rawToChar()
+  ; if(!identical(file_magic_code, "LISTREVI")) return(simpleCondition("Wrong magic code"))
+  format_version_number <- readBin(con, raw(), 1L)
+  ; if(!identical(format_version_number, as.raw(0))) return(simpleCondition("Wrong format version number"))
+  
+  role <- SE$read_string_from_con(con)
+  ; if(!identical(role, expected_role)) return(simpleCondition(sprintf("Expected role `%s`", expected_role)))
+  domain <- SE$read_string_from_con(con)
+  ; if(!identical(domain, expected_domain)) return(simpleCondition(sprintf("Expected domain `%s`", expected_domain)))
+  
+  f_cur <- seek(con, where = 0, origin = 'end', rw = 'read')
+  f_end <- seek(con, where = f_cur, origin = 'start', rw = 'read')
+  
+  record_count <- (f_end - f_cur)/(4+4+8) # integer+integer+numeric
+  for(i in seq_len(record_count)){
+    row_index <- readBin(con, integer(), 1L, endian = 'little')
+    review <- readBin(con, integer(), 1L, endian = 'little')
+    timestamp <- readBin(con, numeric(), 1L, endian = 'little')
+    # NOTE: timestamp increases monotonically with each new row, so not checking it
+    res[row_index,] <- c(review, timestamp)
   }
   
   close(con)
@@ -293,6 +339,14 @@ RE_load <- function(base, deltas){
     res$tracked_hashes[,state_delta$modified_row_indices] <- state_delta$modified_tracked_hashes
   }
   return(res)
+}
+
+RE_append <- function(path, contents){
+  # TODO: Copy file, append to copy, rename back
+  f <- file(path, open = 'r+b', raw = TRUE)
+  seek(f, where = 0, origin = 'end', rw = 'write')
+  writeBin(contents, f)
+  close(f)
 }
 
 # NOTE: The contents of the following conditional are a WIP of the annotation feature.

@@ -39,7 +39,7 @@ review = list(
     dm = list(
       id_vars = "USUBJID",
       tracked_vars = c("RFENDTC", "RFXENDTC")
-    )
+    ),
     ae = list(
       id_vars = c("USUBJID", "AESEQ"),
       tracked_vars = c("AESEV")

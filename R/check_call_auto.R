@@ -4,7 +4,7 @@
 
 # dv.listings::mod_listings
 check_mod_listings_auto <- function(afmm, datasets, module_id, dataset_names, default_vars, pagination,
-    intended_use_label, subjid_var, receiver_id, warn, err) {
+    intended_use_label, subjid_var, review, receiver_id, warn, err) {
     OK <- logical(0)
     used_dataset_names <- new.env(parent = emptyenv())
     OK[["module_id"]] <- CM$check_module_id("module_id", module_id, warn, err)
@@ -21,6 +21,9 @@ check_mod_listings_auto <- function(afmm, datasets, module_id, dataset_names, de
     "      The expectation is that it either does not require them or that"
     "      the caller of this function has written manual checks near the call site."
     "NOTE: subjid_var (group) has no associated automated checks"
+    "      The expectation is that it either does not require them or that"
+    "      the caller of this function has written manual checks near the call site."
+    "NOTE: review (group) has no associated automated checks"
     "      The expectation is that it either does not require them or that"
     "      the caller of this function has written manual checks near the call site."
     "NOTE: receiver_id (group) has no associated automated checks"
