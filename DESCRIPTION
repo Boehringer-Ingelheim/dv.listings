@@ -40,7 +40,8 @@ Imports:
     shinyFeedback (>= 0.4.0),
     shinyjs (>= 2.1.0),
     shinyWidgets (>= 0.8.0),
-    tibble (>= 3.2.1)
+    tibble (>= 3.2.1),
+    xxhashlite
 Depends: R (>= 4.1.0)
 RoxygenNote: 7.3.2
 Roxygen: list(markdown = TRUE)
