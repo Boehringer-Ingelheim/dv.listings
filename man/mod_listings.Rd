@@ -12,6 +12,7 @@ mod_listings(
   intended_use_label =
     "Use only for internal review and monitoring during the conduct of clinical trials.",
   subjid_var = "USUBJID",
+  review = NULL,
   receiver_id = NULL
 )
 }

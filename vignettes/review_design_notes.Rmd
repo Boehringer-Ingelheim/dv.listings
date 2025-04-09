@@ -27,7 +27,6 @@ These requirements are based on initial brainstorming conversations. Some of the
 - Changes to contents of `tracked` columns of a previously reviewed dataset row will be highlighted in the user interface and require re-confirmation.
 
 #### Open questions
-- Is it possible to have more than one reviewer per role?
 - Do all datasets share the same decision dropdown choices?
 - Should we guard against or track "disappearing" rows (those whose `identifier` values vanish during a dataset update)?
 
@@ -84,7 +83,7 @@ Future features (not requested, so not planned for this development phase):
 - The module allows to tweak column visibility. Is it OK to allow review actions performed while some `tracked_vars` are not visible?
 
 
-## Storage
+## Server storage
 Currently, the two available forms of storage on Connect are:
 
 - Pins
@@ -107,6 +106,9 @@ The optional `review_store_path` parameter allows to point to an arbitrary folde
 #### Open questions
 - What are the properties of the Connect bookmark folders? Are they backed up? Do we have a storage limit?
 - Will client-controlled mount points become available at some point on Connect?
+
+## Client Storage
+An alternative approach to review data storage is to use Google's [File System Access API](https://wicg.github.io/file-system-access/) that is currently available in Chrome-derived browsers. To use it, reviewers would have to point the app to a folder shared by the team.
 
 ## Data structures
 There will use a small collection of files for each input dataset configured for review. If we take an imaginary "ae" domain, we would store the following files:

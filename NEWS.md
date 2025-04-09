@@ -1,3 +1,7 @@
+# dv.listings 4.1.0-1
+
+- Prototype of listing annotation feature.
+
 # dv.listings 4.1.0
 
 - Add jumping feature

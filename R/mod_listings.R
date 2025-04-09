@@ -157,6 +157,7 @@ listings_server <- function(module_id,
     checkmate::check_subset(names(dataset_metadata), choices = c("name", "date_range")),
     checkmate::check_logical(pagination, null.ok = TRUE),
     checkmate::check_string(intended_use_label, null.ok = TRUE),
+    checkmate::check_list(review, null.ok = TRUE),
     checkmate::check_string(receiver_id, min.chars = 1, null.ok = TRUE),
     checkmate::check_list(afmm_param, null.ok = TRUE),
     combine = "and"
@@ -324,13 +325,13 @@ listings_server <- function(module_id,
     dt_proxy <- DT::dataTableProxy(TBL$TABLE_ID)
     shiny::observeEvent(input[[TBL$RESET_FILT_BUTTON_ID]], DT::clearSearch(dt_proxy))
    
-    show_review_dropdown <- !is.null(review)
+    enable_review <- !is.null(review)
     show_review_column <- function() FALSE
     REV_state <- list()
-    if (show_review_dropdown) {
+    if (enable_review) {
       output[[TBL$REVIEW_UI_ID]] <- shiny::renderUI(REV_UI(ns = ns, roles = review[["roles"]]))
       shiny::outputOptions(output, TBL$REVIEW_UI_ID, suspendWhenHidden = FALSE)
-      REV_state <- REV_logic_1(input, review, afmm_param[["datasets"]])
+      REV_state <- REV_logic_1(input, review, review[["data"]])
       show_review_column <- shiny::reactive(REV_state[["connected"]])
     }
     
@@ -359,7 +360,7 @@ listings_server <- function(module_id,
       }
 
       if (show_review_column()) {
-        selected_dataset_list_name <- afmm_param[["selected_dataset"]]()
+        selected_dataset_list_name <- review[["selected_dataset"]]()
         selected_dataset_name <- input[[TBL$DATASET_ID]]
         annotation_info <- REV_state[["annotation_info"]]
         reviews <- annotation_info[[selected_dataset_list_name]][[selected_dataset_name]]
@@ -387,13 +388,15 @@ listings_server <- function(module_id,
         )
       )
     })
-   
-    REV_logic_2(
-      ns = ns, state = REV_state, input = input, review = review, datasets = afmm_param[["datasets"]],
-      selected_dataset_list_name = afmm_param[["selected_dataset"]],
-      selected_dataset_name = shiny::reactive(input[[TBL$DATASET_ID]]),
-      data = shiny::reactive(output_table_data()[["data"]]), dt_proxy = dt_proxy
-    )
+  
+    if (enable_review) {
+      REV_logic_2(
+        ns = ns, state = REV_state, input = input, review = review, datasets = review[["data"]],
+        selected_dataset_list_name = review[["selected_dataset"]],
+        selected_dataset_name = shiny::reactive(input[[TBL$DATASET_ID]]),
+        data = shiny::reactive(output_table_data()[["data"]]), dt_proxy = dt_proxy
+      )
+    }
     
     output[[TBL$TABLE_ID]] <- DT::renderDataTable({
       shiny::validate(shiny::need(!is.null(input[[TBL$COLUMNS_ID]]), TBL$NO_COL_MSG))
@@ -544,6 +547,12 @@ mod_listings <- function(
     server = function(afmm) {
       dataset_list <- shiny::reactive(afmm$filtered_dataset()[dataset_names])
       
+      if (is.list(review)) {
+        # These afmm fields are only required for the review functionality, so we bundle them in the `review` list
+        review[["data"]] <- afmm[["data"]]
+        review[["selected_dataset"]] <- afmm[["dataset_metadata"]][["name"]]
+      }
+      
       listings_server(
         dataset_list = dataset_list,
         default_vars = default_vars,
@@ -554,8 +563,7 @@ mod_listings <- function(
         subjid_var = subjid_var,
         receiver_id = receiver_id,
         review = review,
-        afmm_param = list(utils = afmm$utils, module_names = afmm$module_names, 
-                          datasets = afmm[["data"]], selected_dataset = afmm[["dataset_metadata"]][["name"]])
+        afmm_param = list(utils = afmm$utils, module_names = afmm$module_names)
       )
     },
     module_id = module_id

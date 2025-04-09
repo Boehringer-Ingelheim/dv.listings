@@ -115,4 +115,4 @@ Please be aware that the PDF download feature is implemented using an RMarkdown 
 
 ## Jumping Feature
 
-When this feature is enabled, users can click on the right-most "Details" column to drill down on details related to a specific subject. To see a working example, please refer to the "Communication_jumping_feature" vignette.
+When this feature is enabled, users can click on the subject identifier column to drill down on details related to a specific subject. To see a working example, please refer to the "Communication_jumping_feature" vignette.
