@@ -592,7 +592,7 @@ mod_listings_API_spec <- TC$group(
   pagination = TC$group() |> TC$flag("ignore"),           # manually tested by check_mod_listings
   intended_use_label = TC$group() |> TC$flag("ignore"),   # manually tested by check_mod_listings
   subjid_var = TC$group() |> TC$flag("ignore"),           # manually tested by check_mod_listings
-  review = TC$group() |> TC$flag("ignore"),               # functionality is a WIP, so not definining for now
+  review = TC$group() |> TC$flag("ignore"),               # functionality is a WIP, so not defining for now
   receiver_id = TC$group() |> TC$flag("ignore")           # manually tested by check_mod_listings
 ) |> TC$attach_docs(mod_listings_API_docs)
 
