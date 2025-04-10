@@ -131,11 +131,9 @@ listings_UI <- function(module_id) { # nolint
 #' Character string defining the ID of the module to which to send a subject ID. The
 #' module must exist in the module list. The default is NULL which disables communication.
 #'
-#' @param afmm_param `[list(2+) | NULL]`
+#' @param on_sbj_click `[function()]`
 #'
-#' Named list of a selection of arguments from module manager. Expects
-#' at least two elements: \code{utils} and \code{module_names} defining a character vector
-#' whose entries have the corresponding module IDs as names.
+#' Function to invoke when a subject ID is clicked in a listing
 #'
 #' @export
 listings_server <- function(module_id,
@@ -145,9 +143,8 @@ listings_server <- function(module_id,
                             pagination = NULL,
                             intended_use_label = NULL,
                             subjid_var = "USUBJID",
-                            review = NULL,
-                            receiver_id = NULL,
-                            afmm_param = NULL) {
+                            on_sbj_click = NULL,
+                            review = NULL) {
   checkmate::assert(
     checkmate::check_character(module_id, min.chars = 1),
     checkmate::check_multi_class(dataset_list, c("reactive", "shinymeta_reactive")),
@@ -157,9 +154,8 @@ listings_server <- function(module_id,
     checkmate::check_subset(names(dataset_metadata), choices = c("name", "date_range")),
     checkmate::check_logical(pagination, null.ok = TRUE),
     checkmate::check_string(intended_use_label, null.ok = TRUE),
+    checkmate::check_function(on_sbj_click, null.ok = TRUE),
     checkmate::check_list(review, null.ok = TRUE),
-    checkmate::check_string(receiver_id, min.chars = 1, null.ok = TRUE),
-    checkmate::check_list(afmm_param, null.ok = TRUE),
     combine = "and"
   )
   if (!is.null(default_vars)) {
@@ -372,7 +368,7 @@ listings_server <- function(module_id,
         set_up[["col_names"]] <- c(set_up[["col_names"]], changes[["extra_column_names"]])
       }
       
-      if (!is.null(receiver_id)) {
+      if (!is.null(on_sbj_click)) {
         # FIXME? Assumes the subject column is present
         # Style subject column as link
         data[[subjid_var]] <- sprintf("<a title=\"Click for subject details\" href=\"\" onclick=\"Shiny.setInputValue('%s', '%s', {priority:'event'}); return false;\">%s</a>", 
@@ -447,24 +443,21 @@ listings_server <- function(module_id,
       )
     })
     
-    # Action callbacks ----
-    
-    ## Jumping feature ----
-    if (!is.null(receiver_id)) {
-      shiny::observe({
-        shiny::req(!is.null(input[[TBL$SEL_SUB_ID]]))
-        afmm_param$utils$switch2mod(receiver_id)
-      })
-      
-      # N.B papo requires a list containing an element named 'subj_id', hence:
-      subject <- list(subj_id = shiny::reactive(input[[TBL$SEL_SUB_ID]]))
-      return(subject)
-    }
-    
     shiny::exportTestValues(
       selected_columns_in_dataset = r_selected_columns_in_dataset()
     )
     
+    ## Jump to subject ----
+    mod_return_value <- NULL
+    if (!is.null(on_sbj_click)) {
+      shiny::observe({
+        shiny::req(!is.null(input[[TBL$SEL_SUB_ID]]))
+        on_sbj_click()
+      })
+      mod_return_value <- list(subj_id = shiny::reactive(input[[TBL$SEL_SUB_ID]]))
+    }
+    
+    return(mod_return_value)
   })
 }
 
@@ -535,8 +528,8 @@ mod_listings <- function(
     pagination = NULL,
     intended_use_label = "Use only for internal review and monitoring during the conduct of clinical trials.",
     subjid_var = "USUBJID",
-    review = NULL,
-    receiver_id = NULL) {
+    receiver_id = NULL,
+    review = NULL) {
   # Check validity of parameters
   checkmate::assert_character(dataset_names)
   
@@ -546,6 +539,11 @@ mod_listings <- function(
     },
     server = function(afmm) {
       dataset_list <- shiny::reactive(afmm$filtered_dataset()[dataset_names])
+      
+      on_sbj_click_fun <- NULL
+      if (!is.null(receiver_id)) {
+        on_sbj_click_fun <- function() afmm[["utils"]][["switch2mod"]](receiver_id)
+      }
       
       if (is.list(review)) {
         # These afmm fields are only required for the review functionality, so we bundle them in the `review` list
@@ -561,9 +559,8 @@ mod_listings <- function(
         module_id = module_id,
         intended_use_label = intended_use_label,
         subjid_var = subjid_var,
-        receiver_id = receiver_id,
-        review = review,
-        afmm_param = list(utils = afmm$utils, module_names = afmm$module_names)
+        on_sbj_click = on_sbj_click_fun,
+        review = review
       )
     },
     module_id = module_id
@@ -602,7 +599,7 @@ dataset_info_listings <- function(dataset_names, ...) {
 
 check_mod_listings <- function(afmm, datasets, module_id, dataset_names, 
                                default_vars, pagination, intended_use_label,
-                               subjid_var, review, receiver_id) {
+                               subjid_var, receiver_id, review) {
   warn <- CM$container()
   err <- CM$container()
   

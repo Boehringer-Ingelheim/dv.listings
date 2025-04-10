@@ -15,9 +15,8 @@ listings_server(
   pagination = NULL,
   intended_use_label = NULL,
   subjid_var = "USUBJID",
-  review = NULL,
-  receiver_id = NULL,
-  afmm_param = NULL
+  on_sbj_click = NULL,
+  review = NULL
 )
 }
 \arguments{
@@ -49,16 +48,14 @@ NULL. The provided label will be displayed prior to the download and will also b
 
 Column corresponding to subject ID. Default value is 'USUBJID'}
 
+\item{on_sbj_click}{\verb{[function()]}
+
+Function to invoke when a subject ID is clicked in a listing}
+
 \item{receiver_id}{\verb{[character(1) | NULL]}
 
 Character string defining the ID of the module to which to send a subject ID. The
 module must exist in the module list. The default is NULL which disables communication.}
-
-\item{afmm_param}{\verb{[list(2+) | NULL]}
-
-Named list of a selection of arguments from module manager. Expects
-at least two elements: \code{utils} and \code{module_names} defining a character vector
-whose entries have the corresponding module IDs as names.}
 }
 \description{
 This module displays a given dataset as listing. It allows switching between datasets if it receives
