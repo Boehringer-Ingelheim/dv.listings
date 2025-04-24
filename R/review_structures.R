@@ -311,11 +311,11 @@ RS_parse_review_reviews <- function(contents, row_count, expected_role, expected
     review <- readBin(con, integer(), 1L, endian = 'little')
     timestamp <- readBin(con, numeric(), 1L, endian = 'little')
     # NOTE: timestamp increases monotonically with each new row, so not checking it
-    res[row_index,] <- c(review, timestamp)
+    res[["review"]][[row_index]] <- review
+    res[["timestamp"]][[row_index]] <- timestamp
   }
   
   close(con)
-
   return(res)
 }
 
@@ -408,7 +408,7 @@ if(FALSE){
 
   review_state <- describe_and_time(
     "Initial load (base and no deltas)",
-    RS_load(base_contents, deltas = list(), codes = character(0))
+    RS_load(base_contents, deltas = list())
   )
 
   delta1_contents <- local({
@@ -430,7 +430,7 @@ if(FALSE){
   )
   
   delta2_contents <- local({
-    # Let's imagine there is an update that adds two new entry to the dataset
+    # Let's imagine there is an update that adds two new entries to the dataset
     df <- rbind(df, safetyData::adam_adae[1002:1003,])
     # Furthermore, the severity of an adverse event is described now as "SEVERE" instead of "MODERATE"
     df[500, 'AESEV'] <- 'SEVERE'

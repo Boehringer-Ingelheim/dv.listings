@@ -359,13 +359,14 @@ listings_server <- function(module_id,
         selected_dataset_list_name <- review[["selected_dataset"]]()
         selected_dataset_name <- input[[TBL$DATASET_ID]]
         annotation_info <- REV_state[["annotation_info"]]
-        reviews <- annotation_info[[selected_dataset_list_name]][[selected_dataset_name]]
+        reviews <- annotation_info[[selected_dataset_list_name]][[selected_dataset_name]][["review"]]
+        roles <- annotation_info[[selected_dataset_list_name]][[selected_dataset_name]][["role"]]
         
         # TODO: Column fixing of subject and review columns; also of possibly dedicated jump-to column (visit first the DT docs page)
         # https://stackoverflow.com/questions/51623584/fixing-a-column-in-shiny-datatable-while-scrolling-right-does-not-work
-        changes <- REV_add_review_column(ns, data, review[["choices"]], reviews)
+        changes <- REV_add_review_columns(ns, data, review[["choices"]], reviews, roles)
         data <- changes[["data"]]
-        set_up[["col_names"]] <- c(set_up[["col_names"]], changes[["extra_column_names"]])
+        set_up[["col_names"]] <- c(changes[["extra_column_names"]], set_up[["col_names"]])
       }
       
       if (!is.null(on_sbj_click)) {
@@ -413,6 +414,9 @@ listings_server <- function(module_id,
       
       table_data <- output_table_data()
       
+      fixed_columns_left <- 1 # row number
+      if (enable_review) fixed_columns_left <- 3 # row number, review, role
+      
       DT::datatable(
         data = table_data[["data"]],
         colnames = table_data[["col_names"]],
@@ -437,7 +441,7 @@ listings_server <- function(module_id,
               action = htmlwidgets::JS(js_restore_original_order)
             )
           ),
-          fixedColumns = list(left = 3, right = 1) # Need to reorder subject id, if present, to the beginning of the table
+          fixedColumns = list(left = fixed_columns_left)
         ),
         selection = "none"
       )
