@@ -36,10 +36,9 @@ listings_UI <- function(module_id) { # nolint
   checkmate::assert_string(module_id, min.chars = 1)
   ns <- shiny::NS(module_id)
   
-  shiny::tagList(
-    shiny::fluidRow(
-      shiny::column(
-        2,
+  shiny::tagList(    
+    shiny::div(
+      style = "display: flex; gap: 10px; align-items: baseline",
         shinyWidgets::dropdownButton(
           inputId = ns(TBL$DRPDBUTTON_ID),
           shiny::selectizeInput(ns(TBL$DATASET_ID), label = TBL$DATASET_LABEL, choices = NULL),
@@ -75,17 +74,43 @@ listings_UI <- function(module_id) { # nolint
           width = TBL$DRPDBUTTON_WIDTH,
           label = TBL$DRPDBUTTON_LABEL,
           tooltip = shinyWidgets::tooltipOptions(title = TBL$DRPDBUTTON_LABEL)
-        )
-      ),
-      shiny::column(2, mod_export_listings_UI(module_id = ns(TBL$EXPORT_ID)), offset = 8)
-    ),
-    shiny::br(),
-    shiny::actionButton(
+        ),
+      mod_export_listings_UI(module_id = ns(TBL$EXPORT_ID)),
+      shiny::actionButton(
       ns(TBL$RESET_FILT_BUTTON_ID),
       TBL$RESET_FILT_BUTTON_LABEL,
       icon = shiny::icon("filter-circle-xmark")
     ),
-    shiny::br(),
+    shiny::tags[["button"]](
+            id = ns("reset_order"),
+            class = "btn btn-default action-button",
+            "Reset Row Order"
+          ),
+    shiny::tags[["script"]](shiny::HTML(sprintf("
+  $(document).on('click', '#%s', function() {
+    let table = $('#%s table.dataTable').DataTable();
+    table.order([]); // reset sorting    
+    table.draw();
+  });
+", ns("reset_order"), ns(TBL$TABLE_ID)))),
+    shiny::span(
+      shiny::tags[["label"]](
+        "for" = ns("search_box"),
+        "Search:"
+      ),
+      shiny::tags[["input"]](
+        id = ns("search_box"),
+        type = "text"
+      ),
+    shiny::tags[["script"]](shiny::HTML(sprintf("
+  $(document).on('keyup', '#%s', function() {
+    let table = $('#%s table.dataTable').DataTable();
+    table.search(this.value).draw();
+  });
+", ns("search_box"), ns(TBL$TABLE_ID))))
+      
+    ),
+    ), 
     DT::dataTableOutput(ns(TBL$TABLE_ID), height = "80vh")
   )
 }
@@ -317,22 +342,7 @@ listings_server <- function(module_id,
     
     output[[TBL$TABLE_ID]] <- DT::renderDataTable({
       shiny::validate(shiny::need(!is.null(input[[TBL$COLUMNS_ID]]), TBL$NO_COL_MSG))
-      
-      # JS to restore original sort
-      js <- c(
-        "function(e, dt, node, config) {",
-        "  dt.iterator('table', function(s) {",
-        "    s.aaSorting.length = 0;",
-        "    s.aiDisplay.sort(function(a,b) {",
-        "       return a-b;",
-        "    });",
-        "    s.aiDisplayMaster.sort(function(a,b) {",
-        "       return a-b;",
-        "    });",
-        "  }).draw();",
-        "}"
-      )
-      
+     
       selected_cols <- r_selected_columns_in_dataset()[[input[[TBL$DATASET_ID]]]]
       
       dataset <- listings_data()[selected_cols]
@@ -363,22 +373,14 @@ listings_server <- function(module_id,
         colnames = set_up$col_names,
         rownames = set_up$row_names,
         filter = "top",
-        extensions = "Buttons",
         fillContainer = TRUE,
         options = list(
-          searching = TRUE,
+          searching = FALSE,
           paging = set_up$paging,
           scrollX = TRUE,
           ordering = TRUE,
           columnDefs = list(list(className = "dt-center", targets = "_all")),
-          dom = "Bfrtilp",
-          buttons = list(
-            list(
-              extend = "collection",
-              text = "Reset rows order",
-              action = htmlwidgets::JS(js)
-            )
-          ),
+          dom = "Bfrtilp",          
           rowCallback = DT::JS(set_subject_id_js)
         ),
         selection = "single"
