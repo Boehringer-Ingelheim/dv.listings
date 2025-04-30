@@ -39,7 +39,12 @@ listings_UI <- function(module_id) { # nolint
   checkmate::assert_string(module_id, min.chars = 1)
   ns <- shiny::NS(module_id)
   
+  highlight_review_cols <- shiny::singleton(shiny::tags$head(shiny::tags[["style"]](shiny::HTML(
+    "td.dv_listings_review_column {background-color: #f2eeee !important;}"
+  ))))
+  
   shiny::tagList(
+    highlight_review_cols, 
     shiny::fluidRow(
       shiny::column(
         5,
@@ -302,7 +307,10 @@ listings_server <- function(module_id,
       "reset_filt_btn",
       "download_data",
       "dropdown_btn",
-      "clear_filters"
+      "clear_filters",
+      # NOTE(miguel): Added here for easier merge with other branches
+      # TODO(miguel): Move elsewhere after merging 
+      REV_UI(ns = ns, roles = review[["roles"]])[["input_ids_to_exclude_from_bookmarking"]]
     ))
     
     # Bookmarking (end)
@@ -325,7 +333,8 @@ listings_server <- function(module_id,
     show_review_column <- function() FALSE
     REV_state <- list()
     if (enable_review) {
-      output[[TBL$REVIEW_UI_ID]] <- shiny::renderUI(REV_UI(ns = ns, roles = review[["roles"]]))
+      rev_ui_info <- REV_UI(ns = ns, roles = review[["roles"]])
+      output[[TBL$REVIEW_UI_ID]] <- shiny::renderUI(rev_ui_info[["ui"]])
       shiny::outputOptions(output, TBL$REVIEW_UI_ID, suspendWhenHidden = FALSE)
       REV_state <- REV_logic_1(input, review, review[["data"]])
       show_review_column <- shiny::reactive(REV_state[["connected"]])
@@ -361,10 +370,11 @@ listings_server <- function(module_id,
         annotation_info <- REV_state[["annotation_info"]]
         reviews <- annotation_info[[selected_dataset_list_name]][[selected_dataset_name]][["review"]]
         roles <- annotation_info[[selected_dataset_list_name]][[selected_dataset_name]][["role"]]
+        status <- annotation_info[[selected_dataset_list_name]][[selected_dataset_name]][["status"]]
         
         # TODO: Column fixing of subject and review columns; also of possibly dedicated jump-to column (visit first the DT docs page)
         # https://stackoverflow.com/questions/51623584/fixing-a-column-in-shiny-datatable-while-scrolling-right-does-not-work
-        changes <- REV_add_review_columns(ns, data, review[["choices"]], reviews, roles)
+        changes <- REV_add_review_columns(ns, data, review[["choices"]], reviews, roles, status)
         data <- changes[["data"]]
         set_up[["col_names"]] <- c(changes[["extra_column_names"]], set_up[["col_names"]])
       }
@@ -411,11 +421,39 @@ listings_server <- function(module_id,
         "  }).draw();",
         "}"
       )
+
+      js_generate_review_column_contents <- c(
+        "function(data, type, row, meta){",
+        "  return data;",
+        "}"
+      )
+
+      current_role <- input[[REV$ID$ROLE]]
+      if (length(current_role) == 1 && current_role %in% review[["roles"]]) {
+        js_generate_review_column_contents <- c(
+          "function(data, type, row, meta){",
+          "  if(type === 'display'){",
+          "    let result = '';",
+          "    let options = [%s];" |> sprintf(paste(paste0("'", review[["choices"]], "'"), collapse = ", ")),
+          "    result += `<select style=\"width:100%%\" onchange=\"Shiny.setInputValue(\'%s\', {row:${row[0]}, option:this.value});\">`;" |> sprintf(ns(REV$ID$REVIEW_SELECT)),
+          "    for (let i = 0; i < options.length; i+=1) {",
+          "      result += `<option value=${i+1}${options[i]==data?' selected':''}>${options[i]}</option>`;",
+          "    }",
+          "    result += '</select>';",
+          "    return result;",
+          "  } else {",
+          "    return data;",
+          "  }",
+          "}"
+        )
+      }
       
       table_data <- output_table_data()
       
-      fixed_columns_left <- 1 # row number
-      if (enable_review) fixed_columns_left <- 3 # row number, review, role
+      review_column_indices <- integer()
+      if (enable_review) review_column_indices <- seq_along(REV$LABEL$REVIEW_COLS)
+      
+      fixed_columns_left <- length(review_column_indices) + 1
       
       DT::datatable(
         data = table_data[["data"]],
@@ -431,7 +469,11 @@ listings_server <- function(module_id,
           paging = table_data[["paging"]],
           scrollX = TRUE,
           ordering = TRUE,
-          columnDefs = list(list(className = "dt-center", targets = "_all")),
+          columnDefs = list(
+            list(className = "dt-center", targets = "_all")
+            , list(className = "dv_listings_review_column", targets = review_column_indices) 
+            , list(render = htmlwidgets::JS(js_generate_review_column_contents), data = 1, targets = review_column_indices[[1]])
+          ),
           # FIXME: Update to use https://datatables.net/reference/option/layout
           dom = "Bfrtilp", # Buttons, filtering, processing display element, table, information summary, length, pagination
           buttons = list(
