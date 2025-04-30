@@ -106,7 +106,7 @@ listings_UI <- function(module_id) { # nolint
         shiny::tags[["script"]](
           shiny::HTML(
             sprintf("
-              $(document).on('keyup', '#%s', function() {
+              $(document).on('input', '#%s', function() {
               let table = $('#%s table.dataTable').DataTable();
               table.search(this.value).draw();
               });",
