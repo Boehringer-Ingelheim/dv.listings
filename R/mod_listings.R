@@ -108,12 +108,12 @@ listings_UI <- function(module_id) { # nolint
     const table = document.querySelector('#' + table_container_id + ' table.dataTable');
     if (!table) return;
 
-    const headers = table.querySelectorAll('thead tr')[0]?.querySelectorAll('th.dtfc-fixed-left');
+    const fixed_headers = table.querySelectorAll('thead tr')[0]?.querySelectorAll('th.dtfc-fixed-left');
     const filters = table.querySelectorAll('thead tr')[1]?.querySelectorAll('td');
 
-    if (!headers || !filters) return;
-    for(let idx = 0; idx < headers.length; ++idx){
-      const th = headers[idx];
+    if (!fixed_headers || !filters) return;
+    for(let idx = 0; idx < fixed_headers.length; ++idx){
+      const th = fixed_headers[idx];
       const td = filters[idx];
       if (!td) return;
 
