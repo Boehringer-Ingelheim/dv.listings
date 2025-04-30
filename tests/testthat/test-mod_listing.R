@@ -362,6 +362,31 @@ test_that("mod_listings() restores row order of the whole table when restoring a
   testthat::expect_identical(initial_rows, reset_rows)
 })
 
+test_that("mod_listings() restores row order of the whole table when restoring a sorted variable" %>%
+  vdoc[["add_spec"]](
+    c(
+      specs$searching
+    )
+  ), {
+  # Initialize test app
+  app <- shinytest2::AppDriver$new(
+    app_dir = app_dir, name = "test_restore_row_order"
+  )
+
+  # Needed buttons to click
+  sort_selector <- '.dt-center.sorting[aria-label="var1 [My 1st label]: activate to sort column ascending"]'
+  search_box <- "#listings-search_box"
+
+  # Required trigger because programmatic changes do not trigger input events
+  app$run_js(sprintf("$('%s').val('31').trigger('input')", search_box))
+
+  # Perform steps within test app
+  app$wait_for_idle()
+  rows <- app$get_value(input = "listings-listing_rows_all")
+  expect_length(rows, 1)
+})
+
+
 app_dir <- "./apps/mm_app" # applies for all tests within this describe()
 
 app <- shinytest2::AppDriver$new(
