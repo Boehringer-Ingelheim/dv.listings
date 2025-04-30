@@ -107,15 +107,14 @@ listings_UI <- function(module_id) { # nolint
     const table_container_id = '%s';
     const table = document.querySelector('#' + table_container_id + ' table.dataTable');
     if (!table) return;
-    console.log('table found');
-
 
     const headers = table.querySelectorAll('thead tr')[0]?.querySelectorAll('th.dtfc-fixed-left');
     const filters = table.querySelectorAll('thead tr')[1]?.querySelectorAll('td');
+
     if (!headers || !filters) return;
-    console.log('headers found');
-    headers.forEach((th, i) => {
-      const td = filters[i];
+    for(let idx = 0; idx < headers.length; ++idx){
+      const th = headers[idx];
+      const td = filters[idx];
       if (!td) return;
 
       const computed_style = window.getComputedStyle(th);
@@ -126,8 +125,8 @@ listings_UI <- function(module_id) { # nolint
       td.style.position = 'sticky';
       td.style.left = left;
       td.style.zIndex = zIndex;      
-    });
-  });", ns(TBL$TABLE_ID), ns(TBL$TABLE_ID), ns(TBL$TABLE_ID))))
+    }
+  });", ns(TBL$TABLE_ID), ns(TBL$TABLE_ID))))
     
   )
 }
