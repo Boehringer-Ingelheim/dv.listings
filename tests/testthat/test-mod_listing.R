@@ -345,7 +345,7 @@ test_that("mod_listings() restores row order of the whole table when restoring a
 
   # Needed buttons to click
   sort_selector <- '.dt-center.sorting[aria-label="var1 [My 1st label]: activate to sort column ascending"]'
-  reset_selector <- "#listings-reset_order"
+  reset_selector <- paste0("#listings-", TBL$RESET_ROWS_ORDER_BUTTON_ID)
 
   # Perform steps within test app
   app$wait_for_idle()
@@ -370,12 +370,11 @@ test_that("mod_listings() restores row order of the whole table when restoring a
   ), {
   # Initialize test app
   app <- shinytest2::AppDriver$new(
-    app_dir = app_dir, name = "test_restore_row_order"
+    app_dir = app_dir, name = "test_search"
   )
 
   # Needed buttons to click
-  sort_selector <- '.dt-center.sorting[aria-label="var1 [My 1st label]: activate to sort column ascending"]'
-  search_box <- "#listings-search_box"
+  search_box <- reset_selector <- paste0("#listings-", TBL$SEARCH_BOX_ID)
 
   # Required trigger because programmatic changes do not trigger input events
   app$run_js(sprintf("$('%s').val('31').trigger('input')", search_box))
