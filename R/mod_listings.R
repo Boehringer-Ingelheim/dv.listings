@@ -103,23 +103,25 @@ listings_UI <- function(module_id) { # nolint
     shiny::br(),
     DT::dataTableOutput(ns(TBL$TABLE_ID), height = "80vh"),
     shiny::tags[["script"]](shiny::HTML(sprintf("
-(function() {
-  // In a function to avoid name pollution
-  const table_container_id = '%s';
+    $('#%s').on('.dt', function(e) {
+  console.log('DataTables event triggered:', e.type);
+});
 
-  function fix_filter_row() {
-    const table = document.querySelector('#' + table_container_id + ' table');
+    $('#%s').on('init.dt', function(e, settings) {    
+    const table_container_id = '%s';
+    const table = document.querySelector('#' + table_container_id + ' table.dataTable');
     if (!table) return;
+    console.log('table found');
+
 
     const headers = table.querySelectorAll('thead tr')[0]?.querySelectorAll('th.dtfc-fixed-left');
     const filters = table.querySelectorAll('thead tr')[1]?.querySelectorAll('td');
     if (!headers || !filters) return;
-    
+    console.log('headers found');
     headers.forEach((th, i) => {
       const td = filters[i];
       if (!td) return;
 
-      // Better computed in case static ones are not correct
       const computed_style = window.getComputedStyle(th);
       const left = computed_style.left;
       const zIndex = computed_style.zIndex;
@@ -127,20 +129,9 @@ listings_UI <- function(module_id) { # nolint
       td.classList.add('dtfc-fixed-left');
       td.style.position = 'sticky';
       td.style.left = left;
-      td.style.zIndex = zIndex;
+      td.style.zIndex = zIndex;      
     });
-  }
-
-  // Listen to content changes and resize changes
-  const observer = new MutationObserver((mutations, obs) => {
-    if (document.querySelector('#' + table_container_id + ' table')) {
-      fix_filter_row();
-    }
-  });    
-  observer.observe(document.getElementById(table_container_id), { childList: true, subtree: true });
-  window.addEventListener('resize', fix_filter_row); // Unsure if resizes are required, my impression is they are not
-})();
-  ", ns(TBL$TABLE_ID))))
+  });", ns(TBL$TABLE_ID), ns(TBL$TABLE_ID), ns(TBL$TABLE_ID))))
     
   )
 }
