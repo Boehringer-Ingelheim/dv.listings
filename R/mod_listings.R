@@ -472,7 +472,7 @@ listings_server <- function(module_id,
           columnDefs = list(
             list(className = "dt-center", targets = "_all")
             , list(className = "dv_listings_review_column", targets = review_column_indices) 
-            , list(render = htmlwidgets::JS(js_generate_review_column_contents), data = 1, targets = review_column_indices[[1]])
+            , list(render = htmlwidgets::JS(js_generate_review_column_contents), data = 1, targets = head(review_column_indices, 1))
           ),
           # FIXME: Update to use https://datatables.net/reference/option/layout
           dom = "Bfrtilp", # Buttons, filtering, processing display element, table, information summary, length, pagination
