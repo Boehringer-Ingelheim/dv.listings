@@ -18,6 +18,10 @@ TBL <- pack_of_constants( # nolint
   REMOVE_ALL_COLS_BUTTON_LABEL = "Remove all variables",
   RESET_COLS_DEFAULT_BUTTON_ID = "reset_cols_btn",
   RESET_COLS_DEFAULT_BUTTON_LABEL = "Reset to default variables",
+  RESET_ROWS_ORDER_BUTTON_ID = "reset_row_order_btn",
+  RESET_ROWS_ORDER_BUTTON_LABEL = "Reset Row Order",
+  SEARCH_BOX_ID = "search_box",
+  SEARCH_BOX_LABEL = "Search: ",
   SEL_SUB_ID = "selected_subject_id"
 )
 
@@ -82,7 +86,7 @@ listings_UI <- function(module_id) { # nolint
       icon = shiny::icon("filter-circle-xmark")
     ),
     shiny::tags[["button"]](
-            id = ns("reset_order"),
+            id = ns(TBL$RESET_ROWS_ORDER_BUTTON_ID),
             class = "btn btn-default action-button",
             "Reset Row Order"
           ),
@@ -92,14 +96,14 @@ listings_UI <- function(module_id) { # nolint
     table.order([]); // reset sorting    
     table.draw();
   });
-", ns("reset_order"), ns(TBL$TABLE_ID)))),
+", ns(TBL$RESET_ROWS_ORDER_BUTTON_ID), ns(TBL$TABLE_ID)))),
       shiny::span(
         shiny::tags[["label"]](
-          "for" = ns("search_box"),
-          "Search:"
+          "for" = ns(TBL$SEARCH_BOX_ID),
+          TBL$SEARCH_BOX_LABEL
         ),
         shiny::tags[["input"]](
-          id = ns("search_box"),
+          id = ns(TBL$SEARCH_BOX_ID),
           type = "text"
         ),
         
@@ -110,7 +114,7 @@ listings_UI <- function(module_id) { # nolint
               let table = $('#%s table.dataTable').DataTable();
               table.search(this.value).draw();
               });",
-              ns("search_box"), ns(TBL$TABLE_ID)
+              ns(TBL$SEARCH_BOX_ID), ns(TBL$TABLE_ID)
             )
           )
         ),
