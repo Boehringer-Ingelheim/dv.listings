@@ -1,3 +1,7 @@
+# dv.listings 4.1.0-900
+
+- Top buttons are reordered in a single line to avoid consuming excessive space
+
 # dv.listings 4.1.0
 
 - Add jumping feature
