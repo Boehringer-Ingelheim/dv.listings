@@ -93,24 +93,37 @@ listings_UI <- function(module_id) { # nolint
     table.draw();
   });
 ", ns("reset_order"), ns(TBL$TABLE_ID)))),
-    shiny::span(
-      shiny::tags[["label"]](
-        "for" = ns("search_box"),
-        "Search:"
+      shiny::span(
+        shiny::tags[["label"]](
+          "for" = ns("search_box"),
+          "Search:"
+        ),
+        shiny::tags[["input"]](
+          id = ns("search_box"),
+          type = "text"
+        ),
+        
+        shiny::tags[["script"]](
+          shiny::HTML(
+            sprintf("
+              $(document).on('keyup', '#%s', function() {
+              let table = $('#%s table.dataTable').DataTable();
+              table.search(this.value).draw();
+              });",
+              ns("search_box"), ns(TBL$TABLE_ID)
+            )
+          )
+        ),
+
+        # Even with our search box we need to enable searching in the datatable (see: algfne) otherwise searching is
+        # not possible even using JS. Therefore we need to hide the table searching box.        
+        shiny::tags[["style"]](          
+            shiny::HTML(
+              sprintf("#%s .dataTables_filter {display:none}", ns(TBL$TABLE_ID))
+            )
+        )
       ),
-      shiny::tags[["input"]](
-        id = ns("search_box"),
-        type = "text"
-      ),
-    shiny::tags[["script"]](shiny::HTML(sprintf("
-  $(document).on('keyup', '#%s', function() {
-    let table = $('#%s table.dataTable').DataTable();
-    table.search(this.value).draw();
-  });
-", ns("search_box"), ns(TBL$TABLE_ID))))
-      
     ),
-    ), 
     DT::dataTableOutput(ns(TBL$TABLE_ID), height = "80vh")
   )
 }
@@ -375,7 +388,7 @@ listings_server <- function(module_id,
         filter = "top",
         fillContainer = TRUE,
         options = list(
-          searching = FALSE,
+          searching = TRUE, # (see: algfne)
           paging = set_up$paging,
           scrollX = TRUE,
           ordering = TRUE,
