@@ -101,7 +101,47 @@ listings_UI <- function(module_id) { # nolint
       icon = shiny::icon("filter-circle-xmark")
     ),
     shiny::br(),
-    DT::dataTableOutput(ns(TBL$TABLE_ID), height = "80vh")
+    DT::dataTableOutput(ns(TBL$TABLE_ID), height = "80vh"),
+    shiny::tags[["script"]](shiny::HTML(sprintf("
+(function() {
+  // In a function to avoid name pollution
+  const table_container_id = '%s';
+
+  function fix_filter_row() {
+    const table = document.querySelector('#' + table_container_id + ' table');
+    if (!table) return;
+
+    const headers = table.querySelectorAll('thead tr')[0]?.querySelectorAll('th.dtfc-fixed-left');
+    const filters = table.querySelectorAll('thead tr')[1]?.querySelectorAll('td');
+    if (!headers || !filters) return;
+    
+    headers.forEach((th, i) => {
+      const td = filters[i];
+      if (!td) return;
+
+      // Better computed in case static ones are not correct
+      const computed_style = window.getComputedStyle(th);
+      const left = computed_style.left;
+      const zIndex = computed_style.zIndex;
+
+      td.classList.add('dtfc-fixed-left');
+      td.style.position = 'sticky';
+      td.style.left = left;
+      td.style.zIndex = zIndex;
+    });
+  }
+
+  // Listen to content changes and resize changes
+  const observer = new MutationObserver((mutations, obs) => {
+    if (document.querySelector('#' + table_container_id + ' table')) {
+      fix_filter_row();
+    }
+  });    
+  observer.observe(document.getElementById(table_container_id), { childList: true, subtree: true });
+  window.addEventListener('resize', fix_filter_row); // Unsure if resizes are required, my impression is they are not
+})();
+  ", ns(TBL$TABLE_ID))))
+    
   )
 }
 
@@ -483,7 +523,7 @@ listings_server <- function(module_id,
               action = htmlwidgets::JS(js_restore_original_order)
             )
           ),
-          fixedColumns = list(left = fixed_columns_left)
+          fixedColumns = list(left = 4)
         ),
         selection = "none"
       )
