@@ -103,10 +103,6 @@ listings_UI <- function(module_id) { # nolint
     shiny::br(),
     DT::dataTableOutput(ns(TBL$TABLE_ID), height = "80vh"),
     shiny::tags[["script"]](shiny::HTML(sprintf("
-    $('#%s').on('.dt', function(e) {
-  console.log('DataTables event triggered:', e.type);
-});
-
     $('#%s').on('init.dt', function(e, settings) {    
     const table_container_id = '%s';
     const table = document.querySelector('#' + table_container_id + ' table.dataTable');
