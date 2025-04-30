@@ -345,7 +345,7 @@ test_that("mod_listings() restores row order of the whole table when restoring a
 
   # Needed buttons to click
   sort_selector <- '.dt-center.sorting[aria-label="var1 [My 1st label]: activate to sort column ascending"]'
-  reset_selector <- "div.dt-buttons>button"
+  reset_selector <- "#listings-reset_order"
 
   # Perform steps within test app
   app$wait_for_idle()
