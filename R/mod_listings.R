@@ -126,8 +126,10 @@ listings_UI <- function(module_id) { # nolint
       td.style.left = left;
       td.style.zIndex = zIndex;      
     }
-  });", ns(TBL$TABLE_ID), ns(TBL$TABLE_ID))))
     
+    // NOTE(miguel): Some of the non-fixed headers still scroll over the z-indexed fixed headers and I don't know why
+    for(let idx = fixed_headers.length; idx < filters.length; ++idx) filters[idx].style.position = 'sticky';
+  });", ns(TBL$TABLE_ID), ns(TBL$TABLE_ID))))
   )
 }
 
@@ -509,7 +511,7 @@ listings_server <- function(module_id,
               action = htmlwidgets::JS(js_restore_original_order)
             )
           ),
-          fixedColumns = list(left = 4)
+          fixedColumns = list(left = fixed_columns_left)
         ),
         selection = "none"
       )
