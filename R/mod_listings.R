@@ -51,65 +51,65 @@ listings_UI <- function(module_id) { # nolint
     highlight_review_cols,    
     shiny::div(
       style = "display: flex; gap: 10px; align-items: baseline",
-        shinyWidgets::dropdownButton(
-          inputId = ns(TBL$DRPDBUTTON_ID),
-          shiny::selectizeInput(ns(TBL$DATASET_ID), label = TBL$DATASET_LABEL, choices = NULL),
-          shiny::tags[["style"]](shiny::HTML(paste0(
-            "#",
-            ns(TBL$COLUMNS_ID),
-            " + div.selectize-control div.selectize-input.items {max-height:250px; overflow-y:auto;}"
-          ))),
-          shiny::selectizeInput(
-            ns(TBL$COLUMNS_ID),
-            label = TBL$COLUMNS_LABEL,
-            choices = NULL,
-            multiple = TRUE,
-            options = list(plugins = list("remove_button", "drag_drop"))
-          ),
-          shiny::actionButton(
-            ns(TBL$SELECT_ALL_COLS_BUTTON_ID), 
-            TBL$SELECT_ALL_COLS_BUTTON_LABEL, 
-            icon = shiny::icon("check-double")
-          ),
-          shiny::actionButton(
-            ns(TBL$REMOVE_ALL_COLS_BUTTON_ID),
-            TBL$REMOVE_ALL_COLS_BUTTON_LABEL, 
-            icon = shiny::icon("xmark")
-          ),
-          shiny::actionButton(
-            ns(TBL$RESET_COLS_DEFAULT_BUTTON_ID),
-            TBL$RESET_COLS_DEFAULT_BUTTON_LABEL, 
-            icon = shiny::icon("rotate-left")
-          ), 
-          circle = FALSE,
-          icon = shiny::icon("cog"),
-          width = TBL$DRPDBUTTON_WIDTH,
-          label = TBL$DRPDBUTTON_LABEL,
-          tooltip = shinyWidgets::tooltipOptions(title = TBL$DRPDBUTTON_LABEL)
+      shinyWidgets::dropdownButton(
+        inputId = ns(TBL$DRPDBUTTON_ID),
+        shiny::selectizeInput(ns(TBL$DATASET_ID), label = TBL$DATASET_LABEL, choices = NULL),
+        shiny::tags[["style"]](shiny::HTML(paste0(
+          "#",
+          ns(TBL$COLUMNS_ID),
+          " + div.selectize-control div.selectize-input.items {max-height:250px; overflow-y:auto;}"
+        ))),
+        shiny::selectizeInput(
+          ns(TBL$COLUMNS_ID),
+          label = TBL$COLUMNS_LABEL,
+          choices = NULL,
+          multiple = TRUE,
+          options = list(plugins = list("remove_button", "drag_drop"))
         ),
+        shiny::actionButton(
+          ns(TBL$SELECT_ALL_COLS_BUTTON_ID), 
+          TBL$SELECT_ALL_COLS_BUTTON_LABEL, 
+          icon = shiny::icon("check-double")
+        ),
+        shiny::actionButton(
+          ns(TBL$REMOVE_ALL_COLS_BUTTON_ID),
+          TBL$REMOVE_ALL_COLS_BUTTON_LABEL, 
+          icon = shiny::icon("xmark")
+        ),
+        shiny::actionButton(
+          ns(TBL$RESET_COLS_DEFAULT_BUTTON_ID),
+          TBL$RESET_COLS_DEFAULT_BUTTON_LABEL, 
+          icon = shiny::icon("rotate-left")
+        ), 
+        circle = FALSE,
+        icon = shiny::icon("cog"),
+        width = TBL$DRPDBUTTON_WIDTH,
+        label = TBL$DRPDBUTTON_LABEL,
+        tooltip = shinyWidgets::tooltipOptions(title = TBL$DRPDBUTTON_LABEL)
+      ),
       mod_export_listings_UI(module_id = ns(TBL$EXPORT_ID)),
       shiny::actionButton(
-      ns(TBL$RESET_FILT_BUTTON_ID),
-      TBL$RESET_FILT_BUTTON_LABEL,
-      icon = shiny::icon("filter-circle-xmark")
-    ),
-    shiny::tags[["button"]](
-            id = ns(TBL$RESET_ROWS_ORDER_BUTTON_ID),
-            class = "btn btn-default action-button",
-            "Reset Row Order"
-          ),
-    shiny::tags[["script"]](shiny::HTML(sprintf("
+        ns(TBL$RESET_FILT_BUTTON_ID),
+        TBL$RESET_FILT_BUTTON_LABEL,
+        icon = shiny::icon("filter-circle-xmark")
+      ),
+      shiny::tags[["button"]](
+        id = ns(TBL$RESET_ROWS_ORDER_BUTTON_ID),
+        class = "btn btn-default action-button",
+        "Reset Row Order"
+      ),
+      shiny::tags[["script"]](shiny::HTML(sprintf("
   $(document).on('click', '#%s', function() {
     let table = $('#%s table.dataTable').DataTable();
     table.order([]); // reset sorting    
     table.draw();
   });
 ", ns(TBL$RESET_ROWS_ORDER_BUTTON_ID), ns(TBL$TABLE_ID)))),
-    
       shinyWidgets::dropdownButton(
         inputId = ns(TBL$REVIEW_DROPDOWN_ID), label = TBL$REVIEW_DROPDOWN_LABEL, circle = FALSE,
         shiny::uiOutput(ns(TBL$REVIEW_UI_ID))
       ),
+      shiny::div(style = "flex-grow: 1;"),
       shiny::span(
         shiny::tags[["label"]](
           "for" = ns(TBL$SEARCH_BOX_ID),
@@ -127,17 +127,17 @@ listings_UI <- function(module_id) { # nolint
               let table = $('#%s table.dataTable').DataTable();
               table.search(this.value).draw();
               });",
-              ns(TBL$SEARCH_BOX_ID), ns(TBL$TABLE_ID)
+                    ns(TBL$SEARCH_BOX_ID), ns(TBL$TABLE_ID)
             )
           )
         ),
-
+        
         # Even with our search box we need to enable searching in the datatable (see: algfne) otherwise searching is
         # not possible even using JS. Therefore we need to hide the table searching box.        
         shiny::tags[["style"]](          
-            shiny::HTML(
-              sprintf("#%s .dataTables_filter {display:none}", ns(TBL$TABLE_ID))
-            )
+          shiny::HTML(
+            sprintf("#%s .dataTables_filter {display:none}", ns(TBL$TABLE_ID))
+          )
         )
       ),
     ),
