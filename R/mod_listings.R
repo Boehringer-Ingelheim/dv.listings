@@ -172,9 +172,6 @@ listings_UI <- function(module_id) { # nolint
       td.style.zIndex = magic_z_index;      
       td.style.background = 'white';
     }
-    
-    // NOTE(miguel): Some of the non-fixed headers still scroll over the z-indexed fixed headers and I don't know why
-    for(let idx = fixed_headers.length; idx < filters.length; ++idx) filters[idx].style.position = 'sticky';
   });", ns(TBL$TABLE_ID), ns(TBL$TABLE_ID))))
   )
 }
