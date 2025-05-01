@@ -20,7 +20,6 @@ REV <- pack_of_constants(
   )
 )
 
-
 REV_add_review_columns <- function(ns, data, choices, selected, roles, status) { 
   data <- cbind(selected, roles, status, data) # prepend extra review columns
   names(data)[[1]] <- REV$ID$REVIEW_COL
@@ -157,12 +156,11 @@ REV_load_annotation_info <- function(folder, review, dataset_lists) {
     
 REV_logic_1 <- function(input, review, datasets) { # TODO: Rename
   # TODO: Flesh out the state machine. Right now there are only default selections for quick iteration
-  state <- shiny::reactiveValues(
-    connected = FALSE,
-    folder = "/tmp", # TODO: Revert to NULL
-    annotation_info = NULL
-  )
-  
+  state <- new.env(parent = emptyenv())
+  state[["connected"]] <- shiny::reactiveVal(FALSE)
+  state[["folder"]] <- "/tmp" # TODO: Revert to NULL
+  state[["annotation_info"]] <- NULL
+
   shiny::observeEvent(input[[REV$ID$CONNECT_STORAGE]], {
     message("Connecting")
     shiny::updateActionButton(inputId = REV$ID$CONNECT_STORAGE, label = paste("Storage:", state[["folder"]]))
@@ -170,7 +168,7 @@ REV_logic_1 <- function(input, review, datasets) { # TODO: Rename
     
     state[["annotation_info"]] <- REV_load_annotation_info(state[["folder"]], review, datasets)
     
-    state[["connected"]] <- TRUE
+    state[["connected"]](TRUE)
   }, ignoreNULL = FALSE) # TODO: Remove
   
   return(state)
@@ -187,11 +185,12 @@ REV_logic_2 <- function(ns, state, input, review, datasets, selected_dataset_lis
     info <- input[[REV$ID$REVIEW_SELECT]]
     i_row <- info[["row"]] # TODO: Once there are multiple versions of the dataset, this will require extra steps
     option <- as.integer(info[["option"]])
-    
+   
+    timestamp <- SH$get_UTC_time_in_seconds()
     contents <- c(
       SH$integer_to_raw(i_row),
       SH$integer_to_raw(option),
-      SH$double_to_raw(SH$get_UTC_time_in_seconds())
+      SH$double_to_raw(timestamp)
     )
     
     fname <- paste0(dataset_name, "_", make.names(role), ".review")
@@ -201,6 +200,13 @@ REV_logic_2 <- function(ns, state, input, review, datasets, selected_dataset_lis
     new_data[i_row, ][[REV$ID$REVIEW_COL]] <- review[["choices"]][[option]]
     new_data[i_row, ][[REV$ID$ROLE_COL]] <- role
     new_data[i_row, ][[REV$ID$STATUS_COL]] <- REV$STATUS_LEVELS[["UP_TO_DATE"]]
+
+    # `REV_load_annotation_info()` would return this same (modified) state, but we do manual synchronization
+    # to avoid potentially expensive data reloading
+    state[["annotation_info"]][[dataset_list_name]][[dataset_name]][i_row, ] <- list(
+      review = review[["choices"]][[option]],  timestamp = timestamp, role = role, 
+      status = REV$STATUS_LEVELS[["UP_TO_DATE"]]
+    )
    
     # If we were doing pure client-side rendering of DT, maybe we could do a lighter upgrade with javascript:
     # > var table = $('#DataTables_Table_0').DataTable();

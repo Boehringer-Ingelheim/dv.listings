@@ -401,14 +401,14 @@ listings_server <- function(module_id,
     shiny::observeEvent(input[[TBL$RESET_FILT_BUTTON_ID]], DT::clearSearch(dt_proxy))
    
     enable_review <- !is.null(review)
-    show_review_column <- function() FALSE
+    show_review_columns <- function() FALSE
     REV_state <- list()
     if (enable_review) {
       rev_ui_info <- REV_UI(ns = ns, roles = review[["roles"]])
       output[[TBL$REVIEW_UI_ID]] <- shiny::renderUI(rev_ui_info[["ui"]])
       shiny::outputOptions(output, TBL$REVIEW_UI_ID, suspendWhenHidden = FALSE)
       REV_state <- REV_logic_1(input, review, review[["data"]])
-      show_review_column <- shiny::reactive(REV_state[["connected"]])
+      show_review_columns <- REV_state[["connected"]]
     }
     
     output_table_data <- shiny::reactive({
@@ -435,13 +435,13 @@ listings_server <- function(module_id,
         shiny::exportTestValues(output_table = data, column_names = col_names)
       }
 
-      if (show_review_column()) {
+      if (show_review_columns()) {
         selected_dataset_list_name <- review[["selected_dataset"]]()
         selected_dataset_name <- input[[TBL$DATASET_ID]]
-        annotation_info <- REV_state[["annotation_info"]]
-        reviews <- annotation_info[[selected_dataset_list_name]][[selected_dataset_name]][["review"]]
-        roles <- annotation_info[[selected_dataset_list_name]][[selected_dataset_name]][["role"]]
-        status <- annotation_info[[selected_dataset_list_name]][[selected_dataset_name]][["status"]]
+        annotation_info <- REV_state[["annotation_info"]][[selected_dataset_list_name]][[selected_dataset_name]]
+        reviews <- annotation_info[["review"]]
+        roles <- annotation_info[["role"]]
+        status <- annotation_info[["status"]]
         
         # TODO: Column fixing of subject and review columns; also of possibly dedicated jump-to column (visit first the DT docs page)
         # https://stackoverflow.com/questions/51623584/fixing-a-column-in-shiny-datatable-while-scrolling-right-does-not-work
@@ -476,13 +476,8 @@ listings_server <- function(module_id,
       )
     }
     
-    output[[TBL$TABLE_ID]] <- DT::renderDataTable({
-      shiny::validate(shiny::need(!is.null(input[[TBL$COLUMNS_ID]]), TBL$NO_COL_MSG))
-     
-      selected_cols <- r_selected_columns_in_dataset()[[input[[TBL$DATASET_ID]]]]
-      
-
-      js_generate_review_column_contents <- c(
+    js_generate_review_column_contents <- shiny::reactive({
+      res <- c(
         "function(data, type, row, meta){",
         "  return data;",
         "}"
@@ -490,7 +485,7 @@ listings_server <- function(module_id,
 
       current_role <- input[[REV$ID$ROLE]]
       if (length(current_role) == 1 && current_role %in% review[["roles"]]) {
-        js_generate_review_column_contents <- c(
+        res <- c(
           "function(data, type, row, meta){",
           "  if(type === 'display'){",
           "    let result = '';",
@@ -507,6 +502,13 @@ listings_server <- function(module_id,
           "}"
         )
       }
+      return(res)
+    }) |> trigger_only_on_change()
+    
+    output[[TBL$TABLE_ID]] <- DT::renderDataTable({
+      shiny::validate(shiny::need(!is.null(input[[TBL$COLUMNS_ID]]), TBL$NO_COL_MSG))
+     
+      selected_cols <- r_selected_columns_in_dataset()[[input[[TBL$DATASET_ID]]]]
       
       table_data <- output_table_data()
       
@@ -531,7 +533,7 @@ listings_server <- function(module_id,
           columnDefs = list(
             list(className = "dt-center", targets = "_all")
             , list(className = "dv_listings_review_column", targets = review_column_indices) 
-            , list(render = htmlwidgets::JS(js_generate_review_column_contents), data = 1, targets = head(review_column_indices, 1))
+            , list(render = htmlwidgets::JS(js_generate_review_column_contents()), data = 1, targets = head(review_column_indices, 1))
           ),
           # FIXME: Update to use https://datatables.net/reference/option/layout
           dom = "Bfrtilp", # Buttons, filtering, processing display element, table, information summary, length, pagination
