@@ -1,6 +1,6 @@
-# dv.listings 4.1.0-1
+# dv.listings 4.1.0-901
 
-- Prototype of listing annotation feature.
+- Top buttons are reordered in a single line to avoid consuming excessive space
 
 # dv.listings 4.1.0
 

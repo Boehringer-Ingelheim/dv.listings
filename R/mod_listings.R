@@ -18,6 +18,10 @@ TBL <- pack_of_constants( # nolint
   REMOVE_ALL_COLS_BUTTON_LABEL = "Remove all variables",
   RESET_COLS_DEFAULT_BUTTON_ID = "reset_cols_btn",
   RESET_COLS_DEFAULT_BUTTON_LABEL = "Reset to default variables",
+  RESET_ROWS_ORDER_BUTTON_ID = "reset_row_order_btn",
+  RESET_ROWS_ORDER_BUTTON_LABEL = "Reset Row Order",
+  SEARCH_BOX_ID = "search_box",
+  SEARCH_BOX_LABEL = "Search: ",
   SEL_SUB_ID = "selected_subject_id",
   REVIEW_DROPDOWN_ID = "review_dropdown_id",
   REVIEW_UI_ID = "review_ui_id",
@@ -44,10 +48,9 @@ listings_UI <- function(module_id) { # nolint
   ))))
   
   shiny::tagList(
-    highlight_review_cols, 
-    shiny::fluidRow(
-      shiny::column(
-        5,
+    highlight_review_cols,    
+    shiny::div(
+      style = "display: flex; gap: 10px; align-items: baseline",
         shinyWidgets::dropdownButton(
           inputId = ns(TBL$DRPDBUTTON_ID),
           shiny::selectizeInput(ns(TBL$DATASET_ID), label = TBL$DATASET_LABEL, choices = NULL),
@@ -83,24 +86,61 @@ listings_UI <- function(module_id) { # nolint
           width = TBL$DRPDBUTTON_WIDTH,
           label = TBL$DRPDBUTTON_LABEL,
           tooltip = shinyWidgets::tooltipOptions(title = TBL$DRPDBUTTON_LABEL)
-        )
-      ),
-      shiny::column(
-        5, 
-        shinyWidgets::dropdownButton(
-          inputId = ns(TBL$REVIEW_DROPDOWN_ID), label = TBL$REVIEW_DROPDOWN_LABEL, circle = FALSE,
-          shiny::uiOutput(ns(TBL$REVIEW_UI_ID))
-        )
-      ),
-      shiny::column(2, mod_export_listings_UI(module_id = ns(TBL$EXPORT_ID)))
-    ),
-    shiny::br(),
-    shiny::actionButton(
+        ),
+      mod_export_listings_UI(module_id = ns(TBL$EXPORT_ID)),
+      shiny::actionButton(
       ns(TBL$RESET_FILT_BUTTON_ID),
       TBL$RESET_FILT_BUTTON_LABEL,
       icon = shiny::icon("filter-circle-xmark")
     ),
-    shiny::br(),
+    shiny::tags[["button"]](
+            id = ns(TBL$RESET_ROWS_ORDER_BUTTON_ID),
+            class = "btn btn-default action-button",
+            "Reset Row Order"
+          ),
+    shiny::tags[["script"]](shiny::HTML(sprintf("
+  $(document).on('click', '#%s', function() {
+    let table = $('#%s table.dataTable').DataTable();
+    table.order([]); // reset sorting    
+    table.draw();
+  });
+", ns(TBL$RESET_ROWS_ORDER_BUTTON_ID), ns(TBL$TABLE_ID)))),
+    
+      shinyWidgets::dropdownButton(
+        inputId = ns(TBL$REVIEW_DROPDOWN_ID), label = TBL$REVIEW_DROPDOWN_LABEL, circle = FALSE,
+        shiny::uiOutput(ns(TBL$REVIEW_UI_ID))
+      ),
+      shiny::span(
+        shiny::tags[["label"]](
+          "for" = ns(TBL$SEARCH_BOX_ID),
+          TBL$SEARCH_BOX_LABEL
+        ),
+        shiny::tags[["input"]](
+          id = ns(TBL$SEARCH_BOX_ID),
+          type = "text"
+        ),
+        
+        shiny::tags[["script"]](
+          shiny::HTML(
+            sprintf("
+              $(document).on('input', '#%s', function() {
+              let table = $('#%s table.dataTable').DataTable();
+              table.search(this.value).draw();
+              });",
+              ns(TBL$SEARCH_BOX_ID), ns(TBL$TABLE_ID)
+            )
+          )
+        ),
+
+        # Even with our search box we need to enable searching in the datatable (see: algfne) otherwise searching is
+        # not possible even using JS. Therefore we need to hide the table searching box.        
+        shiny::tags[["style"]](          
+            shiny::HTML(
+              sprintf("#%s .dataTables_filter {display:none}", ns(TBL$TABLE_ID))
+            )
+        )
+      ),
+    ),
     DT::dataTableOutput(ns(TBL$TABLE_ID), height = "80vh"),
     shiny::tags[["script"]](shiny::HTML(sprintf("
     $('#%s').on('init.dt', function(e, settings) {    
@@ -435,20 +475,9 @@ listings_server <- function(module_id,
     
     output[[TBL$TABLE_ID]] <- DT::renderDataTable({
       shiny::validate(shiny::need(!is.null(input[[TBL$COLUMNS_ID]]), TBL$NO_COL_MSG))
+     
+      selected_cols <- r_selected_columns_in_dataset()[[input[[TBL$DATASET_ID]]]]
       
-      js_restore_original_order <- c(
-        "function(e, dt, node, config) {",
-        "  dt.iterator('table', function(s) {",
-        "    s.aaSorting.length = 0;",
-        "    s.aiDisplay.sort(function(a,b) {",
-        "       return a-b;",
-        "    });",
-        "    s.aiDisplayMaster.sort(function(a,b) {",
-        "       return a-b;",
-        "    });",
-        "  }).draw();",
-        "}"
-      )
 
       js_generate_review_column_contents <- c(
         "function(data, type, row, meta){",
@@ -488,12 +517,11 @@ listings_server <- function(module_id,
         colnames = table_data[["col_names"]],
         rownames = table_data[["row_names"]],
         escape = FALSE,
-        filter = "top", # FIXME: Interacts badly with fixedColumns
-        # Here's something that works: https://datatables.net/extensions/fixedcolumns/examples/styling/col_filter.html
-        extensions = c("Buttons", "FixedColumns"),
+        filter = "top",
+        extensions = c("FixedColumns"),
         fillContainer = TRUE,
         options = list(
-          searching = TRUE,
+          searching = TRUE, # (see: algfne)
           paging = table_data[["paging"]],
           scrollX = TRUE,
           ordering = TRUE,
@@ -504,13 +532,6 @@ listings_server <- function(module_id,
           ),
           # FIXME: Update to use https://datatables.net/reference/option/layout
           dom = "Bfrtilp", # Buttons, filtering, processing display element, table, information summary, length, pagination
-          buttons = list(
-            list(
-              extend = "collection",
-              text = "Reset rows order",
-              action = htmlwidgets::JS(js_restore_original_order)
-            )
-          ),
           fixedColumns = list(left = fixed_columns_left)
         ),
         selection = "none"

@@ -344,9 +344,8 @@ test_that("mod_listings() restores row order of the whole table when restoring a
   )
 
   # Needed buttons to click
-  sort_selector <- paste(".dataTables_scrollHead",
-                         '.dt-center.sorting[aria-label="var1 [My 1st label]: activate to sort column ascending"]')
-  reset_selector <- "div.dt-buttons>button"
+  sort_selector <- '.dt-center.sorting[aria-label="var1 [My 1st label]: activate to sort column ascending"]'
+  reset_selector <- paste0("#listings-", TBL$RESET_ROWS_ORDER_BUTTON_ID)
 
   # Perform steps within test app
   app$wait_for_idle()
@@ -362,6 +361,30 @@ test_that("mod_listings() restores row order of the whole table when restoring a
   testthat::expect_false(all(initial_rows == sorted_rows))
   testthat::expect_identical(initial_rows, reset_rows)
 })
+
+test_that("mod_listings() restores row order of the whole table when restoring a sorted variable" %>%
+  vdoc[["add_spec"]](
+    c(
+      specs$searching
+    )
+  ), {
+  # Initialize test app
+  app <- shinytest2::AppDriver$new(
+    app_dir = app_dir, name = "test_search"
+  )
+
+  # Needed buttons to click
+  search_box <- reset_selector <- paste0("#listings-", TBL$SEARCH_BOX_ID)
+
+  # Required trigger because programmatic changes do not trigger input events
+  app$run_js(sprintf("$('%s').val('31').trigger('input')", search_box))
+
+  # Perform steps within test app
+  app$wait_for_idle()
+  rows <- app$get_value(input = "listings-listing_rows_all")
+  expect_length(rows, 1)
+})
+
 
 app_dir <- "./apps/mm_app" # applies for all tests within this describe()
 
