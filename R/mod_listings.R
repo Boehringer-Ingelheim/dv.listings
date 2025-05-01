@@ -410,6 +410,35 @@ listings_server <- function(module_id,
       REV_state <- REV_logic_1(input, review, review[["data"]])
       show_review_columns <- REV_state[["connected"]]
     }
+
+    js_generate_review_column_contents <- shiny::reactive({
+      res <- c(
+        "function(data, type, row, meta){",
+        "  return data;",
+        "}"
+      )
+
+      current_role <- input[[REV$ID$ROLE]]
+      if (length(current_role) == 1 && current_role %in% review[["roles"]]) {
+        res <- c(
+          "function(data, type, row, meta){",
+          "  if(type === 'display'){",
+          "    let result = '';",
+          "    let options = [%s];" |> sprintf(paste(paste0("'", review[["choices"]], "'"), collapse = ", ")),
+          "    result += `<select style=\"width:100%%\" onchange=\"Shiny.setInputValue(\'%s\', {row:${row[0]}, option:this.value});\">`;" |> sprintf(ns(REV$ID$REVIEW_SELECT)),
+          "    for (let i = 0; i < options.length; i+=1) {",
+          "      result += `<option value=${i+1}${options[i]==data?' selected':''}>${options[i]}</option>`;",
+          "    }",
+          "    result += '</select>';",
+          "    return result;",
+          "  } else {",
+          "    return data;",
+          "  }",
+          "}"
+        )
+      }
+      return(res)
+    }) |> trigger_only_on_change()
     
     output_table_data <- shiny::reactive({
       shiny::validate(                        # TODO: Explain why these are necessary
@@ -462,7 +491,8 @@ listings_server <- function(module_id,
           data = data, 
           row_names = set_up[["row_names"]], 
           col_names = set_up[["col_names"]],
-          paging = set_up[["paging"]]
+          paging = set_up[["paging"]],
+          js_generate_review_column_contents = js_generate_review_column_contents()
         )
       )
     })
@@ -475,35 +505,6 @@ listings_server <- function(module_id,
         data = shiny::reactive(output_table_data()[["data"]]), dt_proxy = dt_proxy
       )
     }
-    
-    js_generate_review_column_contents <- shiny::reactive({
-      res <- c(
-        "function(data, type, row, meta){",
-        "  return data;",
-        "}"
-      )
-
-      current_role <- input[[REV$ID$ROLE]]
-      if (length(current_role) == 1 && current_role %in% review[["roles"]]) {
-        res <- c(
-          "function(data, type, row, meta){",
-          "  if(type === 'display'){",
-          "    let result = '';",
-          "    let options = [%s];" |> sprintf(paste(paste0("'", review[["choices"]], "'"), collapse = ", ")),
-          "    result += `<select style=\"width:100%%\" onchange=\"Shiny.setInputValue(\'%s\', {row:${row[0]}, option:this.value});\">`;" |> sprintf(ns(REV$ID$REVIEW_SELECT)),
-          "    for (let i = 0; i < options.length; i+=1) {",
-          "      result += `<option value=${i+1}${options[i]==data?' selected':''}>${options[i]}</option>`;",
-          "    }",
-          "    result += '</select>';",
-          "    return result;",
-          "  } else {",
-          "    return data;",
-          "  }",
-          "}"
-        )
-      }
-      return(res)
-    }) |> trigger_only_on_change()
     
     output[[TBL$TABLE_ID]] <- DT::renderDataTable({
       shiny::validate(shiny::need(!is.null(input[[TBL$COLUMNS_ID]]), TBL$NO_COL_MSG))
@@ -533,7 +534,7 @@ listings_server <- function(module_id,
           columnDefs = list(
             list(className = "dt-center", targets = "_all")
             , list(className = "dv_listings_review_column", targets = review_column_indices) 
-            , list(render = htmlwidgets::JS(js_generate_review_column_contents()), data = 1, targets = head(review_column_indices, 1))
+            , list(render = htmlwidgets::JS(table_data[["js_generate_review_column_contents"]]), data = 1, targets = head(review_column_indices, 1))
           ),
           # FIXME: Update to use https://datatables.net/reference/option/layout
           dom = "Bfrtilp", # Buttons, filtering, processing display element, table, information summary, length, pagination
