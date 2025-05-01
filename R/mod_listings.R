@@ -121,10 +121,16 @@ listings_UI <- function(module_id) { # nolint
       const left = computed_style.left;
       const zIndex = computed_style.zIndex;
 
+      /* Character filters have an element with z-index 25 therefore we choose 26. This is an empirical founding as
+      I found no reference in the documentation therefore this magic number may change.
+      */
+      magic_z_index = 26; 
+
       td.classList.add('dtfc-fixed-left');
       td.style.position = 'sticky';
       td.style.left = left;
-      td.style.zIndex = zIndex;      
+      td.style.zIndex = magic_z_index;      
+      td.style.background = 'white';
     }
   });", ns(TBL$TABLE_ID), ns(TBL$TABLE_ID))))
     
