@@ -141,7 +141,7 @@ listings_UI <- function(module_id) { # nolint
         )
       ),
     ),
-    DT::dataTableOutput(ns(TBL$TABLE_ID), height = "80vh"),
+    DT::dataTableOutput(ns(TBL$TABLE_ID), height = "87vh"),
     shiny::tags[["script"]](shiny::HTML(sprintf("
     $('#%s').on('init.dt', function(e, settings) {    
     const table_container_id = '%s';
@@ -479,8 +479,7 @@ listings_server <- function(module_id,
         set_up[["col_names"]] <- c(changes[["extra_column_names"]], set_up[["col_names"]])
       }
       
-      if (!is.null(on_sbj_click)) {
-        # FIXME? Assumes the subject column is present
+      if (!is.null(on_sbj_click) && subjid_var %in% names(data)) {
         # Style subject column as link
         data[[subjid_var]] <- sprintf("<a title=\"Click for subject details\" href=\"\" onclick=\"Shiny.setInputValue('%s', '%s', {priority:'event'}); return false;\">%s</a>", 
                                       session[["ns"]](TBL$SEL_SUB_ID), data[[subjid_var]], data[[subjid_var]])
