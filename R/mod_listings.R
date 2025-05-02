@@ -472,6 +472,25 @@ listings_server <- function(module_id,
         roles <- annotation_info[["role"]]
         status <- annotation_info[["status"]]
         
+        shiny::validate(shiny::need(nrow(data) <= length(reviews), "Error: Inconsistency between review data and loaded datasets"))
+        
+        if (nrow(data) < length(reviews)) {
+          filtered_mask <- local({ # FIXME: Instead of computing it, take the information from dv.manager afmm when it becomes available
+            all_data <- review[["data"]][[selected_dataset_list_name]][[selected_dataset_name]]
+            filtered_data <- listings_data()
+            
+            id_vars <- review[["datasets"]][[selected_dataset_name]][["id_vars"]]
+            group_separator <- "\01e"
+            all_ids <- do.call(paste, c(all_data[id_vars], sep = group_separator))
+            filtered_ids <- do.call(paste, c(filtered_data[id_vars], sep = group_separator))
+            return(all_ids %in% filtered_ids)
+          })
+          
+          reviews <- reviews[filtered_mask]
+          roles <- roles[filtered_mask]
+          status <- status[filtered_mask]
+        }
+        
         # TODO: Column fixing of subject and review columns; also of possibly dedicated jump-to column (visit first the DT docs page)
         # https://stackoverflow.com/questions/51623584/fixing-a-column-in-shiny-datatable-while-scrolling-right-does-not-work
         changes <- REV_add_review_columns(ns, data, review[["choices"]], reviews, roles, status)
