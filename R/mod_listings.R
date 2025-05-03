@@ -144,34 +144,42 @@ listings_UI <- function(module_id) { # nolint
     DT::dataTableOutput(ns(TBL$TABLE_ID), height = "87vh"),
     shiny::tags[["script"]](shiny::HTML(sprintf("
     $('#%s').on('init.dt', function(e, settings) {    
-    const table_container_id = '%s';
-    const table = document.querySelector('#' + table_container_id + ' table.dataTable');
-    if (!table) return;
-
-    const fixed_headers = table.querySelectorAll('thead tr')[0]?.querySelectorAll('th.dtfc-fixed-left');
-    const filters = table.querySelectorAll('thead tr')[1]?.querySelectorAll('td');
-
-    if (!fixed_headers || !filters) return;
-    for(let idx = 0; idx < fixed_headers.length; ++idx){
-      const th = fixed_headers[idx];
-      const td = filters[idx];
-      if (!td) return;
-
-      const computed_style = window.getComputedStyle(th);
-      const left = computed_style.left;
-      const zIndex = computed_style.zIndex;
-
-      /* Character filters have an element with z-index 25 therefore we choose 26. This is an empirical founding as
-      I found no reference in the documentation therefore this magic number may change.
-      */
-      magic_z_index = 26; 
-
-      td.classList.add('dtfc-fixed-left');
-      td.style.position = 'sticky';
-      td.style.left = left;
-      td.style.zIndex = magic_z_index;      
-      td.style.background = 'white';
-    }
+      const table_container_id = '%s';
+      const table = document.querySelector('#' + table_container_id + ' table.dataTable');
+      if (!table) return;
+  
+      // Make column filters scroll horizontally along the rest of the table rows
+      const fixed_headers = table.querySelectorAll('thead tr')[0]?.querySelectorAll('th.dtfc-fixed-left');
+      const filters = table.querySelectorAll('thead tr')[1]?.querySelectorAll('td');
+  
+      if (!fixed_headers || !filters) return;
+      for(let idx = 0; idx < fixed_headers.length; ++idx){
+        const th = fixed_headers[idx];
+        const td = filters[idx];
+        if (!td) return;
+  
+        const computed_style = window.getComputedStyle(th);
+        const left = computed_style.left;
+        const zIndex = computed_style.zIndex;
+  
+        /* Character filters have an element with z-index 25 therefore we choose 26. This is an empirical finding as
+           I found no reference in the documentation, therefore this magic number may change. */
+        magic_z_index = 26; 
+  
+        td.classList.add('dtfc-fixed-left');
+        td.style.position = 'sticky';
+        td.style.left = left;
+        td.style.zIndex = magic_z_index;      
+        td.style.background = 'white';
+      }
+      
+      // Extend width of factor search boxes to fit options (adapted from https://stackoverflow.com/a/76771419)
+      let tds = table.querySelectorAll('td[data-type=\"factor\"]');
+      for(let i = 0; i < tds.length; i += 1){
+        let td = tds[i];
+        let dropdown_content = td.querySelector('div.selectize-dropdown-content');
+        dropdown_content.setAttribute('style','width:max-content; background-color:white; border:1px solid rgba(0, 0, 0, 0.15); border-radius:4px; box-shadow:0 6px 12px rgba(0, 0, 0, 0.175);');
+      }
   });", ns(TBL$TABLE_ID), ns(TBL$TABLE_ID))))
   )
 }
@@ -556,7 +564,12 @@ listings_server <- function(module_id,
           ),
           # FIXME: Update to use https://datatables.net/reference/option/layout
           dom = "Bfrtilp", # Buttons, filtering, processing display element, table, information summary, length, pagination
-          fixedColumns = list(left = fixed_columns_left)
+          fixedColumns = list(left = fixed_columns_left),
+          drawCallback = htmlwidgets::JS("
+            function(settings) {
+              $('.dataTables_wrapper thead input[type=\"search\"]').removeAttr('disabled');
+            }
+          ") # Keep filtering enabled even for columns that have a unique value
         ),
         selection = "none"
       )
