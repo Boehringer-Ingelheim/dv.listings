@@ -30,7 +30,7 @@ REV_add_review_columns <- function(ns, data, choices, selected, roles, status) {
 }
 
 REV_UI <- function(ns, roles) {
-  choices <- setNames(c("", roles), c("---", make.names(roles)))
+  choices <- setNames(c("", roles), c("<select reviewer role>", make.names(roles)))
 
   res <- list()
   res[["ui"]] <- shiny::tagList(
@@ -91,23 +91,45 @@ REV_load_annotation_info <- function(folder, review, dataset_lists) {
       tracked_vars <- setdiff(names(dataset), c(id_vars, untracked_vars))
      
       base_timestamp <- NA_real_
+      data_timestamps <- rep(NA_real_, row_count)
       # <domain>_000.base
       fname <- file.path(dataset_list_folder, paste0(dataset_review_name, "_000.base"))
       if (file.exists(fname)) {
         contents <- readBin(con = fname, raw(), n = file.size(fname), endian = "little")
-        base_info <- RS_parse_base(contents)
-        base_timestamp <- base_info[["timestamp"]]
+        delta_fnames <- list.files(dataset_list_folder, 
+                                   pattern = sprintf("^%s_[0-9]*.delta", dataset_review_name),
+                                   full.names = TRUE)
+        deltas <- local({
+          res <- list()
+          for (fname in delta_fnames){
+            res[[length(res) + 1]] <- readBin(con = fname, raw(), n = file.size(fname), endian = "little")
+          }
+          return(res)
+        })
+        base_info <- RS_load(contents, deltas) # TODO? Call this RS_load_memory and write an RS_load() that works with fnames
         dataset_hash <- RS_hash_data_frame(dataset)
         if (!identical(dataset_hash, base_info[["contents_hash"]])) {
-          browser() # TODO: Produce delta
+          new_delta <- RS_compute_delta_memory(state = base_info, dataset)
+          deltas[[length(deltas) + 1]] <- new_delta
+          base_info <- RS_load(contents, deltas)
+          
+          delta_number <- length(delta_fnames) + 1
+          fname <- file.path(dataset_list_folder, sprintf("%s_%03d.delta", dataset_review_name, delta_number))
+          writeBin(new_delta, fname)
+          message(sprintf("Produced new delta %s", fname))
         }
+        
+        base_timestamp <- base_info[["timestamp"]]
+        data_timestamps <- base_info[["row_timestamps"]]
       } else {
         contents <- RS_compute_base_memory(dataset_review_name, dataset, id_vars, tracked_vars)
-        base_timestamp <- RS_parse_base(contents)[["timestamp"]] # TODO: Consider providing timestamp to RS_compute_base_memory instead?
+        base_info <- RS_parse_base(contents)
+        base_timestamp <- base_info[["timestamp"]] # TODO: Consider providing timestamp to RS_compute_base_memory instead?
+        data_timestamps <- base_info[["row_timestamps"]]
         writeBin(contents, fname)
       }
       
-      dataset_review[["data_timestamp"]] <- base_timestamp
+      dataset_review[["data_timestamp"]] <- data_timestamps
       dataset_review[["timestamp"]] <- base_timestamp
       
       # <domain>_<ROLE>.review

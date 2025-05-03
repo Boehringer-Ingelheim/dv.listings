@@ -157,7 +157,8 @@ RS_parse_base <- function(contents){
     row_count = row_count,
     timestamp = timestamp,
     id_hashes = id_hashes,
-    tracked_hashes = tracked_hashes
+    tracked_hashes = tracked_hashes,
+    row_timestamps = rep(timestamp, row_count)
   )
   
   return(res)
@@ -321,6 +322,7 @@ RS_parse_review_reviews <- function(contents, row_count, expected_role, expected
 
 RS_load <- function(base, deltas){
   res <- RS_parse_base(base) 
+  base_timestamp <- res$timestamp
   for(delta in deltas){
     state_delta <- RS_parse_delta(contents = delta)
     
@@ -336,8 +338,10 @@ RS_load <- function(base, deltas){
     res$row_count <- res$row_count + state_delta$new_row_count
     res$id_hashes <- cbind(res$id_hashes, state_delta$new_id_hashes)
     res$tracked_hashes <- cbind(res$tracked_hashes, state_delta$new_tracked_hashes)
+    res$row_timestamps <- c(res$row_timestamps, rep(base_timestamp+state_delta$time_delta, state_delta$new_row_count))
     # modified rows
     res$tracked_hashes[,state_delta$modified_row_indices] <- state_delta$modified_tracked_hashes
+    res$row_timestamps[state_delta$modified_row_indices] <- base_timestamp+state_delta$time_delta
   }
   return(res)
 }
