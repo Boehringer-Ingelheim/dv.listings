@@ -176,12 +176,12 @@ REV_load_annotation_info <- function(folder, review, dataset_lists) {
   return(res)
 }
     
-REV_logic_1 <- function(input, review, datasets) { # TODO: Rename
+REV_logic_1 <- function(state, input, review, datasets) { # TODO: Rename
   # TODO: Flesh out the state machine. Right now there are only default selections for quick iteration
-  state <- new.env(parent = emptyenv())
   state[["connected"]] <- shiny::reactiveVal(FALSE)
   state[["folder"]] <- "/tmp" # TODO: Revert to NULL
   state[["annotation_info"]] <- NULL
+  state[["review_update_trigger"]] <- shiny::reactiveVal(0)
 
   shiny::observeEvent(input[[REV$ID$CONNECT_STORAGE]], {
     message("Connecting")
@@ -192,8 +192,6 @@ REV_logic_1 <- function(input, review, datasets) { # TODO: Rename
     
     state[["connected"]](TRUE)
   }, ignoreNULL = FALSE) # TODO: Remove
-  
-  return(state)
 }
 
 REV_logic_2 <- function(ns, state, input, review, datasets, selected_dataset_list_name, selected_dataset_name, data,
@@ -239,6 +237,8 @@ REV_logic_2 <- function(ns, state, input, review, datasets, selected_dataset_lis
     DT::replaceData(dt_proxy, new_data, resetPaging = FALSE, clearSelection = "none")
     
     RS_append(path, contents)
+
+    state[["review_update_trigger"]](state[["review_update_trigger"]]() + 1)
   })
   
   return(NULL)
