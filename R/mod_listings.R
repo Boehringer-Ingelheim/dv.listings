@@ -25,7 +25,7 @@ TBL <- pack_of_constants( # nolint
   SEL_SUB_ID = "selected_subject_id",
   REVIEW_DROPDOWN_ID = "review_dropdown_id",
   REVIEW_UI_ID = "review_ui_id",
-  REVIEW_DROPDOWN_LABEL = "Annotations"
+  REVIEW_DROPDOWN_LABEL = "Review"
 )
 
 #' A module that displays datasets as listings
@@ -105,10 +105,7 @@ listings_UI <- function(module_id) { # nolint
     table.draw();
   });
 ", ns(TBL$RESET_ROWS_ORDER_BUTTON_ID), ns(TBL$TABLE_ID)))),
-      shinyWidgets::dropdownButton(
-        inputId = ns(TBL$REVIEW_DROPDOWN_ID), label = TBL$REVIEW_DROPDOWN_LABEL, circle = FALSE,
-        shiny::uiOutput(ns(TBL$REVIEW_UI_ID))
-      ),
+      shiny::uiOutput(ns(TBL$REVIEW_UI_ID)),
       shiny::div(style = "flex-grow: 1;"),
       shiny::span(
         shiny::tags[["label"]](
@@ -127,7 +124,7 @@ listings_UI <- function(module_id) { # nolint
               let table = $('#%s table.dataTable').DataTable();
               table.search(this.value).draw();
               });",
-                    ns(TBL$SEARCH_BOX_ID), ns(TBL$TABLE_ID)
+              ns(TBL$SEARCH_BOX_ID), ns(TBL$TABLE_ID)
             )
           )
         ),
@@ -412,8 +409,12 @@ listings_server <- function(module_id,
     show_review_columns <- function() FALSE
     REV_state <- new.env(parent = emptyenv())
     if (enable_review) {
-      rev_ui_info <- REV_UI(ns = ns, roles = review[["roles"]])
-      output[[TBL$REVIEW_UI_ID]] <- shiny::renderUI(rev_ui_info[["ui"]])
+      output[[TBL$REVIEW_UI_ID]] <- shiny::renderUI(
+        shinyWidgets::dropdownButton(
+          inputId = ns(TBL$REVIEW_DROPDOWN_ID), label = TBL$REVIEW_DROPDOWN_LABEL, circle = FALSE,
+          REV_UI(ns = ns, roles = review[["roles"]])[["ui"]]
+        )
+      )
       shiny::outputOptions(output, TBL$REVIEW_UI_ID, suspendWhenHidden = FALSE)
       REV_logic_1(REV_state, input, review, review[["data"]])
       show_review_columns <- REV_state[["connected"]]
@@ -472,46 +473,25 @@ listings_server <- function(module_id,
         shiny::exportTestValues(output_table = data, column_names = col_names)
       }
 
-      if (show_review_columns()) {
-        REV_state[["review_update_trigger"]]() # explicitly asked to recompute
-
-        selected_dataset_list_name <- review[["selected_dataset"]]()
-        selected_dataset_name <- input[[TBL$DATASET_ID]]
-        annotation_info <- REV_state[["annotation_info"]][[selected_dataset_list_name]][[selected_dataset_name]]
-        reviews <- annotation_info[["review"]]
-        roles <- annotation_info[["role"]]
-        status <- annotation_info[["status"]]
-        
-        shiny::validate(shiny::need(nrow(data) <= length(reviews), "Error: Inconsistency between review data and loaded datasets"))
-        
-        if (nrow(data) < length(reviews)) {
-          filtered_mask <- local({ # FIXME: Instead of computing it, take the information from dv.manager afmm when it becomes available
-            all_data <- review[["data"]][[selected_dataset_list_name]][[selected_dataset_name]]
-            filtered_data <- listings_data()
-            
-            id_vars <- review[["datasets"]][[selected_dataset_name]][["id_vars"]]
-            group_separator <- "\01e"
-            all_ids <- do.call(paste, c(all_data[id_vars], sep = group_separator))
-            filtered_ids <- do.call(paste, c(filtered_data[id_vars], sep = group_separator))
-            return(all_ids %in% filtered_ids)
-          })
-          
-          reviews <- reviews[filtered_mask]
-          roles <- roles[filtered_mask]
-          status <- status[filtered_mask]
-        }
-        
-        # TODO: Column fixing of subject and review columns; also of possibly dedicated jump-to column (visit first the DT docs page)
-        # https://stackoverflow.com/questions/51623584/fixing-a-column-in-shiny-datatable-while-scrolling-right-does-not-work
-        changes <- REV_add_review_columns(ns, data, review[["choices"]], reviews, roles, status)
-        data <- changes[["data"]]
-        set_up[["col_names"]] <- c(changes[["extra_column_names"]], set_up[["col_names"]])
-      }
-      
       if (!is.null(on_sbj_click) && subjid_var %in% names(data)) {
         # Style subject column as link
         data[[subjid_var]] <- sprintf("<a title=\"Click for subject details\" href=\"\" onclick=\"Shiny.setInputValue('%s', '%s', {priority:'event'}); return false;\">%s</a>", 
                                       session[["ns"]](TBL$SEL_SUB_ID), data[[subjid_var]], data[[subjid_var]])
+      }
+     
+      # NOTE: Pass the reconstructed `filter_mask` as an attribute of `data` itself to ensure they're synchronized
+      if (enable_review) {
+        attr(data, "filter_mask") <- local({
+          selected_dataset_list_name <- review[["selected_dataset"]]()
+          selected_dataset_name <- input[[TBL$DATASET_ID]]
+          
+          all_data <- review[["data"]][[selected_dataset_list_name]][[selected_dataset_name]]
+          id_vars <- review[["datasets"]][[selected_dataset_name]][["id_vars"]]
+          group_separator <- "\01e"
+          all_ids <- do.call(paste, c(all_data[id_vars], sep = group_separator))
+          filtered_ids <- do.call(paste, c(listings_data()[id_vars], sep = group_separator))
+          return(all_ids %in% filtered_ids)
+        })
       }
       
       return(
@@ -529,23 +509,43 @@ listings_server <- function(module_id,
         ns = ns, state = REV_state, input = input, review = review, datasets = review[["data"]],
         selected_dataset_list_name = review[["selected_dataset"]],
         selected_dataset_name = shiny::reactive(input[[TBL$DATASET_ID]]),
-        data = shiny::reactive(output_table_data()[["data"]]), dt_proxy = dt_proxy
+        data = shiny::reactive(output_table_data()[["data"]]),
+        dt_proxy = dt_proxy
       )
     }
     
     output[[TBL$TABLE_ID]] <- DT::renderDataTable({
       shiny::validate(shiny::need(!is.null(input[[TBL$COLUMNS_ID]]), TBL$NO_COL_MSG))
      
-      selected_cols <- r_selected_columns_in_dataset()[[input[[TBL$DATASET_ID]]]]
+      table_data <- output_table_data()
       
-      table_data <- shiny::isolate(  # NOTE: Data updated through DT::replaceData elsewhere to avoid full redraw
-        output_table_data()
-      )
-      
-      review_column_indices <- integer()
-      if (enable_review) review_column_indices <- seq_along(REV$LABEL$REVIEW_COLS)
-      
-      fixed_columns_left <- length(review_column_indices) + 1
+      column_defs <- list(list(className = "dt-center", targets = "_all"))
+      fixed_columns_left <- 0
+      if (show_review_columns()) {
+        # patch table data
+        changes <- REV_include_review_info(
+          review = review,
+          annotation_info = REV_state[["annotation_info"]],
+          selected_dataset_list_name = shiny::isolate(review[["selected_dataset"]]()),
+          selected_dataset_name = shiny::isolate(input[[TBL$DATASET_ID]]),
+          data = table_data[["data"]],
+          col_names = table_data[["col_names"]]
+        )
+        table_data[["data"]] <- changes[["data"]]
+        table_data[["col_names"]] <- changes[["col_names"]]
+        
+        # patch table style
+        review_column_indices <- seq_along(REV$LABEL$REVIEW_COLS)
+        fixed_columns_left <- length(review_column_indices) + 1
+        column_defs <- append(
+          column_defs,
+          list(
+            list(className = "dv_listings_review_column", targets = review_column_indices),
+            list(render = htmlwidgets::JS(js_generate_review_column_contents()), data = 1, 
+                 targets = head(review_column_indices, 1))
+          )
+        )
+      }
       
       DT::datatable(
         data = table_data[["data"]],
@@ -560,11 +560,7 @@ listings_server <- function(module_id,
           paging = table_data[["paging"]],
           scrollX = TRUE,
           ordering = TRUE,
-          columnDefs = list(
-            list(className = "dt-center", targets = "_all")
-            , list(className = "dv_listings_review_column", targets = review_column_indices) 
-            , list(render = htmlwidgets::JS(js_generate_review_column_contents()), data = 1, targets = head(review_column_indices, 1))
-          ),
+          columnDefs = column_defs,
           # FIXME: Update to use https://datatables.net/reference/option/layout
           dom = "Bfrtilp", # Buttons, filtering, processing display element, table, information summary, length, pagination
           fixedColumns = list(left = fixed_columns_left),

@@ -20,13 +20,32 @@ REV <- pack_of_constants(
   )
 )
 
-REV_add_review_columns <- function(ns, data, choices, selected, roles, status) { 
-  data <- cbind(selected, roles, status, data) # prepend extra review columns
+REV_include_review_info <- function(review, annotation_info, selected_dataset_list_name, selected_dataset_name, data, 
+                                    col_names) {
+  annotation_info <- annotation_info[[selected_dataset_list_name]][[selected_dataset_name]]
+  reviews <- annotation_info[["review"]]
+  roles <- annotation_info[["role"]]
+  status <- annotation_info[["status"]]
+  
+  # TODO: Introduce something to this effect
+  # > shiny::validate(shiny::need(nrow(data) <= length(reviews), "Error: Inconsistency between review data and loaded datasets"))
+ 
+  if (nrow(data) < length(reviews)) {
+    filter_mask <- attr(data, "filter_mask")
+    reviews <- reviews[filter_mask]
+    roles <- roles[filter_mask]
+    status <- status[filter_mask]
+  }
+  
+  if (nrow(data) > length(reviews)) browser() # Should not happen
+ 
+  # prepend extra review-related columns 
+  data <- cbind(reviews, roles, status, data)
   names(data)[[1]] <- REV$ID$REVIEW_COL
   names(data)[[2]] <- REV$ID$ROLE_COL
   names(data)[[3]] <- REV$ID$STATUS_COL
   
-  return(list(data = data, extra_column_names = REV$LABEL$REVIEW_COLS))
+  return(list(data = data, col_names = c(REV$LABEL$REVIEW_COLS, col_names)))
 }
 
 REV_UI <- function(ns, roles) {
@@ -181,7 +200,6 @@ REV_logic_1 <- function(state, input, review, datasets) { # TODO: Rename
   state[["connected"]] <- shiny::reactiveVal(FALSE)
   state[["folder"]] <- "/tmp" # TODO: Revert to NULL
   state[["annotation_info"]] <- NULL
-  state[["review_update_trigger"]] <- shiny::reactiveVal(0)
 
   shiny::observeEvent(input[[REV$ID$CONNECT_STORAGE]], {
     message("Connecting")
@@ -202,13 +220,20 @@ REV_logic_2 <- function(ns, state, input, review, datasets, selected_dataset_lis
     dataset_list_name <- selected_dataset_list_name() 
     dataset_name <- selected_dataset_name()
     
+    new_data <- data()
+    
     info <- input[[REV$ID$REVIEW_SELECT]]
     i_row <- info[["row"]] # TODO: Once there are multiple versions of the dataset, this will require extra steps
+    offsetted_i_row <- local({
+      # The `i_row` is relative to the filtered data sent to the client
+      filter_mask <- attr(new_data, "filter_mask")
+      which(filter_mask)[[i_row]]
+    })
     option <- as.integer(info[["option"]])
    
     timestamp <- SH$get_UTC_time_in_seconds()
     contents <- c(
-      SH$integer_to_raw(i_row),
+      SH$integer_to_raw(offsetted_i_row),
       SH$integer_to_raw(option),
       SH$double_to_raw(timestamp)
     )
@@ -216,14 +241,26 @@ REV_logic_2 <- function(ns, state, input, review, datasets, selected_dataset_lis
     fname <- paste0(dataset_name, "_", make.names(role), ".review")
     path <- file.path(state[["folder"]], dataset_list_name, fname)
     
-    new_data <- data()
+    # NOTE: Partially repeats #weilae 
+    # NOTE: We could cache the modified table and avoid repeating this operation 
+    #       if it turns out to be a performance bottleneck
+    changes <- REV_include_review_info(
+      review = review,
+      annotation_info = state[["annotation_info"]],
+      selected_dataset_list_name = dataset_list_name,
+      selected_dataset_name <- dataset_name,
+      data = data(),
+      col_names = list()
+    )
+    new_data <- changes[["data"]]
+    
     new_data[i_row, ][[REV$ID$REVIEW_COL]] <- review[["choices"]][[option]]
     new_data[i_row, ][[REV$ID$ROLE_COL]] <- role
     new_data[i_row, ][[REV$ID$STATUS_COL]] <- REV$STATUS_LEVELS[["UP_TO_DATE"]]
 
     # `REV_load_annotation_info()` would return this same (modified) state, but we do manual synchronization
     # to avoid potentially expensive data reloading
-    state[["annotation_info"]][[dataset_list_name]][[dataset_name]][i_row, ] <- list(
+    state[["annotation_info"]][[dataset_list_name]][[dataset_name]][offsetted_i_row, ] <- list(
       review = review[["choices"]][[option]],  timestamp = timestamp, role = role, 
       status = REV$STATUS_LEVELS[["UP_TO_DATE"]]
     )
@@ -237,8 +274,6 @@ REV_logic_2 <- function(ns, state, input, review, datasets, selected_dataset_lis
     DT::replaceData(dt_proxy, new_data, resetPaging = FALSE, clearSelection = "none")
     
     RS_append(path, contents)
-
-    state[["review_update_trigger"]](state[["review_update_trigger"]]() + 1)
   })
   
   return(NULL)
