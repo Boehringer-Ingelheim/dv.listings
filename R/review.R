@@ -20,9 +20,7 @@ REV <- pack_of_constants(
   )
 )
 
-REV_include_review_info <- function(review, annotation_info, selected_dataset_list_name, selected_dataset_name, data, 
-                                    col_names) {
-  annotation_info <- annotation_info[[selected_dataset_list_name]][[selected_dataset_name]]
+REV_include_review_info <- function(annotation_info, data, col_names) {
   reviews <- annotation_info[["review"]]
   roles <- annotation_info[["role"]]
   status <- annotation_info[["status"]]
@@ -151,6 +149,21 @@ REV_load_annotation_info <- function(folder, review, dataset_lists) {
       dataset_review[["data_timestamp"]] <- data_timestamps
       dataset_review[["timestamp"]] <- base_timestamp
       
+      # This probably should live alongside RS_* functions
+      # NOTE(miguel): I didn't consider the possibility of row reordering in the original design of the review file
+      #               formats. As a consequence, I missed the need for this row map (that makes it possible to assign
+      #               reviews from row indices to id_hashes). This vector could be appended to `delta` files, at the
+      #               cost of four bytes per row. I think the superior approach would be to speed up data.frame row 
+      #               hashing by dropping down to C, as the initial hashing would also benefit from that.
+      #               That's why we recompute the hashes here:
+      state_to_dataset_row_mapping <- local({
+        id_vars <- base_info[["id_vars"]]
+        # FIXME: repeats #ahnail
+        id_hashes <- apply(dataset[id_vars], 1, SH$hash_data_frame_row, simplify = TRUE) # coerces all types to be the same (character?)
+        mapping <- match(asplit(base_info[["id_hashes"]], 2), asplit(id_hashes, 2))
+        return(mapping)
+      })
+      
       # <domain>_<ROLE>.review
       for (role in review[["roles"]]){
         fname <- file.path(dataset_list_folder, paste0(dataset_review_name, "_", role, ".review"))
@@ -164,10 +177,10 @@ REV_load_annotation_info <- function(folder, review, dataset_lists) {
         }
         
         # NOTE: each role keeps their own decisions...
-        role_review <- RS_parse_review_reviews(contents, row_count = nrow(dataset), 
+        role_review <- RS_parse_review_reviews(contents, state_to_dataset_row_mapping = state_to_dataset_row_mapping, 
                                                expected_role = role, expected_domain = dataset_review_name)
         # NOTE: and we combine them to display the latest one, but we could...
-        # TODO: make reviews by all roles available to the user? (could be done through separate columns)
+        # TODO: ...make reviews by all roles available to the user? (could be done through separate columns)
         update_mask <- role_review[["timestamp"]] > dataset_review[["timestamp"]] 
         
         if (any(update_mask)) {
@@ -186,8 +199,17 @@ REV_load_annotation_info <- function(folder, review, dataset_lists) {
       }
       
       dataset_review[update_mask, ][["timestamp"]] < dataset_review[update_mask, ][["data_timestamp"]]
+     
+      # Compute reverse mapping (which is a more useful representation for the running app)
+      dataset_to_state_row_mapping <- local({
+        res <- integer(length(state_to_dataset_row_mapping))
+        res[state_to_dataset_row_mapping] <- seq_along(state_to_dataset_row_mapping)
+        return(res)
+      }) 
       
-      sub_res[[dataset_review_name]] <-  dataset_review[c("review", "timestamp", "role", "status")]
+      # FIXME? Mapping attached as a parameter to avoid rewriting prototype-level code
+      sub_res[[dataset_review_name]] <- dataset_review[c("review", "timestamp", "role", "status")]
+      attr(sub_res[[dataset_review_name]], "dataset_to_state_row_mapping") <- dataset_to_state_row_mapping
     }
     res[[dataset_lists_name]] <- sub_res
   }
@@ -225,9 +247,13 @@ REV_logic_2 <- function(ns, state, input, review, datasets, selected_dataset_lis
     info <- input[[REV$ID$REVIEW_SELECT]]
     i_row <- info[["row"]] # TODO: Once there are multiple versions of the dataset, this will require extra steps
     offsetted_i_row <- local({
-      # The `i_row` is relative to the filtered data sent to the client
+      # The `i_row` is relative to the filtered data sent to the client ...
       filter_mask <- attr(new_data, "filter_mask")
-      which(filter_mask)[[i_row]]
+      i_row <- which(filter_mask)[[i_row]]
+      # ... and that `i_row` needs to be mapped into a base+deltas (stable) index
+      row_map <- attr(state[["annotation_info"]][[dataset_list_name]][[dataset_name]], "dataset_to_state_row_mapping")
+      i_row <- row_map[[i_row]]
+      return(i_row)
     })
     option <- as.integer(info[["option"]])
    
@@ -245,10 +271,7 @@ REV_logic_2 <- function(ns, state, input, review, datasets, selected_dataset_lis
     # NOTE: We could cache the modified table and avoid repeating this operation 
     #       if it turns out to be a performance bottleneck
     changes <- REV_include_review_info(
-      review = review,
-      annotation_info = state[["annotation_info"]],
-      selected_dataset_list_name = dataset_list_name,
-      selected_dataset_name <- dataset_name,
+      annotation_info = state[["annotation_info"]][[dataset_list_name]][[dataset_name]],
       data = data(),
       col_names = list()
     )

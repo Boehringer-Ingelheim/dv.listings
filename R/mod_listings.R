@@ -523,11 +523,11 @@ listings_server <- function(module_id,
       fixed_columns_left <- 0
       if (show_review_columns()) {
         # patch table data
+        selected_dataset_list_name <- shiny::isolate(review[["selected_dataset"]]())
+        selected_dataset_name <- shiny::isolate(input[[TBL$DATASET_ID]])
+        
         changes <- REV_include_review_info(
-          review = review,
-          annotation_info = REV_state[["annotation_info"]],
-          selected_dataset_list_name = shiny::isolate(review[["selected_dataset"]]()),
-          selected_dataset_name = shiny::isolate(input[[TBL$DATASET_ID]]),
+          annotation_info = REV_state[["annotation_info"]][[selected_dataset_list_name]][[selected_dataset_name]],
           data = table_data[["data"]],
           col_names = table_data[["col_names"]]
         )

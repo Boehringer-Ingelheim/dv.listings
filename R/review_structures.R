@@ -91,6 +91,7 @@ RS_compute_base_memory <- function(df_id, df, id_vars, tracked_vars){
   df_hash <- RS_hash_data_frame(df)
 
   # row hashes
+  # FIXME: repeats #ahnail
   id_hashes <- apply(df[id_vars], 1, SH$hash_data_frame_row, simplify = TRUE) # coerces all types to be the same (character?)
   ; if(!identical(dim(id_hashes), c(16L, nrow(df)))) return(simpleCondition("Internal error in id_vars hash preparation"))
 
@@ -171,18 +172,34 @@ RS_compute_delta_memory <- function(state, df){
   df_hash <- RS_hash_data_frame(df)
 
   id_vars <- state$id_vars
+  # FIXME: repeats #ahnail
   id_hashes <- apply(df[id_vars], 1, SH$hash_data_frame_row, simplify = TRUE) |> c() |> array(dim = c(16, nrow(df)))
+  tracked_vars <- state$tracked_vars
+  tracked_hashes <- apply(df[tracked_vars], 1, SH$hash_data_frame_row, simplify = TRUE) |> c() |> array(dim = c(16, nrow(df)))
   
   merged <- cbind(state$id_hashes, id_hashes, deparse.level = 0)
   new_row_mask <- !duplicated(merged, MARGIN = 2) |> c() |> tail(n = nrow(df))
   new_row_indices <- which(new_row_mask)
+  
+  new_id_hashes <- id_hashes[, new_row_indices, drop = FALSE]
+  new_tracked_hashes <- tracked_hashes[, new_row_indices, drop = FALSE]
+
+  # drop new rows
+  if(length(new_row_indices)){
+    id_hashes <- id_hashes[, -new_row_indices, drop = FALSE]
+    tracked_hashes <- tracked_hashes[, -new_row_indices, drop = FALSE]
+  }
  
-  tracked_vars <- state$tracked_vars
-  tracked_hashes <- apply(df[tracked_vars], 1, SH$hash_data_frame_row, simplify = TRUE) |> c() |> array(dim = c(16, nrow(df)))
+  # Sort remaining according to state$id_hashes order # TODO: Streamline for performance?
+  mapping <- match(asplit(id_hashes, 2), asplit(state$id_hashes, 2))
+  id_hashes <- id_hashes[, mapping, drop = FALSE]
+  tracked_hashes <- tracked_hashes[, mapping, drop = FALSE]
+
+  # TODO: Assert against removal of rows
   
   merged <- cbind(state$tracked_hashes, tracked_hashes, deparse.level = 0)
-  modified_row_mask <- !duplicated(merged, MARGIN = 2) |> c() |> tail(n = nrow(df))
-  modified_row_indices <- setdiff(which(modified_row_mask), new_row_indices)
+  modified_row_mask <- !duplicated(merged, MARGIN = 2) |> c() |> tail(n = nrow(df)-length(new_row_indices))
+  modified_row_indices <- which(modified_row_mask)
   
   res <- c(
     charToRaw("LISTDELT"),                                # file magic code
@@ -191,9 +208,9 @@ RS_compute_delta_memory <- function(state, df){
     SH$integer_to_raw(time_delta),                        # delta timestamp (seconds since state)
     df_hash,                                              # complete hash of input data.frame
     SH$string_to_raw(state$domain),                       # domain string
-    SH$integer_to_raw(length(new_row_indices)),           # new row count
-    id_hashes[, new_row_indices, drop = FALSE],           # one hash of id_vars per new row
-    tracked_hashes[, new_row_indices, drop = FALSE],      # one hash of tracked_vars per new row
+    SH$integer_to_raw(length(new_row_indices)),           # count of new rows
+    new_id_hashes,                                        # one hash of id_vars per new row
+    new_tracked_hashes,                                   # one hash of tracked_vars per new row
     SH$integer_vector_to_raw(modified_row_indices),       # modified row indices
     tracked_hashes[, modified_row_indices, drop = FALSE]  # one hash of tracked_vars per modified row
   )
@@ -289,7 +306,8 @@ RS_compute_review_reviews_memory <- function(role, dataset){
   return(res)
 }
 
-RS_parse_review_reviews <- function(contents, row_count, expected_role, expected_domain){
+RS_parse_review_reviews <- function(contents, state_to_dataset_row_mapping, expected_role, expected_domain){
+  row_count <- length(state_to_dataset_row_mapping)
   res <- data.frame(review = rep(0L, row_count), timestamp = rep(0., row_count))
   
   con <- rawConnection(contents, open = "r")
@@ -312,6 +330,7 @@ RS_parse_review_reviews <- function(contents, row_count, expected_role, expected
     review <- readBin(con, integer(), 1L, endian = 'little')
     timestamp <- readBin(con, numeric(), 1L, endian = 'little')
     # NOTE: timestamp increases monotonically with each new row, so not checking it
+    row_index <- state_to_dataset_row_mapping[[row_index]]
     res[["review"]][[row_index]] <- review
     res[["timestamp"]][[row_index]] <- timestamp
   }
@@ -365,6 +384,45 @@ if(FALSE){
     if(inherits(res, "condition")) stop(res)
     return(res)
   }
+ 
+  if(FALSE) {
+    df <- safetyData::adam_adae[1:2,]
+    base_contents <- describe_and_time(
+      "Derive .base file contents from initial dataset (expensive; only done the first time app is run by some user)", {
+        df_id <- "ae"
+        id_vars <- c("USUBJID", "AESEQ")
+        tracked_vars <- setdiff(names(df), "id_vars") # tracks all non-id vars (worst case for performance)
+        RS_compute_base_memory(df_id, df, id_vars, tracked_vars)
+      }
+    )
+    
+    review_state <- describe_and_time(
+      "Initial load (base and no deltas)",
+      RS_load(base_contents, deltas = list())
+    )
+    
+    df <- safetyData::adam_adae[2:1,] # Reverse the order of rows of the dataset
+    
+    delta1_contents <- describe_and_time(
+      "Processing dataset update (done first time app is run after update)",
+      RS_compute_delta_memory(review_state, df)
+    )
+    
+    review_state <- describe_and_time(
+      "Initial load (base and one delta)",
+      RS_load(base_contents, deltas = list(delta1_contents)) 
+    )
+    
+    df[1,][["AESEV"]] <- 'SEVERE'
+    delta2_contents <- describe_and_time(
+      "Processing dataset update (done first time app is run after update)",
+      RS_compute_delta_memory(review_state, df)
+    )
+  
+
+    browser()
+  }
+  
 
   # Build an arbitrarily large input dataset
   df <- local({
@@ -415,38 +473,31 @@ if(FALSE){
     RS_load(base_contents, deltas = list())
   )
 
-  delta1_contents <- local({
-    # Let's imagine there is an update that adds a new entry to the dataset
-    df <- rbind(df, safetyData::adam_adae[1001,])
-    # Furthermore, the severity of an adverse event is described now as "MODERATE" instead of "MILD"
-    df[500, 'AESEV'] <- 'MODERATE'
-    
-    delta_contents <- describe_and_time(
-      "Processing dataset update (done first time app is run after update)",
-      RS_compute_delta_memory(review_state, df)
-    )
-    return(delta_contents)
-  })
+  # Let's imagine there is an update that adds a new entry to the dataset
+  df <- rbind(df, safetyData::adam_adae[1001,])
+  # Furthermore, the severity of an adverse event is described now as "MODERATE" instead of "MILD"
+  df[500, 'AESEV'] <- 'MODERATE'
+  
+  delta1_contents <- describe_and_time(
+    "Processing dataset update (done first time app is run after update)",
+    RS_compute_delta_memory(review_state, df)
+  )
   
   review_state <- describe_and_time(
     "Initial load (base and one delta)",
     RS_load(base_contents, deltas = list(delta1_contents)) 
   )
   
-  delta2_contents <- local({
-    # Let's imagine there is an update that adds two new entries to the dataset
-    df <- rbind(df, safetyData::adam_adae[1002:1003,])
-    # Furthermore, the severity of an adverse event is described now as "SEVERE" instead of "MODERATE"
-    df[500, 'AESEV'] <- 'SEVERE'
-    # and another one that was "MILD" is now "MODERATE"
-    df[501, 'AESEV'] <- 'SEVERE'
-    
-    delta_contents <- describe_and_time(
-      "Processing dataset update (done first time app is run after update)",
-      RS_compute_delta_memory(review_state, df)
-    )
-    return(delta_contents)
-  })
+  # The severity of an adverse event is described now as "SEVERE" instead of "MODERATE"
+  df[500, 'AESEV'] <- 'SEVERE'
+  # and another one that was "MILD" is now "MODERATE"
+  df[501, 'AESEV'] <- 'SEVERE'
+  # And we also _prepend_ two new entries to the dataset
+  df <- rbind(safetyData::adam_adae[1002:1003,], df)
+  delta2_contents <- describe_and_time(
+    "Processing dataset update (done first time app is run after update)",
+    RS_compute_delta_memory(review_state, df)
+  )
   
   review_state <- describe_and_time(
     "Initial load (base and two deltas)",
