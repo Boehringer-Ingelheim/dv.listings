@@ -159,7 +159,8 @@ RS_parse_base <- function(contents){
     timestamp = timestamp,
     id_hashes = id_hashes,
     tracked_hashes = tracked_hashes,
-    row_timestamps = rep(timestamp, row_count)
+    row_timestamps = rep(timestamp, row_count),
+    update_count = rep(0L, row_count)
   )
   
   return(res)
@@ -306,9 +307,9 @@ RS_compute_review_reviews_memory <- function(role, dataset){
   return(res)
 }
 
-RS_parse_review_reviews <- function(contents, state_to_dataset_row_mapping, expected_role, expected_domain){
-  row_count <- length(state_to_dataset_row_mapping)
-  res <- data.frame(review = rep(0L, row_count), timestamp = rep(0., row_count))
+RS_parse_review_reviews <- function(contents, dataset_to_state_row_mapping, expected_role, expected_domain){
+  row_count <- length(dataset_to_state_row_mapping)
+  res <- data.frame(review = rep(0L, row_count), timestamp = rep(0., row_count), count = rep(0L, row_count))
   
   con <- rawConnection(contents, open = "r")
   file_magic_code <- readBin(con, raw(), 8L) |> rawToChar()
@@ -330,9 +331,10 @@ RS_parse_review_reviews <- function(contents, state_to_dataset_row_mapping, expe
     review <- readBin(con, integer(), 1L, endian = 'little')
     timestamp <- readBin(con, numeric(), 1L, endian = 'little')
     # NOTE: timestamp increases monotonically with each new row, so not checking it
-    row_index <- state_to_dataset_row_mapping[[row_index]]
+    row_index <- dataset_to_state_row_mapping[[row_index]]
     res[["review"]][[row_index]] <- review
     res[["timestamp"]][[row_index]] <- timestamp
+    res[["count"]][[row_index]] <- res[["count"]][[row_index]] + 1
   }
   
   close(con)
@@ -358,9 +360,12 @@ RS_load <- function(base, deltas){
     res$id_hashes <- cbind(res$id_hashes, state_delta$new_id_hashes)
     res$tracked_hashes <- cbind(res$tracked_hashes, state_delta$new_tracked_hashes)
     res$row_timestamps <- c(res$row_timestamps, rep(base_timestamp+state_delta$time_delta, state_delta$new_row_count))
+    res$update_count <- c(res$update_count, rep(0L, state_delta$new_row_count))
+    
     # modified rows
     res$tracked_hashes[,state_delta$modified_row_indices] <- state_delta$modified_tracked_hashes
     res$row_timestamps[state_delta$modified_row_indices] <- base_timestamp+state_delta$time_delta
+    res$update_count[state_delta$modified_row_indices] <- res$update_count[state_delta$modified_row_indices]+1L
   }
   return(res)
 }

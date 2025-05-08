@@ -525,18 +525,22 @@ listings_server <- function(module_id,
         # patch table data
         selected_dataset_list_name <- shiny::isolate(review[["selected_dataset"]]())
         selected_dataset_name <- shiny::isolate(input[[TBL$DATASET_ID]])
-        
+       
+        extra_col_names <- input[[REV$ID$DEV_EXTRA_COLS_SELECT]]
         changes <- REV_include_review_info(
           annotation_info = REV_state[["annotation_info"]][[selected_dataset_list_name]][[selected_dataset_name]],
           data = table_data[["data"]],
-          col_names = table_data[["col_names"]]
+          col_names = table_data[["col_names"]],
+          extra_col_names = extra_col_names
         )
+        
+        new_col_count <- ncol(changes[["data"]]) - ncol(table_data[["data"]])
         table_data[["data"]] <- changes[["data"]]
         table_data[["col_names"]] <- changes[["col_names"]]
         
         # patch table style
-        review_column_indices <- seq_along(REV$LABEL$REVIEW_COLS)
-        fixed_columns_left <- length(review_column_indices) + 1
+        review_column_indices <- seq_len(new_col_count)
+        fixed_columns_left <- new_col_count + 1
         column_defs <- append(
           column_defs,
           list(

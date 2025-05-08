@@ -5,22 +5,51 @@ REV <- pack_of_constants(
     REVIEW_COL = "__review__",
     ROLE_COL = "__role__",
     STATUS_COL = "__status__",
+    REVIEW_TIMESTAMP_COL = "__review_timestamp__",
+    DATA_TIMESTAMP_COL = "__data_timestamp__",
+    DATA_UPDATE_COUNT_COL = "__data_update_count__",
+    REVIEW_COUNT_COL = "__review_count__",
+    CONFLICT_COL = "__conflict__",
     REVIEW_SELECT = "rev_id",
     ROLE = "rev_role",
+    DEV_EXTRA_COLS_SELECT = "dev_extra_cols_select",
     CONNECT_STORAGE = "connect_storage"
   ),
   LABEL = pack_of_constants(
     DROPDOWN = "Annotation",
-    REVIEW_COLS = c("Review", "Role", "Status")
+    REVIEW_COLS = c("Review", "Role")
   ),
   STATUS_LEVELS = c(
     PENDING = "Pending", 
     UP_TO_DATE = "Up to date", 
     OUTDATED = "Outdated"
+  ),
+  DEV_EXTRA_COLS = c(
+    "Review Status" = "review_status",
+    "Review time" = "review_time",
+    "Data time" = "data_time",
+    "Data update count" = "data_update_count",
+    "Review count" = "review_count",
+    "Conflict" = "conflict"
   )
 )
 
-REV_include_review_info <- function(annotation_info, data, col_names) {
+REV_time_from_timestamp <- function(v) {
+  non_breaking_hyphen <- "\U2011"
+  template <- paste0("%Y", non_breaking_hyphen, "%m", non_breaking_hyphen, "%d %H:%M:%S")
+  v <- as.POSIXct(v, origin = "1970-01-01", tz = "UTC")
+  res <- format(v, template)
+  return(res)
+}
+
+REV_include_review_info <- function(annotation_info, data, col_names, extra_col_names) {
+  if (nrow(data) < nrow(annotation_info)) {
+    filter_mask <- attr(data, "filter_mask")
+    annotation_info <- annotation_info[filter_mask, ]
+  }
+  
+  if (nrow(data) > nrow(annotation_info)) browser() # Should not happen
+  
   reviews <- annotation_info[["review"]]
   roles <- annotation_info[["role"]]
   status <- annotation_info[["status"]]
@@ -28,22 +57,51 @@ REV_include_review_info <- function(annotation_info, data, col_names) {
   # TODO: Introduce something to this effect
   # > shiny::validate(shiny::need(nrow(data) <= length(reviews), "Error: Inconsistency between review data and loaded datasets"))
  
-  if (nrow(data) < length(reviews)) {
-    filter_mask <- attr(data, "filter_mask")
-    reviews <- reviews[filter_mask]
-    roles <- roles[filter_mask]
-    status <- status[filter_mask]
+  # include review-related columns
+  res <- data.frame(reviews, roles)
+  names(res)[[1]] <- REV$ID$REVIEW_COL
+  names(res)[[2]] <- REV$ID$ROLE_COL
+  res_col_names <- REV$LABEL$REVIEW_COLS
+  
+  # add extra requested review-related columns # TODO: table-drive
+  for (col in extra_col_names){
+    if (col == "review_status") {
+      res <- cbind(res, status)
+      names(res)[[length(res)]] <- REV$ID$STATUS_COL
+      res_col_names <- c(res_col_names, "Review Status")
+    } else if (col == "review_time") {
+      review_times <- REV_time_from_timestamp(annotation_info[["timestamp"]])
+      unreviewed <- (annotation_info[["review_count"]] == 0)
+      review_times[unreviewed] <- ""
+      res <- cbind(res, review_times)
+      names(res)[[length(res)]] <- REV$ID$REVIEW_TIMESTAMP_COL
+      res_col_names <- c(res_col_names, "Review time (UTC)")
+    } else if (col == "data_time") {
+      res <- cbind(res, REV_time_from_timestamp(annotation_info[["data_timestamp"]]))
+      names(res)[[length(res)]] <- REV$ID$DATA_TIMESTAMP_COL
+      res_col_names <- c(res_col_names, "Data time (UTC)")
+    } else if (col == "data_update_count") {
+      res <- cbind(res, annotation_info[["data_update_count"]])
+      names(res)[[length(res)]] <- REV$ID$DATA_UPDATE_COUNT_COL
+      res_col_names <- c(res_col_names, "Data update count")
+    } else if (col == "review_count") {
+      res <- cbind(res, annotation_info[["review_count"]])
+      names(res)[[length(res)]] <- REV$ID$REVIEW_COUNT_COL
+      res_col_names <- c(res_col_names, "Review count")
+    } else if (col == "conflict") {
+      res <- cbind(res, annotation_info[["conflict"]])
+      names(res)[[length(res)]] <- REV$ID$CONFLICT_COL
+      res_col_names <- c(res_col_names, "Review conflict")
+    } else {
+      browser()
+    }
   }
-  
-  if (nrow(data) > length(reviews)) browser() # Should not happen
  
-  # prepend extra review-related columns 
-  data <- cbind(reviews, roles, status, data)
-  names(data)[[1]] <- REV$ID$REVIEW_COL
-  names(data)[[2]] <- REV$ID$ROLE_COL
-  names(data)[[3]] <- REV$ID$STATUS_COL
+  # add actual data
+  res <- cbind(res, data)
+  res_col_names <- c(res_col_names, col_names)
   
-  return(list(data = data, col_names = c(REV$LABEL$REVIEW_COLS, col_names)))
+  return(list(data = res, col_names = res_col_names))
 }
 
 REV_UI <- function(ns, roles) {
@@ -56,9 +114,17 @@ REV_UI <- function(ns, roles) {
     ),
     shiny::selectInput(
       inputId = ns(REV$ID$ROLE), label = "Role:", choices = choices
+    ),
+    shiny::selectizeInput(
+      ns(REV$ID$DEV_EXTRA_COLS_SELECT),
+      label = htmltools::HTML("<i style='color:gray;'>[demo] Experimental review columns</i>"),
+      choices = REV$DEV_EXTRA_COLS,
+      multiple = TRUE,
+      options = list(plugins = list("remove_button", "drag_drop"))
     )
   )
-  res[["input_ids_to_exclude_from_bookmarking"]] <- c(ns(REV$ID$CONNECT_STORAGE), ns(REV$ID$ROLE))
+  res[["input_ids_to_exclude_from_bookmarking"]] <- c(ns(REV$ID$CONNECT_STORAGE), ns(REV$ID$ROLE), 
+                                                      ns(REV$ID$DEV_EXTRA_COLS_SELECT))
 
   return(res)
 }
@@ -99,9 +165,13 @@ REV_load_annotation_info <- function(folder, review, dataset_lists) {
      
       default_review <- factor(review[["choices"]][[1]], levels = review[["choices"]])
       dataset_review <- data.frame(review = rep(default_review, row_count),
-                                   timestamp = rep(0., row_count), 
-                                   role = rep(role_factor, row_count), status = rep(status_factor, row_count), 
-                                   data_timestamp = rep(0., row_count))
+                                   timestamp = numeric(row_count), 
+                                   role = rep(role_factor, row_count), 
+                                   status = rep(status_factor, row_count), 
+                                   data_timestamp = numeric(row_count),
+                                   data_update_count = integer(row_count),
+                                   review_count = integer(row_count),
+                                   conflict = logical(row_count))
       
       id_vars <- review[["datasets"]][[dataset_review_name]][["id_vars"]]
       untracked_vars <- review[["datasets"]][[dataset_review_name]][["untracked_vars"]]
@@ -109,6 +179,7 @@ REV_load_annotation_info <- function(folder, review, dataset_lists) {
      
       base_timestamp <- NA_real_
       data_timestamps <- rep(NA_real_, row_count)
+      update_count <- NULL
       # <domain>_000.base
       fname <- file.path(dataset_list_folder, paste0(dataset_review_name, "_000.base"))
       if (file.exists(fname)) {
@@ -135,34 +206,43 @@ REV_load_annotation_info <- function(folder, review, dataset_lists) {
           writeBin(new_delta, fname)
           message(sprintf("Produced new delta %s", fname))
         }
-        
-        base_timestamp <- base_info[["timestamp"]]
-        data_timestamps <- base_info[["row_timestamps"]]
       } else {
         contents <- RS_compute_base_memory(dataset_review_name, dataset, id_vars, tracked_vars)
         base_info <- RS_parse_base(contents)
+        writeBin(contents, fname)
         base_timestamp <- base_info[["timestamp"]] # TODO: Consider providing timestamp to RS_compute_base_memory instead?
         data_timestamps <- base_info[["row_timestamps"]]
-        writeBin(contents, fname)
       }
       
-      dataset_review[["data_timestamp"]] <- data_timestamps
-      dataset_review[["timestamp"]] <- base_timestamp
+      base_timestamp <- base_info[["timestamp"]]
+      data_timestamps <- base_info[["row_timestamps"]]
+      update_count <- base_info[["update_count"]]
       
       # This probably should live alongside RS_* functions
       # NOTE(miguel): I didn't consider the possibility of row reordering in the original design of the review file
       #               formats. As a consequence, I missed the need for this row map (that makes it possible to assign
       #               reviews from row indices to id_hashes). This vector could be appended to `delta` files, at the
       #               cost of four bytes per row. I think the superior approach would be to speed up data.frame row 
-      #               hashing by dropping down to C, as the initial hashing would also benefit from that.
+      #               hashing (by dropping down to C?), as the initial hashing would also benefit from it.
       #               That's why we recompute the hashes here:
-      state_to_dataset_row_mapping <- local({
+      state_to_dataset_row_mapping <- local({ # TODO: Is this the right name?
         id_vars <- base_info[["id_vars"]]
         # FIXME: repeats #ahnail
         id_hashes <- apply(dataset[id_vars], 1, SH$hash_data_frame_row, simplify = TRUE) # coerces all types to be the same (character?)
-        mapping <- match(asplit(base_info[["id_hashes"]], 2), asplit(id_hashes, 2))
+        mapping <- match(asplit(id_hashes, 2), asplit(base_info[["id_hashes"]], 2))
         return(mapping)
       })
+      
+      # Compute reverse mapping (which is a more useful representation for the running app)
+      dataset_to_state_row_mapping <- local({ # TODO: Is this the right name?
+        res <- integer(length(state_to_dataset_row_mapping))
+        res[state_to_dataset_row_mapping] <- seq_along(state_to_dataset_row_mapping)
+        return(res)
+      }) 
+     
+      dataset_review[["timestamp"]] <- base_timestamp
+      dataset_review[["data_timestamp"]] <- data_timestamps[state_to_dataset_row_mapping]
+      dataset_review[["data_update_count"]] <- update_count[state_to_dataset_row_mapping]
       
       # <domain>_<ROLE>.review
       for (role in review[["roles"]]){
@@ -177,39 +257,47 @@ REV_load_annotation_info <- function(folder, review, dataset_lists) {
         }
         
         # NOTE: each role keeps their own decisions...
-        role_review <- RS_parse_review_reviews(contents, state_to_dataset_row_mapping = state_to_dataset_row_mapping, 
+        role_review <- RS_parse_review_reviews(contents, dataset_to_state_row_mapping = dataset_to_state_row_mapping, 
                                                expected_role = role, expected_domain = dataset_review_name)
         # NOTE: and we combine them to display the latest one, but we could...
         # TODO: ...make reviews by all roles available to the user? (could be done through separate columns)
-        update_mask <- role_review[["timestamp"]] > dataset_review[["timestamp"]] 
+        update_mask <- (role_review[["timestamp"]] > dataset_review[["timestamp"]])
         
         if (any(update_mask)) {
           review_indices <- role_review[update_mask, ][["review"]]
+         
+          conflict_mask <- local({ # compute review conflicts
+            prev_review_mask <- (dataset_review[["review_count"]] > 0)
+            potential_conflict_mask <- (update_mask & prev_review_mask)
+            review_diff_mask <- (dataset_review[["review"]] != role_review[["review"]])
+            
+            return(potential_conflict_mask & review_diff_mask)
+          })
+          dataset_review[["conflict"]][conflict_mask] <- TRUE
+          
           dataset_review[update_mask, ][["review"]] <- review[["choices"]][review_indices]
           dataset_review[update_mask, ][["timestamp"]] <- role_review[update_mask, ][["timestamp"]]
           dataset_review[update_mask, ][["role"]] <- role
           dataset_review[update_mask, ][["status"]] <- REV$STATUS_LEVELS[["UP_TO_DATE"]]
         }
+        
+        review_mask <- (role_review[["review"]] != 0)
+        dataset_review[review_mask, ][["review_count"]] <- 
+          dataset_review[review_mask, ][["review_count"]] + role_review[review_mask, ][["count"]]
       }
       
-      outdated_review_mask <- (dataset_review[["timestamp"]] < dataset_review[["data_timestamp"]])
-      
+      outdated_review_mask <- (
+        (dataset_review[["timestamp"]] < dataset_review[["data_timestamp"]]) &
+          (dataset_review[["review_count"]] > 0)
+      )
       if (any(outdated_review_mask)) {
         dataset_review[outdated_review_mask, ][["status"]] <- REV$STATUS_LEVELS[["OUTDATED"]]
       }
-      
-      dataset_review[update_mask, ][["timestamp"]] < dataset_review[update_mask, ][["data_timestamp"]]
      
-      # Compute reverse mapping (which is a more useful representation for the running app)
-      dataset_to_state_row_mapping <- local({
-        res <- integer(length(state_to_dataset_row_mapping))
-        res[state_to_dataset_row_mapping] <- seq_along(state_to_dataset_row_mapping)
-        return(res)
-      }) 
-      
       # FIXME? Mapping attached as a parameter to avoid rewriting prototype-level code
-      sub_res[[dataset_review_name]] <- dataset_review[c("review", "timestamp", "role", "status")]
-      attr(sub_res[[dataset_review_name]], "dataset_to_state_row_mapping") <- dataset_to_state_row_mapping
+      sub_res[[dataset_review_name]] <- dataset_review[c("review", "timestamp", "role", "status", "data_timestamp",
+                                                         "data_update_count", "review_count", "conflict")]
+      attr(sub_res[[dataset_review_name]], "state_to_dataset_row_mapping") <- state_to_dataset_row_mapping
     }
     res[[dataset_lists_name]] <- sub_res
   }
@@ -245,21 +333,26 @@ REV_logic_2 <- function(ns, state, input, review, datasets, selected_dataset_lis
     new_data <- data()
     
     info <- input[[REV$ID$REVIEW_SELECT]]
-    i_row <- info[["row"]] # TODO: Once there are multiple versions of the dataset, this will require extra steps
-    offsetted_i_row <- local({
-      # The `i_row` is relative to the filtered data sent to the client ...
+    i_row <- info[["row"]]
+    
+    defiltered_i_row <- local({
+      # `i_row` is relative to the filtered data sent to the client ...
       filter_mask <- attr(new_data, "filter_mask")
-      i_row <- which(filter_mask)[[i_row]]
+      res <- which(filter_mask)[[i_row]]
+      return(res)
+    })
+    
+    stored_i_row <- local({
       # ... and that `i_row` needs to be mapped into a base+deltas (stable) index
-      row_map <- attr(state[["annotation_info"]][[dataset_list_name]][[dataset_name]], "dataset_to_state_row_mapping")
-      i_row <- row_map[[i_row]]
-      return(i_row)
+      row_map <- attr(state[["annotation_info"]][[dataset_list_name]][[dataset_name]], "state_to_dataset_row_mapping")
+      res <- row_map[[defiltered_i_row]]
+      return(res)
     })
     option <- as.integer(info[["option"]])
    
     timestamp <- SH$get_UTC_time_in_seconds()
     contents <- c(
-      SH$integer_to_raw(offsetted_i_row),
+      SH$integer_to_raw(stored_i_row),
       SH$integer_to_raw(option),
       SH$double_to_raw(timestamp)
     )
@@ -267,26 +360,78 @@ REV_logic_2 <- function(ns, state, input, review, datasets, selected_dataset_lis
     fname <- paste0(dataset_name, "_", make.names(role), ".review")
     path <- file.path(state[["folder"]], dataset_list_name, fname)
     
+    extra_col_names <- input[[REV$ID$DEV_EXTRA_COLS_SELECT]]
+    
     # NOTE: Partially repeats #weilae 
     # NOTE: We could cache the modified table and avoid repeating this operation 
     #       if it turns out to be a performance bottleneck
     changes <- REV_include_review_info(
       annotation_info = state[["annotation_info"]][[dataset_list_name]][[dataset_name]],
-      data = data(),
-      col_names = list()
+      data = data(), col_names = list(), extra_col_names = extra_col_names
     )
     new_data <- changes[["data"]]
-    
+   
+    old_review <- new_data[i_row, ][[REV$ID$REVIEW_COL]]
+    old_role <- new_data[i_row, ][[REV$ID$ROLE_COL]]
+   
+    # Fixed columns 
     new_data[i_row, ][[REV$ID$REVIEW_COL]] <- review[["choices"]][[option]]
     new_data[i_row, ][[REV$ID$ROLE_COL]] <- role
-    new_data[i_row, ][[REV$ID$STATUS_COL]] <- REV$STATUS_LEVELS[["UP_TO_DATE"]]
+   
+    # Optional columns 
+    # - review_status
+    if (REV$ID$STATUS_COL %in% names(new_data)) {
+      new_data[i_row, ][[REV$ID$STATUS_COL]] <- REV$STATUS_LEVELS[["UP_TO_DATE"]]
+    }
 
+    # - review_time
+    if (REV$ID$REVIEW_TIMESTAMP_COL %in% names(new_data)) {
+      new_data[i_row, ][[REV$ID$REVIEW_TIMESTAMP_COL]] <- REV_time_from_timestamp(timestamp)
+    }
+    
+    # - data_time does not change when reviewed
+    # - data_update_count does not change when reviewed
+   
+    # - review_count 
+    if (REV$ID$REVIEW_COUNT_COL %in% names(new_data)) {
+      new_data[i_row, ][[REV$ID$REVIEW_COUNT_COL]] <- new_data[i_row, ][[REV$ID$REVIEW_COUNT_COL]] + 1
+    }
+    
+    # - conflict
+    conflict <- local({
+      # TODO: Wrong as it requires knowing the latest decision of each reviewer
+      new_review <- new_data[i_row, ][[REV$ID$REVIEW_COL]]
+      new_role <- new_data[i_row, ][[REV$ID$ROLE_COL]]
+      res <- (old_review != new_review  && old_role != new_role)
+      return(res)
+    })
+    
+    if (REV$ID$CONFLICT_COL %in% names(new_data) && isTRUE(conflict)) {
+      new_data[i_row, ][[REV$ID$CONFLICT_COL]] <- TRUE
+    }
+    
+    # NOTE: Ensure we haven't forgotten some optional column
+    implemented_extra_col_names <- c("review_status", "review_time", "data_time", "data_update_count", "review_count",
+                                     "conflict")
+    missing_col_implementation <- setdiff(extra_col_names, implemented_extra_col_names)
+    if (length(missing_col_implementation)) {
+      message(sprintf("Missing implementation for columns: %s", paste(missing_col_implementation, collapse = ", ")))
+      browser() # TODO: Of you hit this breakpoint, implement the missing column and also patch `row_contents` below
+    }
+    
     # `REV_load_annotation_info()` would return this same (modified) state, but we do manual synchronization
     # to avoid potentially expensive data reloading
-    state[["annotation_info"]][[dataset_list_name]][[dataset_name]][offsetted_i_row, ] <- list(
-      review = review[["choices"]][[option]],  timestamp = timestamp, role = role, 
-      status = REV$STATUS_LEVELS[["UP_TO_DATE"]]
-    )
+    row_contents <- state[["annotation_info"]][[dataset_list_name]][[dataset_name]][defiltered_i_row, ]
+    row_contents[["review"]] <- review[["choices"]][[option]]
+    row_contents[["timestamp"]] <- timestamp
+    row_contents[["role"]] <- role
+    row_contents[["status"]] <- REV$STATUS_LEVELS[["UP_TO_DATE"]]
+    # > row_contents[["data_timestamp"]] # unchanged
+    # > row_contents[["data_update_count"]] # unchanged
+    row_contents[["review_count"]] <- row_contents[["review_count"]] + 1
+    row_contents[["conflict"]] <- conflict
+    
+    state[["annotation_info"]][[dataset_list_name]][[dataset_name]][defiltered_i_row, ] <- row_contents
    
     # If we were doing pure client-side rendering of DT, maybe we could do a lighter upgrade with javascript:
     # > var table = $('#DataTables_Table_0').DataTable();
