@@ -47,16 +47,28 @@ REV_include_review_info <- function(annotation_info, data, col_names, extra_col_
   reviews <- annotation_info[["review"]]
   roles <- annotation_info[["role"]]
   issues <- annotation_info[["issues"]]
+  latest_reviews_json <- local({        
+    res <- vector(mode = "character", length = nrow(annotation_info))    
+    for (idx in seq_len(nrow(annotation_info))) {
+      curr_row <- annotation_info[["latest_reviews"]][[idx]]
+      # Careful autounbox works with this particular structure
+      # TODO: (Optimize?) toJSON by hand given the simplicity of the structure
+      res[[idx]] <- jsonlite::toJSON(curr_row, auto_unbox = TRUE)
+    }
+    res
+  })
   
   # TODO: Introduce something to this effect
   # > shiny::validate(shiny::need(nrow(data) <= length(reviews), "Error: Inconsistency between review data and loaded datasets"))
  
   # include review-related columns
-  res <- data.frame(reviews, roles)
+  res <- data.frame(reviews, roles) # FIXME: (maybe) Can't pass latest review as argument. List confuses data.frame
+  res[["latest_reviews"]] <- latest_reviews_json
   names(res)[[1]] <- REV$ID$REVIEW_COL
   names(res)[[2]] <- REV$ID$ROLE_COL
-  res_col_names <- REV$LABEL$REVIEW_COLS
-  
+  names(res)[[3]] <- "__latest_reviews__"
+  res_col_names <- c(REV$LABEL$REVIEW_COLS, "latest reviews")
+
   # add extra requested review-related columns # TODO: table-drive
   for (col in extra_col_names){
     if (col == "review_issues") {
@@ -115,7 +127,7 @@ REV_load_annotation_info <- function(folder, review, dataset_lists) {
   res <- list()
   
   review[["roles"]] <- make.names(review[["roles"]])
-  
+
   for (dataset_lists_name in names(dataset_lists)) {
     sub_res <- list()
     dataset_list <- dataset_lists[[dataset_lists_name]]
@@ -129,6 +141,7 @@ REV_load_annotation_info <- function(folder, review, dataset_lists) {
       contents <- readBin(con = fname, raw(), n = file.size(fname), endian = "little")
       review_info <- RS_parse_review_codes(contents)
       if (!identical(review_info, review[["choices"]])) {
+        stop("Impossible to add new review choices")
         browser() # TODO: Combine new review[["choices"]] with old `review.codes`
         browser() #       while preserving original associated integer codes
       }
@@ -221,7 +234,13 @@ REV_load_annotation_info <- function(folder, review, dataset_lists) {
       dataset_review[["data_timestamp"]] <- data_timestamps[state_to_dataset_row_mapping]
       dataset_review[["reviewed_at_least_once"]] <- FALSE
       
-      # <domain>_<ROLE>.review
+      # <domain>_<ROLE>.review      
+      all_latest_reviews <- local({
+        role_list <- rep_len(list(), length.out = length(review[["roles"]]))
+        names(role_list) <- review[["roles"]]
+        role_timestamp_list <- list(reviews = role_list, data_timestamp = NULL)
+        rep_len(list(role_timestamp_list), length.out = nrow(dataset_review))
+      })
       for (role in review[["roles"]]){
         fname <- file.path(dataset_list_folder, paste0(dataset_review_name, "_", role, ".review"))
         if (file.exists(fname)) {
@@ -238,6 +257,8 @@ REV_load_annotation_info <- function(folder, review, dataset_lists) {
                                                expected_role = role, expected_domain = dataset_review_name)
         # NOTE: and we combine them to display the latest one, but we could...
         # TODO: ...make reviews by all roles available to the user? (could be done through separate columns)
+
+        # Progressive update of all roles through the mask
         update_mask <- (role_review[["timestamp"]] > dataset_review[["timestamp"]])
         
         if (any(update_mask)) {
@@ -249,7 +270,26 @@ REV_load_annotation_info <- function(folder, review, dataset_lists) {
           dataset_review[update_mask, ][["issues"]] <- REV$ISSUES_LEVELS[["OK"]] # FIXME: A.10
           dataset_review[update_mask, ][["reviewed_at_least_once"]] <- TRUE
         }
+        # compact all in lists
+        # Replace by list of roles so it is a single columns and we can directly iterate over it
+        
+        all_latest_reviews <- local({          
+          reviewed_idx <- which(role_review[["timestamp"]] > 0)          
+          for (idx in reviewed_idx) {
+            review_char <- review[["choices"]][role_review[["review"]][[idx]]]         
+            curr_crr <- list(role = role, review = review_char, timestamp = role_review[["timestamp"]][[idx]], reviewed_at_least_once = TRUE)            
+            all_latest_reviews[[idx]][["reviews"]][[role]] <- curr_crr
+            all_latest_reviews[[idx]][["data_timestamp"]] <- dataset_review[["data_timestamp"]][[idx]]
+          }  
+          all_latest_reviews        
+        })
       }
+
+      dataset_review[["latest_reviews"]] <- all_latest_reviews
+
+      # Add review conflict option
+      # First thing have 
+
       
       outdated_review_mask <- (
         (dataset_review[["timestamp"]] < dataset_review[["data_timestamp"]]) & dataset_review[["reviewed_at_least_once"]]
@@ -260,14 +300,15 @@ REV_load_annotation_info <- function(folder, review, dataset_lists) {
       }
      
       # FIXME? Mapping attached as attribute to avoid rewriting prototype-level code
-      sub_res[[dataset_review_name]] <- dataset_review[c("review", "timestamp", "role", "issues", "data_timestamp")]
+      # Add latest roles columns      
+      sub_res[[dataset_review_name]] <- dataset_review[c("review", "timestamp", "role", "issues", "data_timestamp", "latest_reviews")]
       attr(sub_res[[dataset_review_name]], "state_to_dataset_row_mapping") <- state_to_dataset_row_mapping
       # FIXME? Base timestamp attached as attribute to avoid rewriting prototype-level code
       attr(sub_res[[dataset_review_name]], "base_timestamp") <- base_timestamp
     }
     res[[dataset_lists_name]] <- sub_res
   }
-  
+
   return(res)
 }
     
@@ -285,13 +326,15 @@ REV_logic_1 <- function(state, input, review, datasets) { # TODO: Rename
     state[["annotation_info"]] <- REV_load_annotation_info(state[["folder"]], review, datasets)
     
     state[["connected"]](TRUE)
-  }, ignoreNULL = FALSE) # TODO: Remove
+  }, ignoreNULL = FALSE, ignoreInit = TRUE) # TODO: Remove
 }
 
 REV_logic_2 <- function(ns, state, input, review, datasets, selected_dataset_list_name, selected_dataset_name, data,
                         dt_proxy) { # TODO: Rename
   shiny::observeEvent(input[[REV$ID$REVIEW_SELECT]], {
     role <- input[[REV$ID$ROLE]]
+
+    browser()
    
     dataset_list_name <- selected_dataset_list_name() 
     dataset_name <- selected_dataset_name()
@@ -344,6 +387,7 @@ REV_logic_2 <- function(ns, state, input, review, datasets, selected_dataset_lis
     # Optional columns 
     # - review_status
     if (REV$ID$ISSUES_COL %in% names(new_data)) {
+      # Hardcoded OK, we should calculate a value based on this review, previews, etc.
       new_data[i_row, ][[REV$ID$ISSUES_COL]] <- REV$ISSUES_LEVELS[["OK"]] # FIXME: A.10
     }
 
