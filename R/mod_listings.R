@@ -549,7 +549,9 @@ listings_server <- function(module_id,
           list(
             list(className = "dv_listings_review_column", targets = review_column_indices),
             list(render = htmlwidgets::JS(js_generate_review_column_contents()), data = 1, 
-                 targets = head(review_column_indices, 1))
+                 targets = head(review_column_indices, 1)),
+            list(render = htmlwidgets::JS("dv_listings.review_column_render"), data = 3, 
+                 targets = review_column_indices[[3]])
           )
         )
       }
