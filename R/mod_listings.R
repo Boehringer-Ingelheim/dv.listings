@@ -48,6 +48,7 @@ listings_UI <- function(module_id) { # nolint
   ))))
   
   shiny::tagList(
+    add_dv_listings_dependency(),
     highlight_review_cols,    
     shiny::div(
       style = "display: flex; gap: 10px; align-items: baseline",
@@ -429,6 +430,8 @@ listings_server <- function(module_id,
 
       current_role <- input[[REV$ID$ROLE]]
       if (length(current_role) == 1 && current_role %in% review[["roles"]]) {
+
+        # If role is found make interactive
         res <- c(
           "function(data, type, row, meta){",
           "  if(type === 'display'){",
@@ -494,7 +497,7 @@ listings_server <- function(module_id,
         })
       }
       
-      return(
+      return( # FIXME: returns in a reactive seems strange
         list(
           data = data, 
           row_names = set_up[["row_names"]], 
