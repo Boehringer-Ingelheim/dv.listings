@@ -278,26 +278,17 @@ REV_load_annotation_info <- function(folder, review, dataset_lists) {
           for (idx in reviewed_idx) {
             review_char <- review[["choices"]][role_review[["review"]][[idx]]]         
             curr_crr <- list(role = role, review = review_char, timestamp = role_review[["timestamp"]][[idx]], reviewed_at_least_once = TRUE)            
-            all_latest_reviews[[idx]][["reviews"]][[role]] <- curr_crr
+            all_latest_reviews[[idx]][["reviews"]][[role]] <- curr_crr            
+          } 
+
+          for (idx in seq_len(nrow(dataset_review))) {            
             all_latest_reviews[[idx]][["data_timestamp"]] <- dataset_review[["data_timestamp"]][[idx]]
-          }  
+          } 
           all_latest_reviews        
         })
       }
 
       dataset_review[["latest_reviews"]] <- all_latest_reviews
-
-      # Add review conflict option
-      # First thing have 
-
-      
-      outdated_review_mask <- (
-        (dataset_review[["timestamp"]] < dataset_review[["data_timestamp"]]) & dataset_review[["reviewed_at_least_once"]]
-      )
-      if (any(outdated_review_mask)) {
-        browser() # TODO: Issues instead of status
-        dataset_review[outdated_review_mask, ][["status"]] <- REV$STATUS_LEVELS[["OUTDATED"]]
-      }
      
       # FIXME? Mapping attached as attribute to avoid rewriting prototype-level code
       # Add latest roles columns      
@@ -334,8 +325,6 @@ REV_logic_2 <- function(ns, state, input, review, datasets, selected_dataset_lis
   shiny::observeEvent(input[[REV$ID$REVIEW_SELECT]], {
     role <- input[[REV$ID$ROLE]]
 
-    browser()
-   
     dataset_list_name <- selected_dataset_list_name() 
     dataset_name <- selected_dataset_name()
     

@@ -252,7 +252,8 @@ add_dv_listings_dependency <- function() {
   htmltools::htmlDependency(
     name = "dv_listings",
     version = utils::packageVersion("dv.listings"),
-    src = system.file("www/js/", package = "dv.listings", mustWork = TRUE),
-    script = c("dv_listings.js")
+    src = system.file("www/", package = "dv.listings", mustWork = TRUE),
+    script = c("js/dv_listings.js"),
+    stylesheet = c("css/dv_listings.css"),
   )
 }

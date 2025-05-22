@@ -422,32 +422,14 @@ listings_server <- function(module_id,
     }
 
     js_generate_review_column_contents <- shiny::reactive({
-      res <- c(
-        "function(data, type, row, meta){",
-        "  return data;",
-        "}"
-      )
+      res <- c("dv_listings.render_identity")
 
       current_role <- input[[REV$ID$ROLE]]
       if (length(current_role) == 1 && current_role %in% review[["roles"]]) {
 
-        # If role is found make interactive
-        res <- c(
-          "function(data, type, row, meta){",
-          "  if(type === 'display'){",
-          "    let result = '';",
-          "    let options = [%s];" |> sprintf(paste(paste0("'", review[["choices"]], "'"), collapse = ", ")),
-          "    result += `<select style=\"width:100%%\" onchange=\"Shiny.setInputValue(\'%s\', {row:${row[0]}, option:this.value});\">`;" |> sprintf(ns(REV$ID$REVIEW_SELECT)),
-          "    for (let i = 0; i < options.length; i+=1) {",
-          "      result += `<option value=${i+1}${options[i]==data?' selected':''}>${options[i]}</option>`;",
-          "    }",
-          "    result += '</select>';",
-          "    return result;",
-          "  } else {",
-          "    return data;",
-          "  }",
-          "}"
-        )
+        # If role is found make interactive          
+        collapsed_choices <- paste(paste0("'", review[["choices"]], "'"), collapse = ", ")
+        res <- sprintf("dv_listings.render_selection('%s', '%s', [%s])", ns(REV$ID$REVIEW_SELECT), current_role, collapsed_choices)          
       }
       return(res)
     }) |> trigger_only_on_change()
