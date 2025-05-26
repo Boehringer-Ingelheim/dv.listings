@@ -364,7 +364,11 @@ REV_logic_2 <- function(ns, state, input, review, datasets, selected_dataset_lis
     # Fixed columns 
     new_data[i_row, ][[REV$ID$REVIEW_COL]] <- review[["choices"]][[option]]
     new_data[i_row, ][[REV$ID$ROLE_COL]] <- role
-   
+    new_data[i_row, ][[REV$ID$LATEST_REVIEW_COL]][[1]][["reviews"]][[role]][["role"]] <- role
+    new_data[i_row, ][[REV$ID$LATEST_REVIEW_COL]][[1]][["reviews"]][[role]][["review"]] <- new_data[i_row, ][[REV$ID$REVIEW_COL]]
+    new_data[i_row, ][[REV$ID$LATEST_REVIEW_COL]][[1]][["reviews"]][[role]][["timestamp"]] <- timestamp
+    new_data[[REV$ID$LATEST_REVIEW_COL]] <- REV_review_var_to_json(new_data[[REV$ID$LATEST_REVIEW_COL]])
+
     # Optional columns 
     # - review_status
     if (REV$ID$ISSUES_COL %in% names(new_data)) {
