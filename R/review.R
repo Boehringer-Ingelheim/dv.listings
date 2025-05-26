@@ -7,6 +7,7 @@ REV <- pack_of_constants(
     ISSUES_COL = "__issues__",
     REVIEW_TIMESTAMP_COL = "__review_timestamp__",
     DATA_TIMESTAMP_COL = "__data_timestamp__",
+    LATEST_REVIEW_COL = "__latest_review__",
     REVIEW_SELECT = "rev_id",
     ROLE = "rev_role",
     DEV_EXTRA_COLS_SELECT = "dev_extra_cols_select",
@@ -14,7 +15,7 @@ REV <- pack_of_constants(
   ),
   LABEL = pack_of_constants(
     DROPDOWN = "Annotation",
-    REVIEW_COLS = c("Review", "Role")
+    REVIEW_COLS = c("Review", "Role", "Latest Reviews")
   ),
   ISSUES_LEVELS = c(
     PENDING = "Pending", 
@@ -47,27 +48,18 @@ REV_include_review_info <- function(annotation_info, data, col_names, extra_col_
   reviews <- annotation_info[["review"]]
   roles <- annotation_info[["role"]]
   issues <- annotation_info[["issues"]]
-  latest_reviews_json <- local({        
-    res <- vector(mode = "character", length = nrow(annotation_info))    
-    for (idx in seq_len(nrow(annotation_info))) {
-      curr_row <- annotation_info[["latest_reviews"]][[idx]]
-      # Careful autounbox works with this particular structure
-      # TODO: (Optimize?) toJSON by hand given the simplicity of the structure
-      res[[idx]] <- jsonlite::toJSON(curr_row, auto_unbox = TRUE)
-    }
-    res
-  })
+  latest_reviews <- annotation_info[["latest_reviews"]]  
   
   # TODO: Introduce something to this effect
   # > shiny::validate(shiny::need(nrow(data) <= length(reviews), "Error: Inconsistency between review data and loaded datasets"))
  
   # include review-related columns
   res <- data.frame(reviews, roles) # FIXME: (maybe) Can't pass latest review as argument. List confuses data.frame
-  res[["latest_reviews"]] <- latest_reviews_json
+  res[["latest_reviews"]] <- latest_reviews
   names(res)[[1]] <- REV$ID$REVIEW_COL
   names(res)[[2]] <- REV$ID$ROLE_COL
-  names(res)[[3]] <- "__latest_reviews__"
-  res_col_names <- c(REV$LABEL$REVIEW_COLS, "latest reviews")
+  names(res)[[3]] <- REV$ID$LATEST_REVIEW_COL
+  res_col_names <- c(REV$LABEL$REVIEW_COLS)
 
   # add extra requested review-related columns # TODO: table-drive
   for (col in extra_col_names){
@@ -418,4 +410,15 @@ REV_logic_2 <- function(ns, state, input, review, datasets, selected_dataset_lis
   })
   
   return(NULL)
+}
+
+REV_review_var_to_json <- function(col) {
+  res <- vector(mode = "character", length = length(col))
+  for (idx in seq_along(col)) {
+    curr_entry <- col[[idx]]
+    # Careful autounbox works with this particular structure
+    # TODO: (Optimize?) toJSON by hand given the simplicity of the structure
+    res[[idx]] <- jsonlite::toJSON(curr_entry, auto_unbox = TRUE)
+  }
+  res
 }

@@ -518,6 +518,9 @@ listings_server <- function(module_id,
           col_names = table_data[["col_names"]],
           extra_col_names = extra_col_names
         )
+
+        changes[["data"]][[REV$ID$LATEST_REVIEW_COL]] <- REV_review_var_to_json(changes[["data"]][[REV$ID$LATEST_REVIEW_COL]])
+
         
         new_col_count <- ncol(changes[["data"]]) - ncol(table_data[["data"]])
         table_data[["data"]] <- changes[["data"]]
