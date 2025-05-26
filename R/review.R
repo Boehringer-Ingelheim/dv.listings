@@ -42,7 +42,7 @@ REV_include_review_info <- function(annotation_info, data, col_names, extra_col_
     filter_mask <- attr(data, "filter_mask")
     annotation_info <- annotation_info[filter_mask, ]
   }
-  
+
   if (nrow(data) > nrow(annotation_info)) browser() # Should not happen
   
   reviews <- annotation_info[["review"]]
@@ -361,12 +361,15 @@ REV_logic_2 <- function(ns, state, input, review, datasets, selected_dataset_lis
     )
     new_data <- changes[["data"]]
    
+    last_review_entry <- new_data[i_row, ][[REV$ID$LATEST_REVIEW_COL]][[1]]
+    last_review_entry[["reviews"]][[role]][["role"]] <- role
+    last_review_entry[["reviews"]][[role]][["review"]] <- review[["choices"]][[option]]
+    last_review_entry[["reviews"]][[role]][["timestamp"]] <- timestamp
+
     # Fixed columns 
     new_data[i_row, ][[REV$ID$REVIEW_COL]] <- review[["choices"]][[option]]
     new_data[i_row, ][[REV$ID$ROLE_COL]] <- role
-    new_data[i_row, ][[REV$ID$LATEST_REVIEW_COL]][[1]][["reviews"]][[role]][["role"]] <- role
-    new_data[i_row, ][[REV$ID$LATEST_REVIEW_COL]][[1]][["reviews"]][[role]][["review"]] <- new_data[i_row, ][[REV$ID$REVIEW_COL]]
-    new_data[i_row, ][[REV$ID$LATEST_REVIEW_COL]][[1]][["reviews"]][[role]][["timestamp"]] <- timestamp
+    new_data[i_row, ][[REV$ID$LATEST_REVIEW_COL]][[1]] <- last_review_entry    
     new_data[[REV$ID$LATEST_REVIEW_COL]] <- REV_review_var_to_json(new_data[[REV$ID$LATEST_REVIEW_COL]])
 
     # Optional columns 
@@ -396,7 +399,8 @@ REV_logic_2 <- function(ns, state, input, review, datasets, selected_dataset_lis
     row_contents <- state[["annotation_info"]][[dataset_list_name]][[dataset_name]][defiltered_i_row, ]
     row_contents[["review"]] <- review[["choices"]][[option]]
     row_contents[["timestamp"]] <- timestamp
-    row_contents[["role"]] <- role
+    row_contents[["role"]] <- role    
+    row_contents[["latest_reviews"]][[1]] <- last_review_entry
     row_contents[["issues"]] <-  REV$ISSUES_LEVELS[["OK"]] # FIXME: A.10
     # > row_contents[["data_timestamp"]] # unchanged
     
