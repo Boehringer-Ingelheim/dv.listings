@@ -422,15 +422,27 @@ listings_server <- function(module_id,
     }
 
     js_generate_review_column_contents <- shiny::reactive({
-      res <- c("dv_listings.render_identity")
+      js_render_call <- c("dv_listings.render_identity")
+      render_issue_js_call <- c("dv_listings.render_identity")
+
+      role <- NA_character_
 
       current_role <- input[[REV$ID$ROLE]]
       if (length(current_role) == 1 && current_role %in% review[["roles"]]) {
 
         # If role is found make interactive          
         collapsed_choices <- paste(paste0("'", review[["choices"]], "'"), collapse = ", ")
-        res <- sprintf("dv_listings.render_selection('%s', '%s', [%s])", ns(REV$ID$REVIEW_SELECT), current_role, collapsed_choices)          
+        js_render_call <- sprintf("dv_listings.render_selection('%s', '%s', [%s])", ns(REV$ID$REVIEW_SELECT), current_role, collapsed_choices)
+        role <- input[[REV$ID$ROLE]]
+        render_issue_js_call <- sprintf("dv_listings.render_issue('%s', '%s', [%s])", ns(REV$ID$REVIEW_SELECT), current_role, collapsed_choices)
       }
+
+      res <- list(
+        role = role,
+        js_render_call = js_render_call,
+        render_issue_js_call = render_issue_js_call
+      )
+
       return(res)
     }) |> trigger_only_on_change()
     
@@ -484,7 +496,8 @@ listings_server <- function(module_id,
           data = data, 
           row_names = set_up[["row_names"]], 
           col_names = set_up[["col_names"]],
-          paging = set_up[["paging"]]
+          paging = set_up[["paging"]],
+          dataset_name = input[[TBL$DATASET_ID]]
         )
       )
     })
@@ -501,16 +514,21 @@ listings_server <- function(module_id,
     
     output[[TBL$TABLE_ID]] <- DT::renderDataTable({
       shiny::validate(shiny::need(!is.null(input[[TBL$COLUMNS_ID]]), TBL$NO_COL_MSG))
-     
+
       table_data <- output_table_data()
       
       column_defs <- list(list(className = "dt-center", targets = "_all"))
       fixed_columns_left <- 0
-      if (show_review_columns()) {
+      selected_dataset_name <- shiny::isolate(input[[TBL$DATASET_ID]])
+      if (show_review_columns() && selected_dataset_name %in% names(review$datasets)) {
+
+        js_render_call <- js_generate_review_column_contents()[["js_render_call"]]
+        render_issue_js_call <- js_generate_review_column_contents()[["render_issue_js_call"]]
+        role <- js_generate_review_column_contents()[["role"]]
+
         # patch table data
         selected_dataset_list_name <- shiny::isolate(review[["selected_dataset"]]())
-        selected_dataset_name <- shiny::isolate(input[[TBL$DATASET_ID]])
-       
+
         extra_col_names <- input[[REV$ID$DEV_EXTRA_COLS_SELECT]]
         changes <- REV_include_review_info(
           annotation_info = REV_state[["annotation_info"]][[selected_dataset_list_name]][[selected_dataset_name]],
@@ -519,8 +537,10 @@ listings_server <- function(module_id,
           extra_col_names = extra_col_names
         )
 
+        changes[["data"]][[REV$ID$ISSUES_COL]] <- REV_compute_issues(changes[["data"]], role)
         changes[["data"]][[REV$ID$LATEST_REVIEW_COL]] <- REV_review_var_to_json(changes[["data"]][[REV$ID$LATEST_REVIEW_COL]])
-
+        changes[["data"]][[REV$ID$DATA_TIMESTAMP_COL]] <- REV_time_from_timestamp(changes[["data"]][[REV$ID$DATA_TIMESTAMP_COL]])
+        changes[["data"]][[REV$ID$REVIEW_TIMESTAMP_COL]] <- REV_time_from_timestamp(changes[["data"]][[REV$ID$REVIEW_TIMESTAMP_COL]])
         
         new_col_count <- ncol(changes[["data"]]) - ncol(table_data[["data"]])
         table_data[["data"]] <- changes[["data"]]
@@ -529,18 +549,21 @@ listings_server <- function(module_id,
         # patch table style
         review_column_indices <- seq_len(new_col_count)
         fixed_columns_left <- new_col_count + 1
+        
         column_defs <- append(
           column_defs,
           list(
             list(className = "dv_listings_review_column", targets = review_column_indices),
-            list(render = htmlwidgets::JS(js_generate_review_column_contents()), data = 1, 
+            list(render = htmlwidgets::JS(js_render_call), data = 1, 
                  targets = head(review_column_indices, 1)),
-            list(render = htmlwidgets::JS("dv_listings.review_column_render"), data = 3, 
-                 targets = review_column_indices[[3]])
+                  list(render = htmlwidgets::JS(render_issue_js_call), data = 3, 
+                 targets = review_column_indices[[3]]),
+            list(render = htmlwidgets::JS("dv_listings.review_column_render"), data = 4, 
+                 targets = review_column_indices[[4]])
           )
         )
       }
-      
+
       DT::datatable(
         data = table_data[["data"]],
         colnames = table_data[["col_names"]],

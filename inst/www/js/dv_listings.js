@@ -1,5 +1,10 @@
 const dv_listings = (function() {
 
+  const latest_reviews_json_idx = 4;
+  const latest_review_idx = 1;
+  const role_idx = 2;
+  const row_number_idx = 0;
+
   const render_HTML_review = function(json_string) {
     let data;
     try {
@@ -100,26 +105,13 @@ const dv_listings = (function() {
   const render_selection = function(id, role, choices) {
     let in_f = function(data, type, row, meta){
       if(type === 'display'){
-        const review_data = JSON.parse(row[3]);
-        const current_role_review = review_data.reviews[role].review;
-        const outdated = review_data.reviews[role].timestamp < review_data.data_timestamp;
-        const add_confirm_button = (current_role_review !== data && row[2] !== role) ||
-         (outdated && row[2] !== role);
-
         let result = '';
         let options = choices;
-        result += `<select style=\"width:100%%\" onchange=\"Shiny.setInputValue('${id}', {row:${row[0]}, option:this.value});\">`;
+        result += `<select style=\"width:100%%\" onchange=\"Shiny.setInputValue('${id}', {row:${row[row_number_idx]}, option:this.value}, {priority: 'event'});\">`;
         for (let i = 0; i < options.length; i+=1) {
           result += `<option value=${i+1}${options[i]==data?' selected':''}>${options[i]}</option>`;
         }
         result += '</select>';
-
-        if (add_confirm_button) {
-          result += `
-            <button style=\"width:100%%\" onclick=\"Shiny.setInputValue('${id}', {row:${row[0]}, option:'${options.indexOf(data)+1}'})\" title="Confirm latest review across all roles">Confirm Latest</button>
-            `
-          
-        }
 
         return result;
       } else {
@@ -128,15 +120,45 @@ const dv_listings = (function() {
   }
   return(in_f);
 }
+
+const render_issue = function(id, role, options) {
+  let in_f = function(data, type, row, meta){
+    if(type === 'display'){
+      const review_data = JSON.parse(row[latest_reviews_json_idx]);
+      const current_role_review = review_data.reviews[role].review;
+      const outdated = review_data.reviews[role].timestamp < review_data.data_timestamp;
+      const add_confirm_button = (current_role_review !== data && row[role_idx] !== role) ||
+       (outdated && row[role_idx] !== role);
+
+      let result = `<span> ${data} </span>`;
+
+      if (add_confirm_button) {
+        result += `
+          <button style=\"width:100%%\" onclick=\"Shiny.setInputValue('${id}', {row:${row[row_number_idx]}, option:'${options.indexOf(row[latest_review_idx])+1}'}, {priority: 'event'})\" title="Confirm latest review across all roles">Agree with latest</button>
+          `
+      }
+
+      return result;
+    } else {
+      return data;
+    }      
+}
+return(in_f);
+}
   
-  const review_column_render = function(data, type, row, meta){     
-    return render_HTML_review(data);
+  const review_column_render = function(data, type, row, meta){
+    if(type === "display"){
+      return render_HTML_review(data);
+    } else {
+      return(data);
+    }
   }
 
   const res = {
     review_column_render: review_column_render,
     render_selection: render_selection,
-    render_identity: render_identity
+    render_identity: render_identity,
+    render_issue: render_issue
   }
   return(res)
 })()
