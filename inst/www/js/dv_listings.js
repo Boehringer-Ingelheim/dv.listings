@@ -134,7 +134,7 @@ const render_issue = function(id, role, options) {
 
       if (add_confirm_button) {
         result += `
-          <button style=\"width:100%%\" onclick=\"Shiny.setInputValue('${id}', {row:${row[row_number_idx]}, option:'${options.indexOf(row[latest_review_idx])+1}'}, {priority: 'event'})\" title="Confirm latest review across all roles">Agree with latest</button>
+          <button class = "btn btn-primary" style=\"width:100%%\" onclick=\"Shiny.setInputValue('${id}', {row:${row[row_number_idx]}, option:'${options.indexOf(row[latest_review_idx])+1}'}, {priority: 'event'})\" title="Agree with latest review">Agree</button>
           `
       }
 
