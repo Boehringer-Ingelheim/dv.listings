@@ -15,13 +15,13 @@ REV <- pack_of_constants(
   ),
   LABEL = pack_of_constants(
     DROPDOWN = "Annotation",
-    REVIEW_COLS = c("Review", "Role", "Issues", "Latest Reviews")
+    REVIEW_COLS = c("Latest Review", "Latest Reviewer", "Status", "Latest Reviews")
   ),
   ISSUES_LEVELS = pack_of_constants(
     PENDING = "Pending",
     OUTDATED = "Outdated",
     CONFLICT = "Conflict",
-    CONFLICT_ROLE = "Conflict with current role",
+    CONFLICT_ROLE = "Conflict I can fix",
     OK = "OK"
   ),
   DEV_EXTRA_COLS = c(
@@ -359,10 +359,11 @@ REV_logic_2 <- function(ns, state, input, review, datasets, selected_dataset_lis
     new_data[i_row, ][[REV$ID$REVIEW_COL]] <- review[["choices"]][[option]]
     new_data[i_row, ][[REV$ID$ROLE_COL]] <- role
     new_data[i_row, ][[REV$ID$LATEST_REVIEW_COL]][[1]] <- last_review_entry
+
     # TODO: Benchmark to decide if this is a bottleneck for bigger datasets
     new_data[[REV$ID$ISSUES_COL]] <- REV_compute_issues(new_data, role)
     new_data[[REV$ID$LATEST_REVIEW_COL]] <- REV_review_var_to_json(new_data[[REV$ID$LATEST_REVIEW_COL]])
-    
+
     new_data[i_row, ][[REV$ID$REVIEW_TIMESTAMP_COL]] <- timestamp
     new_data[[REV$ID$REVIEW_TIMESTAMP_COL]] <- REV_time_from_timestamp(new_data[i_row, ][[REV$ID$REVIEW_TIMESTAMP_COL]])
     new_data[[REV$ID$DATA_TIMESTAMP_COL]] <- REV_time_from_timestamp(new_data[i_row, ][[REV$ID$DATA_TIMESTAMP_COL]])
