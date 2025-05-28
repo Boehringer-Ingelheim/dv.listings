@@ -359,6 +359,7 @@ REV_logic_2 <- function(ns, state, input, review, datasets, selected_dataset_lis
     new_data[i_row, ][[REV$ID$REVIEW_COL]] <- review[["choices"]][[option]]
     new_data[i_row, ][[REV$ID$ROLE_COL]] <- role
     new_data[i_row, ][[REV$ID$LATEST_REVIEW_COL]][[1]] <- last_review_entry
+    # TODO: Benchmark to decide if this is a bottleneck for bigger datasets
     new_data[[REV$ID$ISSUES_COL]] <- REV_compute_issues(new_data, role)
     new_data[[REV$ID$LATEST_REVIEW_COL]] <- REV_review_var_to_json(new_data[[REV$ID$LATEST_REVIEW_COL]])
     
