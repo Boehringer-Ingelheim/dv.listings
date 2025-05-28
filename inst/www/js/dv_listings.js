@@ -127,7 +127,7 @@ const render_issue = function(id, role, options) {
       const review_data = JSON.parse(row[latest_reviews_json_idx]);
       const current_role_review = review_data.reviews[role].review;
       const outdated = review_data.reviews[role].timestamp < review_data.data_timestamp;
-      const add_confirm_button = (current_role_review !== data && row[role_idx] !== role) ||
+      const add_confirm_button = (current_role_review !== row[latest_review_idx] && row[role_idx] !== role) ||
        (outdated && row[role_idx] !== role);
 
       let result = `<span> ${data} </span>`;
