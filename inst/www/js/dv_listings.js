@@ -121,7 +121,7 @@ const dv_listings = (function () {
     return (in_f);
   }
 
-  const render_issue = function (id, role, options) {
+  const render_status = function (id, role, options) {
     let in_f = function (data, type, row, meta) {
       if (type === 'display') {
         const review_data = JSON.parse(row[latest_reviews_json_idx]);
@@ -199,7 +199,7 @@ const dv_listings = (function () {
     review_column_render: review_column_render,
     render_selection: render_selection,
     render_identity: render_identity,
-    render_issue: render_issue,
+    render_status: render_status,
     show_child: show_child
   }
   return (res)

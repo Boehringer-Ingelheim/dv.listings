@@ -410,12 +410,25 @@ listings_server <- function(module_id,
     show_review_columns <- function() FALSE
     REV_state <- new.env(parent = emptyenv())
     if (enable_review) {
+
       output[[TBL$REVIEW_UI_ID]] <- shiny::renderUI(
         shinyWidgets::dropdownButton(
-          inputId = ns(TBL$REVIEW_DROPDOWN_ID), label = TBL$REVIEW_DROPDOWN_LABEL, circle = FALSE,
+          inputId = ns(TBL$REVIEW_DROPDOWN_ID), label = shiny::textOutput(ns("review_label"), inline = TRUE), circle = FALSE,
           REV_UI(ns = ns, roles = review[["roles"]])[["ui"]]
         )
       )
+
+      review_button_label <- shiny::reactive({
+        role <- input[[REV$ID$ROLE]]
+        label <- TBL$REVIEW_DROPDOWN_LABEL
+        if (checkmate::test_string(role, min.chars = 1, na.ok = FALSE, null.ok = FALSE)) {
+          label <- paste(TBL$REVIEW_DROPDOWN_LABEL, "as:", role)
+        }
+        label
+      })
+
+      output[["review_label"]] <- shiny::renderText(review_button_label())
+
       shiny::outputOptions(output, TBL$REVIEW_UI_ID, suspendWhenHidden = FALSE)
       REV_logic_1(REV_state, input, review, review[["data"]])
       show_review_columns <- REV_state[["connected"]]
@@ -423,7 +436,7 @@ listings_server <- function(module_id,
 
     js_generate_review_column_contents <- shiny::reactive({
       js_render_call <- c("dv_listings.render_identity")
-      render_issue_js_call <- c("dv_listings.render_identity")
+      render_status_js_call <- c("dv_listings.render_identity")
 
       role <- NA_character_
 
@@ -434,13 +447,13 @@ listings_server <- function(module_id,
         collapsed_choices <- paste(paste0("'", review[["choices"]], "'"), collapse = ", ")
         js_render_call <- sprintf("dv_listings.render_selection('%s', '%s', [%s])", ns(REV$ID$REVIEW_SELECT), current_role, collapsed_choices)
         role <- input[[REV$ID$ROLE]]
-        render_issue_js_call <- sprintf("dv_listings.render_issue('%s', '%s', [%s])", ns(REV$ID$REVIEW_SELECT), current_role, collapsed_choices)
+        render_status_js_call <- sprintf("dv_listings.render_status('%s', '%s', [%s])", ns(REV$ID$REVIEW_SELECT), current_role, collapsed_choices)
       }
 
       res <- list(
         role = role,
         js_render_call = js_render_call,
-        render_issue_js_call = render_issue_js_call
+        render_status_js_call = render_status_js_call
       )
 
       return(res)
@@ -523,7 +536,7 @@ listings_server <- function(module_id,
       if (show_review_columns() && selected_dataset_name %in% names(review$datasets)) {
 
         js_render_call <- js_generate_review_column_contents()[["js_render_call"]]
-        render_issue_js_call <- js_generate_review_column_contents()[["render_issue_js_call"]]
+        render_status_js_call <- js_generate_review_column_contents()[["render_status_js_call"]]
         role <- js_generate_review_column_contents()[["role"]]
 
         # patch table data
@@ -537,18 +550,15 @@ listings_server <- function(module_id,
           extra_col_names = extra_col_names
         )
 
-        changes[["data"]][[REV$ID$ISSUES_COL]] <- REV_compute_issues(changes[["data"]], role)
-        changes[["data"]][[REV$ID$LATEST_REVIEW_COL]] <- REV_review_var_to_json(changes[["data"]][[REV$ID$LATEST_REVIEW_COL]])
-        changes[["data"]][[REV$ID$DATA_TIMESTAMP_COL]] <- REV_time_from_timestamp(changes[["data"]][[REV$ID$DATA_TIMESTAMP_COL]])
-        changes[["data"]][[REV$ID$REVIEW_TIMESTAMP_COL]] <- REV_time_from_timestamp(changes[["data"]][[REV$ID$REVIEW_TIMESTAMP_COL]])
+        changes[["data"]][[REV$ID$STATUS_COL]] <- REV_compute_status(changes[["data"]], role)
+        changes[["data"]][[REV$ID$LATEST_REVIEW_COL]] <- REV_review_var_to_json(changes[["data"]][[REV$ID$LATEST_REVIEW_COL]])        
         
-        new_col_count <- ncol(changes[["data"]]) - ncol(table_data[["data"]])
+        review_col_count <- ncol(changes[["data"]]) - ncol(table_data[["data"]])
         table_data[["data"]] <- changes[["data"]]
         table_data[["col_names"]] <- changes[["col_names"]]
         
         # patch table style
-        review_column_indices <- seq_len(new_col_count)
-        fixed_columns_left <- 4 #TODO: Unfix this number new_col_count + 1
+        review_column_indices <- seq_len(review_col_count)        
         
         column_defs <- append(
           column_defs,
@@ -556,14 +566,10 @@ listings_server <- function(module_id,
             list(className = "dv_listings_review_column", targets = review_column_indices),
             list(render = htmlwidgets::JS(js_render_call), data = 1, 
                  targets = head(review_column_indices, 1)),
-            list(render = htmlwidgets::JS(render_issue_js_call), data = 3,
+            list(render = htmlwidgets::JS(render_status_js_call), data = 3,
                  targets = review_column_indices[[3]]),
             list(visible = FALSE,
-                 targets = review_column_indices[[4]]),
-            list(visible = FALSE,
-            targets = 5), # TODO: Removed hardcoded index
-            list(visible = FALSE,
-            targets = 6) # TODO: Removed hardcoded index
+                 targets = review_column_indices[[4]])            
           )
         )
       }
@@ -584,7 +590,7 @@ listings_server <- function(module_id,
           columnDefs = column_defs,
           # FIXME: Update to use https://datatables.net/reference/option/layout
           dom = "Bfrtilp", # Buttons, filtering, processing display element, table, information summary, length, pagination
-          fixedColumns = list(left = fixed_columns_left),
+          fixedColumns = list(left = review_col_count),
           drawCallback = htmlwidgets::JS("
             function(settings) {
               $('.dataTables_wrapper thead input[type=\"search\"]').removeAttr('disabled');

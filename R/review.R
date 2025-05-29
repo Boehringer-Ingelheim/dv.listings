@@ -4,7 +4,7 @@ REV <- pack_of_constants(
     REVIEW_UI = "review_ui",
     REVIEW_COL = "__review__",
     ROLE_COL = "__role__",
-    ISSUES_COL = "__issues__",
+    STATUS_COL = "__status__",
     REVIEW_TIMESTAMP_COL = "__review_timestamp__",
     DATA_TIMESTAMP_COL = "__data_timestamp__",
     LATEST_REVIEW_COL = "__latest_review__",
@@ -17,16 +17,12 @@ REV <- pack_of_constants(
     DROPDOWN = "Annotation",
     REVIEW_COLS = c("Latest Review", "Latest Reviewer", "Status", "Latest Reviews")
   ),
-  ISSUES_LEVELS = pack_of_constants(
+  STATUS_LEVELS = pack_of_constants(
     PENDING = "Pending",
     OUTDATED = "Outdated",
     CONFLICT = "Conflict",
     CONFLICT_ROLE = "Conflict I can fix",
     OK = "OK"
-  ),
-  DEV_EXTRA_COLS = c(
-    "Review time" = "review_time",
-    "Data time" = "data_time"
   )
 )
 
@@ -49,7 +45,7 @@ REV_include_review_info <- function(annotation_info, data, col_names, extra_col_
   
   reviews <- annotation_info[["review"]]
   roles <- annotation_info[["role"]]
-  issues <- NA_character_
+  status <- NA_character_
   latest_reviews <- annotation_info[["latest_reviews"]]
   
   # TODO: Introduce something to this effect
@@ -57,24 +53,13 @@ REV_include_review_info <- function(annotation_info, data, col_names, extra_col_
  
   # include review-related columns
   res <- data.frame(reviews, roles) # FIXME: (maybe) Can't pass latest review as argument. List confuses data.frame
-  res[["issues"]] <- issues
+  res[["status"]] <- status
   res[["latest_reviews"]] <- latest_reviews
   names(res)[[1]] <- REV$ID$REVIEW_COL
   names(res)[[2]] <- REV$ID$ROLE_COL
-  names(res)[[3]] <- REV$ID$ISSUES_COL
+  names(res)[[3]] <- REV$ID$STATUS_COL
   names(res)[[4]] <- REV$ID$LATEST_REVIEW_COL
   res_col_names <- c(REV$LABEL$REVIEW_COLS)
-
-  review_times <- annotation_info[["timestamp"]]
-  unreviewed <- (annotation_info[["timestamp"]] <= attr(annotation_info, "base_timestamp"))
-  review_times[unreviewed] <- NA_real_
-  res <- cbind(res, review_times)
-  names(res)[[length(res)]] <- REV$ID$REVIEW_TIMESTAMP_COL
-  res_col_names <- c(res_col_names, "Review time (UTC)")
-
-  res <- cbind(res, annotation_info[["data_timestamp"]])
-  names(res)[[length(res)]] <- REV$ID$DATA_TIMESTAMP_COL
-  res_col_names <- c(res_col_names, "Data time (UTC)")
  
   # add actual data
   res <- cbind(res, data)
@@ -93,13 +78,6 @@ REV_UI <- function(ns, roles) {
     ),
     shiny::selectInput(
       inputId = ns(REV$ID$ROLE), label = "Role:", choices = choices
-    ),
-    shiny::selectizeInput(
-      ns(REV$ID$DEV_EXTRA_COLS_SELECT),
-      label = htmltools::HTML("<i style='color:gray;'>[demo] Experimental review columns</i>"),
-      choices = REV$DEV_EXTRA_COLS,
-      multiple = TRUE,
-      options = list(plugins = list("remove_button", "drag_drop"))
     )
   )
   res[["input_ids_to_exclude_from_bookmarking"]] <- c(ns(REV$ID$CONNECT_STORAGE), ns(REV$ID$ROLE), 
@@ -361,22 +339,10 @@ REV_logic_2 <- function(ns, state, input, review, datasets, selected_dataset_lis
     new_data[i_row, ][[REV$ID$LATEST_REVIEW_COL]][[1]] <- last_review_entry
 
     # TODO: Benchmark to decide if this is a bottleneck for bigger datasets
-    new_data[[REV$ID$ISSUES_COL]] <- REV_compute_issues(new_data, role)
+    new_data[[REV$ID$STATUS_COL]] <- REV_compute_status(new_data, role)
     new_data[[REV$ID$LATEST_REVIEW_COL]] <- REV_review_var_to_json(new_data[[REV$ID$LATEST_REVIEW_COL]])
-
-    new_data[i_row, ][[REV$ID$REVIEW_TIMESTAMP_COL]] <- timestamp
-    new_data[[REV$ID$REVIEW_TIMESTAMP_COL]] <- REV_time_from_timestamp(new_data[[REV$ID$REVIEW_TIMESTAMP_COL]])
-    new_data[[REV$ID$DATA_TIMESTAMP_COL]] <- REV_time_from_timestamp(new_data[[REV$ID$DATA_TIMESTAMP_COL]])
     
     # - data_time does not change when reviewed
-   
-    # NOTE: Ensure we haven't forgotten some optional column
-    implemented_extra_col_names <- c("review_issues", "review_time", "data_time")
-    missing_col_implementation <- setdiff(extra_col_names, implemented_extra_col_names)
-    if (length(missing_col_implementation)) {
-      message(sprintf("Missing implementation for columns: %s", paste(missing_col_implementation, collapse = ", ")))
-      browser() # TODO: If you hit this breakpoint, implement the missing column and also patch `row_contents` below
-    }
     
     # `REV_load_annotation_info()` would return this same (modified) state, but we do manual synchronization
     # to avoid potentially expensive data reloading
@@ -385,7 +351,6 @@ REV_logic_2 <- function(ns, state, input, review, datasets, selected_dataset_lis
     row_contents[["timestamp"]] <- timestamp
     row_contents[["role"]] <- role    
     row_contents[["latest_reviews"]][[1]] <- last_review_entry
-    row_contents[["issues"]] <-  REV$ISSUES_LEVELS[["OK"]] # FIXME: A.10
     # > row_contents[["data_timestamp"]] # unchanged
     
     state[["annotation_info"]][[dataset_list_name]][[dataset_name]][defiltered_i_row, ] <- row_contents
@@ -415,7 +380,7 @@ REV_review_var_to_json <- function(col) {
   res
 }
 
-REV_compute_issues <- function(dataset_review, role) {
+REV_compute_status <- function(dataset_review, role) {
 
   # Does this function make sense with no role? Yes it does because the latest review is the one that maybe outdated,
   # conflicting, unreviewed, etc.
@@ -429,7 +394,7 @@ REV_compute_issues <- function(dataset_review, role) {
   # For now we say conflict but we don't say with whom.
 
   res <- dataset_review
-  res[[REV$ID$ISSUES_COL]] <- factor(rep(REV$ISSUES_LEVELS$OK, length = nrow(res)), levels = REV$ISSUES_LEVELS)
+  res[[REV$ID$STATUS_COL]] <- factor(rep(REV$STATUS_LEVELS$OK, length = nrow(res)), levels = REV$STATUS_LEVELS)
   pending_mask <- dataset_review[[REV$ID$REVIEW_COL]] == levels(dataset_review[[REV$ID$REVIEW_COL]])[[1]] # First level is always default
   outdated_mask <- dataset_review[[REV$ID$DATA_TIMESTAMP_COL]] > dataset_review[[REV$ID$REVIEW_TIMESTAMP_COL]]
 
@@ -450,10 +415,10 @@ REV_compute_issues <- function(dataset_review, role) {
     }
   }
 
-  res[[REV$ID$ISSUES_COL]][pending_mask] <- REV$ISSUES_LEVELS$PENDING
-  res[[REV$ID$ISSUES_COL]][outdated_mask] <- REV$ISSUES_LEVELS$OUTDATED
-  res[[REV$ID$ISSUES_COL]][conflict_with_latest_mask & !outdated_mask] <- REV$ISSUES_LEVELS$CONFLICT
-  res[[REV$ID$ISSUES_COL]][conflict_with_role_mask & !outdated_mask] <- REV$ISSUES_LEVELS$CONFLICT_ROLE
+  res[[REV$ID$STATUS_COL]][pending_mask] <- REV$STATUS_LEVELS$PENDING
+  res[[REV$ID$STATUS_COL]][outdated_mask] <- REV$STATUS_LEVELS$OUTDATED
+  res[[REV$ID$STATUS_COL]][conflict_with_latest_mask & !outdated_mask] <- REV$STATUS_LEVELS$CONFLICT
+  res[[REV$ID$STATUS_COL]][conflict_with_role_mask & !outdated_mask] <- REV$STATUS_LEVELS$CONFLICT_ROLE
     
-  return(res[[REV$ID$ISSUES_COL]])
+  return(res[[REV$ID$STATUS_COL]])
 }
