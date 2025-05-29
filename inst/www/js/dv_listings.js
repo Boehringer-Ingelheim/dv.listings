@@ -134,7 +134,7 @@ const dv_listings = (function () {
 
         if(data === "OK") {
           label_class = "label-success"
-        } else if (data === "Conflict" || data === "Conflict I can fix") {
+        } else if (data === "Conflict" || data === "Conflict I can fix" || data === "Latest Outdated") {
           label_class = "label-warning";
         } else {
           label_class = "label-default";        
