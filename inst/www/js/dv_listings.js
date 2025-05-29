@@ -141,7 +141,7 @@ const dv_listings = (function () {
         }
 
         let result = `
-        <div style="width: 75px">
+        <div style="width: 100px">
         <div class = "label ${label_class}"> ${data} </div>
         <div>
         <button class = "btn btn-primary btn-xs" style=\"width:100%%\" onclick=\"dv_listings.show_child(event, this, '${meta.settings}')\" title="Show detailed review info">\u{1F4CB}</button>
