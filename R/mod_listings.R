@@ -548,7 +548,7 @@ listings_server <- function(module_id,
         
         # patch table style
         review_column_indices <- seq_len(new_col_count)
-        fixed_columns_left <- new_col_count + 1
+        fixed_columns_left <- 4 #TODO: Unfix this number new_col_count + 1
         
         column_defs <- append(
           column_defs,
@@ -556,10 +556,14 @@ listings_server <- function(module_id,
             list(className = "dv_listings_review_column", targets = review_column_indices),
             list(render = htmlwidgets::JS(js_render_call), data = 1, 
                  targets = head(review_column_indices, 1)),
-                  list(render = htmlwidgets::JS(render_issue_js_call), data = 3, 
+            list(render = htmlwidgets::JS(render_issue_js_call), data = 3,
                  targets = review_column_indices[[3]]),
-            list(render = htmlwidgets::JS("dv_listings.review_column_render"), data = 4, 
-                 targets = review_column_indices[[4]])
+            list(visible = FALSE,
+                 targets = review_column_indices[[4]]),
+            list(visible = FALSE,
+            targets = 5), # TODO: Removed hardcoded index
+            list(visible = FALSE,
+            targets = 6) # TODO: Removed hardcoded index
           )
         )
       }
