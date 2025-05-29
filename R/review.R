@@ -19,7 +19,7 @@ REV <- pack_of_constants(
   ),
   STATUS_LEVELS = pack_of_constants(
     PENDING = "Pending",
-    OUTDATED = "Outdated",
+    LATEST_OUTDATED = "Latest Outdated",
     CONFLICT = "Conflict",
     CONFLICT_ROLE = "Conflict I can fix",
     OK = "OK"
@@ -396,29 +396,43 @@ REV_compute_status <- function(dataset_review, role) {
   res <- dataset_review
   res[[REV$ID$STATUS_COL]] <- factor(rep(REV$STATUS_LEVELS$OK, length = nrow(res)), levels = REV$STATUS_LEVELS)
   pending_mask <- dataset_review[[REV$ID$REVIEW_COL]] == levels(dataset_review[[REV$ID$REVIEW_COL]])[[1]] # First level is always default
-  outdated_mask <- dataset_review[[REV$ID$DATA_TIMESTAMP_COL]] > dataset_review[[REV$ID$REVIEW_TIMESTAMP_COL]]
+  reviewed_status_idx <- which(dataset_review[[REV$ID$ROLE_COL]] != "")
+  
+  conflict_with_latest_mask <- rep_len(FALSE, nrow(res))
+  conflict_with_role_mask <- rep_len(FALSE, nrow(res))
+  outdated_latest_mask <- rep_len(FALSE, nrow(res))
+  outdated_role_mask <- rep_len(FALSE, nrow(res))
+  for (idx in reviewed_status_idx) {
+    if (dataset_review[[REV$ID$ROLE_COL]][[idx]] != "") { # There has been at least one review
+      curr_reviews <- dataset_review[[REV$ID$LATEST_REVIEW_COL]][[idx]][["reviews"]]
+      data_timestamp <- dataset_review[[REV$ID$LATEST_REVIEW_COL]][[idx]][["data_timestamp"]]
+      latest_review <- dataset_review[[REV$ID$REVIEW_COL]][[idx]]
+      latest_reviewer <- dataset_review[[REV$ID$ROLE_COL]][[idx]]
+      latest_timestamp <- curr_reviews[[as.character(latest_reviewer)]][["timestamp"]]
 
-  possible_conflict_idx <- which(!pending_mask)
-  conflict_with_latest_mask <- rep_len(FALSE, length(pending_mask))
-  conflict_with_role_mask <- rep_len(FALSE, length(pending_mask))
-  for (idx in possible_conflict_idx) {
-    curr_reviews <- dataset_review[[REV$ID$LATEST_REVIEW_COL]][[idx]][["reviews"]]
-    latest_review <- dataset_review[[REV$ID$REVIEW_COL]][[idx]]    
-    for (role_nm in names(curr_reviews)) {      
-      curr_entry <- curr_reviews[[role_nm]]      
-      if (!is.null(curr_entry)) { # role_nm has reviewed this row
-        conflict_with_latest_mask[[idx]] <- conflict_with_latest_mask[[idx]] || curr_entry[["review"]] != latest_review
-        if (!is.na(role) && role_nm == role) {
-          conflict_with_role_mask[[idx]] <- curr_entry[["review"]] != latest_review
+      # latest is outdated      
+      outdated_latest_mask[[idx]] <- data_timestamp > latest_timestamp
+
+      for (role_nm in names(curr_reviews)) {
+        curr_entry <- curr_reviews[[role_nm]]
+        if (!is.null(curr_entry)) { # role_nm has reviewed this row
+          curr_review_timestamp <- curr_entry[["timestamp"]]
+          curr_review <- curr_entry[["review"]]
+          # current is outdated
+          conflict_with_latest_mask[[idx]] <- conflict_with_latest_mask[[idx]] || curr_review != latest_review
+          if (!is.na(role) && role_nm == role) {
+            outdated_role_mask[[idx]] <- data_timestamp > curr_review_timestamp
+            conflict_with_role_mask[[idx]] <- curr_entry[["review"]] != latest_review
+          }
         }
       }
     }
   }
 
   res[[REV$ID$STATUS_COL]][pending_mask] <- REV$STATUS_LEVELS$PENDING
-  res[[REV$ID$STATUS_COL]][outdated_mask] <- REV$STATUS_LEVELS$OUTDATED
-  res[[REV$ID$STATUS_COL]][conflict_with_latest_mask & !outdated_mask] <- REV$STATUS_LEVELS$CONFLICT
-  res[[REV$ID$STATUS_COL]][conflict_with_role_mask & !outdated_mask] <- REV$STATUS_LEVELS$CONFLICT_ROLE
+  res[[REV$ID$STATUS_COL]][outdated_latest_mask] <- REV$STATUS_LEVELS$LATEST_OUTDATED
+  res[[REV$ID$STATUS_COL]][conflict_with_latest_mask & !outdated_latest_mask] <- REV$STATUS_LEVELS$CONFLICT
+  res[[REV$ID$STATUS_COL]][conflict_with_role_mask & !outdated_latest_mask] <- REV$STATUS_LEVELS$CONFLICT_ROLE
     
   return(res[[REV$ID$STATUS_COL]])
 }
