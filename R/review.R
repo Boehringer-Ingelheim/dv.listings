@@ -365,8 +365,8 @@ REV_logic_2 <- function(ns, state, input, review, datasets, selected_dataset_lis
     new_data[[REV$ID$LATEST_REVIEW_COL]] <- REV_review_var_to_json(new_data[[REV$ID$LATEST_REVIEW_COL]])
 
     new_data[i_row, ][[REV$ID$REVIEW_TIMESTAMP_COL]] <- timestamp
-    new_data[[REV$ID$REVIEW_TIMESTAMP_COL]] <- REV_time_from_timestamp(new_data[i_row, ][[REV$ID$REVIEW_TIMESTAMP_COL]])
-    new_data[[REV$ID$DATA_TIMESTAMP_COL]] <- REV_time_from_timestamp(new_data[i_row, ][[REV$ID$DATA_TIMESTAMP_COL]])
+    new_data[[REV$ID$REVIEW_TIMESTAMP_COL]] <- REV_time_from_timestamp(new_data[[REV$ID$REVIEW_TIMESTAMP_COL]])
+    new_data[[REV$ID$DATA_TIMESTAMP_COL]] <- REV_time_from_timestamp(new_data[[REV$ID$DATA_TIMESTAMP_COL]])
     
     # - data_time does not change when reviewed
    
