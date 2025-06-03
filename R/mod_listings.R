@@ -25,7 +25,8 @@ TBL <- pack_of_constants( # nolint
   SEL_SUB_ID = "selected_subject_id",
   REVIEW_DROPDOWN_ID = "review_dropdown_id",
   REVIEW_UI_ID = "review_ui_id",
-  REVIEW_DROPDOWN_LABEL = "Review"
+  REVIEW_DROPDOWN_LABEL = "Review",
+  FSA_CLIENT = "client"
 )
 
 #' A module that displays datasets as listings
@@ -245,9 +246,10 @@ listings_server <- function(module_id,
   }
   
   testing <- isTRUE(getOption("shiny.testmode"))
-  
+
   # Initiate module server
   shiny::moduleServer(module_id, function(input, output, session) {
+
     ns <- session[["ns"]]
     
     v_dataset_list <- shiny::reactive({
@@ -411,6 +413,8 @@ listings_server <- function(module_id,
     REV_state <- new.env(parent = emptyenv())
     if (enable_review) {
 
+      fsa_client <- fsa_init(TBL$FSA_CLIENT)
+
       output[[TBL$REVIEW_UI_ID]] <- shiny::renderUI(
         shinyWidgets::dropdownButton(
           inputId = ns(TBL$REVIEW_DROPDOWN_ID), label = shiny::textOutput(ns("review_label"), inline = TRUE), circle = FALSE,
@@ -430,7 +434,7 @@ listings_server <- function(module_id,
       output[["review_label"]] <- shiny::renderText(review_button_label())
 
       shiny::outputOptions(output, TBL$REVIEW_UI_ID, suspendWhenHidden = FALSE)
-      REV_logic_1(REV_state, input, review, review[["data"]])
+      REV_logic_1(REV_state, input, review, review[["data"]], fsa_client)
       show_review_columns <- REV_state[["connected"]]
     }
 

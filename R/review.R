@@ -86,8 +86,14 @@ REV_UI <- function(ns, roles) {
   return(res)
 }
 
-REV_load_annotation_info <- function(folder, review, dataset_lists) {
+REV_load_annotation_info <- function(folder, review, dataset_lists, fsa_client) {
   res <- list()
+
+  # TODO: Chop it in a set of consecutive observers with the app blocked with an overlay
+  # consecutive observers should allow given client time in an asynch way
+  # consider including the global lock for the whole process until released
+  # A queue should exist or retry in the client that is activated when the global lock is released
+  # Maybe a one second wait on a general state 
   
   review[["roles"]] <- make.names(review[["roles"]])
 
@@ -262,21 +268,39 @@ REV_load_annotation_info <- function(folder, review, dataset_lists) {
   return(res)
 }
     
-REV_logic_1 <- function(state, input, review, datasets) { # TODO: Rename
+REV_logic_1 <- function(state, input, review, datasets, fsa_client) { # TODO: Rename
   # TODO: Flesh out the state machine. Right now there are only default selections for quick iteration
   state[["connected"]] <- shiny::reactiveVal(FALSE)
   state[["folder"]] <- "/tmp" # TODO: Revert to NULL
   state[["annotation_info"]] <- NULL
 
-  shiny::observeEvent(input[[REV$ID$CONNECT_STORAGE]], {
-    message("Connecting")
-    shiny::updateActionButton(inputId = REV$ID$CONNECT_STORAGE, label = paste("Storage:", state[["folder"]]))
-    # TODO: Let the user choose a folder
-    
-    state[["annotation_info"]] <- REV_load_annotation_info(state[["folder"]], review, datasets)
-    
-    state[["connected"]](TRUE)
+  shiny::observeEvent(input[[REV$ID$CONNECT_STORAGE]], {    
+    fsa_client[["attach"]][["f"]]()    
   }, ignoreNULL = FALSE, ignoreInit = TRUE) # TODO: Remove
+
+  shiny::observeEvent(input[[fsa_client[["attach"]][["id"]]]], {
+    attach_status <- input[[fsa_client[["attach"]][["id"]]]]
+    shiny::req(is.list(attach_status))
+    state[["connected"]](attach_status[["connected"]])
+    state[["folder"]] <- attach_status[["name"]]    
+    shiny::updateActionButton(inputId = REV$ID$CONNECT_STORAGE, label = paste("Storage:", state[["folder"]]))        
+
+    if (attach_status[["connected"]] == TRUE) {
+      fsa_client[["list"]][["f"]]()
+      # state[["annotation_info"]] <- REV_load_annotation_info(state[["folder"]], review, datasets, fsa_client)      
+    } else {
+      if (!is.null(attach_status[["error"]])) shiny::showNotification(attach_status[["error"]], type = "error")
+      state[["annotation_info"]] <- NULL
+    }
+  }, ignoreNULL = FALSE, ignoreInit = TRUE) # TODO: Remove
+
+
+  shiny::observeEvent(input[[fsa_client[["list"]][["id"]]]], {
+    browser()
+
+  }, ignoreNULL = FALSE, ignoreInit = TRUE) # TODO: Remove
+
+
 }
 
 REV_logic_2 <- function(ns, state, input, review, datasets, selected_dataset_list_name, selected_dataset_name, data,

@@ -204,3 +204,267 @@ const dv_listings = (function () {
   }
   return (res)
 })()
+
+const dv_fsa = (function() {
+
+  const g_directory = {handle: null, error: "unattached"};  
+  let overlay_id = "dv_fsa_overlay";
+
+  const attach = async function({status_input_id}) {
+    show_overlay({message: "Attaching..."});
+    if(window.showDirectoryPicker) {
+      g_directory.handle = null;
+      g_directory.error = null;
+
+      try {
+        g_directory.handle = await window.showDirectoryPicker({mode: 'readwrite'});
+      } catch (error) {
+        g_directory.error = 'Could not gain write access to folder' ;
+      }    
+      
+    } else {
+      g_directory.error = 'The File System Access API is not supported by this browser';
+    }  
+
+    let status = { 
+      connected: g_directory.handle !== null, 
+      name: g_directory.handle !== null ? g_directory.handle.name: null, 
+      error: g_directory.error
+    };
+
+    Shiny.setInputValue(status_input_id, status, {priority: 'event'});    
+    hide_overlay();
+  };
+
+  const _assert_init_and_attached = function() {    
+    if(g_directory.error === "unattached") throw new Error("g_directory is `unattached`. call `init`");
+    return;
+  };
+
+  const _Array_fromAsync = async function(asyncIterator){ 
+    const arr=[]; 
+    for await(const i of asyncIterator) arr.push(i); 
+    return arr;
+  };
+
+  const _get_file = async function (dir_handle, file_name, mode){
+    _assert_init_and_attached();
+    let res = {handle: null, error: null};
+  
+    let flags = null
+    if(mode == 'read') flags = {};
+    else if(mode == 'write') flags = {create: true}; // TODO: Remove
+    else if(mode == 'append') flags = {create: true};
+    else debugger;
+  
+    if(dir_handle.error){
+      res.error = 'Could not open ' + file_name + ' because folder failed with error: ' + dir_handle.error;
+    } else {
+      try {
+        res.handle = await g_directory.handle.getFileHandle(file_name, flags); // FileSystemFileHandle {kind: 'file', name: 'hello_world.txt'}
+      } catch(error) {
+        res.error = 'Error getting handle of `' + file_name + '`: ' + error.message
+      }
+    }
+    return res;
+  };
+
+  const _read_file = async function(file_handle){
+    let res = null;
+    if(!file_handle.error){
+
+      try {
+        let file = await file_handle.handle.getFile()
+        res = await file.arrayBuffer();
+      } catch(error) {
+        debugger; // TODO: message
+        file_handle.error = 'Could not read contents of handle'
+      }
+    }
+    return res;
+  };
+
+  const _write_file = async function(file_handle, contents){ // TODO: Remove
+    if(!file_handle.error){      
+      try{
+        const writable = await file_handle.handle.createWritable();
+        await writable.write(contents);
+        await writable.close();
+      } catch(error){
+        file_handle.error = 'Could not write file: ', error.message;
+      }
+    }
+  };
+
+  const _append_file = async function(file_handle, contents){
+    if(!file_handle.error){
+      try{
+        let writable = await file_handle.handle.createWritable({keepExistingData:true});
+        let offset = (await file_handle.handle.getFile()).size
+        writable.seek(offset)
+        await writable.write(contents);
+        await writable.close();
+      } catch(error){
+        file_handle.error = 'Could not append to file: ', error.message;
+      }
+    }
+  };
+
+  // From https://stackoverflow.com/a/66046176
+  const bufferToBase64 = async function (buffer) {
+    // use a FileReader to generate a base64 data URI
+    const base64url = await new Promise(r => {
+      const reader = new FileReader()
+      reader.onload = () => r(reader.result)
+      reader.readAsDataURL(new Blob([buffer]))
+    });
+    // remove `data:...;base64,` prefix
+    return base64url.slice(base64url.indexOf(',') + 1);
+  };
+  
+  // TODO: Use Uint8Array.fromBase64() instead, once it becomes available in chrome-derived browsers:
+  //       https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Uint8Array/fromBase64
+  const base64ToBuffer = async function (base64) {
+    return await (await fetch("data:application/octet;base64," + base64)).arrayBuffer();
+  };
+
+  const list = async function({status_input_id, folder}){    
+    _assert_init_and_attached();
+    let entries_async = g_directory.handle.entries();
+    let entries = await _Array_fromAsync(entries_async);
+    
+    let list = {};
+    for (let i = 0; i < entries.length; i++) {
+      let [name, file_handle] = entries[i];
+      let file = await file_handle.getFile()
+      // TODO: Check for errors
+      list[name] = {size:file.size, time:file.lastModified/1000}
+    }
+    
+    let status = { 
+      list: list, 
+      error: g_directory.error
+    };
+    debugger;
+    Shiny.setInputValue(status_input_id, status, {priority: 'event'});
+    return(status);
+  };
+
+  const read = async function({status_input_id, file_name}){
+    _assert_init_and_attached();
+    show_overlay({message: "Reading file..."});
+    let file = await _get_file(g_directory, file_name, 'read');
+    let contents_binary = await _read_file(file);
+    let contents = null;
+    
+    if(!file.error){
+      let t0 = Date.now()
+      contents = await bufferToBase64(contents_binary)
+      let t1 = Date.now()
+      console.log('Time in base64 encoding: '+(t1-t0)/1000)
+    }
+    
+    let status = {file_name: file_name, contents: contents, error: file.error};
+    
+    let t0 = Date.now()
+    Shiny.setInputValue(status_input_id, status, {priority: 'event'});
+    let t1 = Date.now()
+    console.log('Time in setInputValue: '+(t1-t0)/1000)
+    hide_overlay();
+    return(status);
+  };
+  
+  const append = async function ({status_input_id, file_name, contents}){
+    // TODO: Rename file as temp; append and move back?
+    show_overlay({message: "Appending to file..."});
+    let file = await get_file(g_directory, args.file_name, 'append');
+    // TODO: check size_known_to_client
+    
+    let contents_base64 = await base64ToBuffer(contents);
+    await _append_file(file, contents_base64);
+    
+    if(file.error){
+      console.error(file.error);
+      alert('Error appending to file: ' + file.error);
+    }
+    
+    let status = {name: file_name, error: file.error};
+    Shiny.setInputValue(status_input_id, status, {priority: 'event'});
+    hide_overlay();
+  };
+
+  const write = async function ({status_input_id, file_name, contents}){
+    show_overlay({message: "Writing file..."});
+    // TODO: Rename file as temp; append and move back?
+    let file = await get_file(g_directory, args.file_name, 'append');
+    // TODO: check size_known_to_client
+    
+    let contents_base64 = await base64ToBuffer(contents);
+    await _write_file(file, contents_base64);
+    
+    if(file.error){
+      console.error(file.error);
+      alert('Error appending to file: ' + file.error);
+    }
+    
+    let status = {name: file_name, error: file.error};
+    Shiny.setInputValue(status_input_id, status, {priority: 'event'});
+    hide_overlay("Writing file...");
+  };
+
+  const init = function() {    
+    Shiny.addCustomMessageHandler('dv_fsa_attach', attach);
+    Shiny.addCustomMessageHandler('dv_fsa_list', list);
+    Shiny.addCustomMessageHandler('dv_fsa_read', read);
+    Shiny.addCustomMessageHandler('dv_fsa_write', write);
+    Shiny.addCustomMessageHandler('dv_fsa_append', append);    
+    Shiny.addCustomMessageHandler('dv_fsa_show_overlay', append);
+    Shiny.addCustomMessageHandler('dv_fsa_remove_overlay', append);
+  };
+
+  const show_overlay = function ({message}) {
+    hide_overlay();
+    const overlay = document.createElement('div');
+    overlay.style.position = 'fixed';
+    overlay.style.top = '0';
+    overlay.style.left = '0';
+    overlay.style.width = '100vw';
+    overlay.style.height = '100vh';
+    overlay.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
+    overlay.style.display = 'flex';
+    overlay.style.justifyContent = 'center';
+    overlay.style.alignItems = 'center';
+    overlay.style.color = 'white';
+    overlay.style.fontSize = '2rem';
+    overlay.style.zIndex = '10000';
+    overlay.textContent = message;
+    overlay.id = overlay_id;
+  
+    document.body.appendChild(overlay);
+  };
+  
+  const hide_overlay = function(_) {
+    const overlay = document.getElementById(overlay_id);
+    if (overlay) {
+      document.body.removeChild(overlay);
+    }
+  };
+    
+  const res = {
+    init: init,
+    attach: attach,    
+    list: list,
+    read: read,
+    append: append,
+    write: write
+  };
+
+  return (res);
+
+})();
+
+dv_fsa.init();
+
+// Listeners cannot call the picker for security reasons,
+// Therefore we must attach manually after a user click
+// Possible if a database is available
