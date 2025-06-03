@@ -328,26 +328,40 @@ const dv_fsa = (function() {
     return await (await fetch("data:application/octet;base64," + base64)).arrayBuffer();
   };
 
-  const list = async function({status_input_id, folder}){    
+  const list = async function ({ status_input_id, folder }) {
     _assert_init_and_attached();
     let entries_async = g_directory.handle.entries();
     let entries = await _Array_fromAsync(entries_async);
-    
+
     let list = {};
     for (let i = 0; i < entries.length; i++) {
-      let [name, file_handle] = entries[i];
-      let file = await file_handle.getFile()
-      // TODO: Check for errors
-      list[name] = {size:file.size, time:file.lastModified/1000}
+      let [name, handle] = entries[i];
+
+      if (handle.kind === 'file') {
+        try {
+          let file = await handle.getFile();
+          list[name] = {
+            kind: 'file',
+            size: file.size,
+            time: file.lastModified / 1000
+          };
+        } catch (err) {
+          console.warn(`Failed to read file "${name}": ${err.message}`);
+        }
+      } else if (handle.kind === 'directory') {
+        list[name] = {
+          kind: 'directory'          
+        };
+      }
     }
-    
-    let status = { 
-      list: list, 
+
+    let status = {
+      list: list,
       error: g_directory.error
     };
     debugger;
-    Shiny.setInputValue(status_input_id, status, {priority: 'event'});
-    return(status);
+    Shiny.setInputValue(status_input_id, status, { priority: 'event' });
+    return (status);
   };
 
   const read = async function({status_input_id, file_name}){
