@@ -389,7 +389,7 @@ REV_logic_1 <- function(state, input, review, datasets, fsa_client) { # TODO: Re
 }
 
 REV_logic_2 <- function(ns, state, input, review, datasets, selected_dataset_list_name, selected_dataset_name, data,
-                        dt_proxy) { # TODO: Rename
+                        dt_proxy, fsa_client) { # TODO: Rename
   shiny::observeEvent(input[[REV$ID$REVIEW_SELECT]], {
     role <- input[[REV$ID$ROLE]]
 
@@ -417,15 +417,7 @@ REV_logic_2 <- function(ns, state, input, review, datasets, selected_dataset_lis
     option <- as.integer(info[["option"]])
    
     timestamp <- SH$get_UTC_time_in_seconds()
-    contents <- c(
-      SH$integer_to_raw(stored_i_row),
-      SH$integer_to_raw(option),
-      SH$double_to_raw(timestamp)
-    )
-    
-    fname <- paste0(dataset_name, "_", make.names(role), ".review")
-    path <- file.path(state[["folder"]], dataset_list_name, fname)
-    
+        
     extra_col_names <- input[[REV$ID$DEV_EXTRA_COLS_SELECT]]
     
     # NOTE: Partially repeats #weilae 
@@ -471,8 +463,28 @@ REV_logic_2 <- function(ns, state, input, review, datasets, selected_dataset_lis
     # > tmp[9] = '2';
     # > table.row(5).data(tmp).invalidate();
     DT::replaceData(dt_proxy, new_data, resetPaging = FALSE, clearSelection = "none")
+
+    contents <- c(
+      SH$integer_to_raw(stored_i_row),
+      SH$integer_to_raw(option),
+      SH$double_to_raw(timestamp)
+    )
     
-    RS_append(path, contents)
+    fname <- paste0(dataset_name, "_", make.names(role), ".review")
+
+    IO_plan <- list(
+      list(
+        type = "append_file",
+        mode = "bin",
+        path = dataset_list_name,
+        fname = fname,
+        contents = contents
+      )
+    )
+
+    fsa_client[["execute_IO_plan"]][["f"]](REV_IO_plan_base64_encode(IO_plan), is_init = FALSE)
+
+    # RS_append(path, contents)
   })
   
   return(NULL)

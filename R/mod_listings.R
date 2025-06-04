@@ -528,7 +528,8 @@ listings_server <- function(module_id,
         selected_dataset_list_name = review[["selected_dataset"]],
         selected_dataset_name = shiny::reactive(input[[TBL$DATASET_ID]]),
         data = shiny::reactive(output_table_data()[["data"]]),
-        dt_proxy = dt_proxy
+        dt_proxy = dt_proxy,
+        fsa_client = fsa_client
       )
     }
     

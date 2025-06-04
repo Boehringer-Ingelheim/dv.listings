@@ -385,7 +385,6 @@ const dv_fsa = (function() {
           console.error(entry.error);
         }
       } else if (entry.type === "write_file") {
-
         if(entry.mode === "bin"){
           try {
             const buffer = await _base64_to_buffer(entry.contents);
@@ -407,8 +406,29 @@ const dv_fsa = (function() {
           console.error("Uknown mode: " + entry.mode)
         }        
       } else if(entry.type === "append_file") {
-        // TODO: implement append strategy
-        debugger;        
+        if(entry.mode === "bin"){
+          try {
+            const buffer = await _base64_to_buffer(entry.contents);
+            const dir_handle = await g_directory.handle.getDirectoryHandle(entry.path, {create: false});
+            const file_handle = await dir_handle.getFileHandle(entry.fname, {create: false});
+  
+            const writable = await file_handle.createWritable({keepExistingData: true});
+            const file_size = (await file_handle.getFile()).size;
+            await writable.seek(file_size);
+
+            await writable.write(buffer);
+            await writable.close();
+            entry.error = null;
+          } catch (error) {
+            debugger;
+            entry.error = "Error writing: " + entry.path + "/" + entry.fname;
+            console.error(entry.error);
+          } finally {
+            entry.contents = null;
+          }
+        } else {
+          console.error("Uknown mode: " + entry.mode)
+        }        
       } else {        
         console.error("Uknown type: " + entry.type)
       }
