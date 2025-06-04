@@ -9,6 +9,8 @@ fsa_init <- function(input_id, session = shiny::getDefaultReactiveDomain()) {
   read_id <- paste0(input_id, "_read")
   write_id <- paste0(input_id, "_write")
   append_id <- paste0(input_id, "_append")
+  read_folder_id <- paste0(input_id, "_read_folder")
+  execute_IO_plan_id <- paste0(input_id, "_execute_IO_plan")
 
   .attach <- function() {
     session$sendCustomMessage("dv_fsa_attach", list(status_input_id = ns(attach_id)))
@@ -36,6 +38,19 @@ fsa_init <- function(input_id, session = shiny::getDefaultReactiveDomain()) {
       list(status_input_id = ns(read_id), file_name = file_name, contents = contents))
   }
 
+  .read_folder <- function(subfolder_candidates) {
+    session$sendCustomMessage(
+      "dv_fsa_read_folder",
+      list(status_input_id = ns(read_folder_id), subfolder_candidates = base::I(subfolder_candidates)))
+  }
+
+  .execute_IO_plan <- function(IO_plan) {
+    session$sendCustomMessage(
+      "dv_fsa_execute_io_plan",
+      list(status_input_id = ns(execute_IO_plan_id), plan = IO_plan)
+    )
+  }
+
   .show_overlay <- function(message) {session$sendCustomMessage("dv_fsa_show_overlay", list(message = message))}
 
   .hide_overlay <- function() {session$sendCustomMessage("dv_fsa_hide_overlay", list())}
@@ -45,7 +60,9 @@ fsa_init <- function(input_id, session = shiny::getDefaultReactiveDomain()) {
     list = list(f = .list, id = list_id),
     write = list(f = .write, id = write_id),
     read = list(f = .read, id = read_id),
-    append = list(f = .append, id = append_id)
+    append = list(f = .append, id = append_id),
+    read_folder = list(f = .read_folder, id = read_folder_id),
+    execute_IO_plan = list(f = .execute_IO_plan, id = execute_IO_plan_id)
   )
   return(res)
 }

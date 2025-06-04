@@ -434,8 +434,11 @@ listings_server <- function(module_id,
       output[["review_label"]] <- shiny::renderText(review_button_label())
 
       shiny::outputOptions(output, TBL$REVIEW_UI_ID, suspendWhenHidden = FALSE)
+
+      # TODO: Extract the REV_logic_1 logic, it just creates a set of observers that maybe better
+      # located out here. Otherwise this observer declarations may be ignored.
       REV_logic_1(REV_state, input, review, review[["data"]], fsa_client)
-      show_review_columns <- REV_state[["connected"]]
+      show_review_columns <- REV_state[["contents_ready"]]
     }
 
     js_generate_review_column_contents <- shiny::reactive({
@@ -576,6 +579,8 @@ listings_server <- function(module_id,
                  targets = review_column_indices[[4]])            
           )
         )
+      } else {
+        review_col_count <- 0        
       }
 
       DT::datatable(

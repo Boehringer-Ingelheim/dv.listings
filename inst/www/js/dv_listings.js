@@ -311,7 +311,7 @@ const dv_fsa = (function() {
   };
 
   // From https://stackoverflow.com/a/66046176
-  const bufferToBase64 = async function (buffer) {
+  const _buffer_to_base64 = async function (buffer) {
     // use a FileReader to generate a base64 data URI
     const base64url = await new Promise(r => {
       const reader = new FileReader()
@@ -324,9 +324,98 @@ const dv_fsa = (function() {
   
   // TODO: Use Uint8Array.fromBase64() instead, once it becomes available in chrome-derived browsers:
   //       https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Uint8Array/fromBase64
-  const base64ToBuffer = async function (base64) {
+  const _base64_to_buffer = async function (base64) {
     return await (await fetch("data:application/octet;base64," + base64)).arrayBuffer();
   };
+
+  const _read_all_contents = async function (subfolder_candidates) {    
+    const results = {};
+  
+    for (const subfolder of subfolder_candidates) {
+      let folder_handle;
+      try {
+        folder_handle = await g_directory.handle.getDirectoryHandle(subfolder, { create: false });
+      } catch (err) {
+        console.warn(`Subfolder "${subfolder}" does not exist, skipping.`);
+        continue;
+      }
+  
+      results[subfolder] = {};
+  
+      for await (const [file_name, file_handle] of folder_handle.entries()) {
+        if (file_handle.kind === 'file') {
+          try {
+            const file = await file_handle.getFile();
+            const contents = await _buffer_to_base64(await file.arrayBuffer());
+            results[subfolder][file_name] = {
+              size: file.size,
+              time: file.lastModified / 1000,
+              contents: contents,
+              error: null
+            };
+          } catch (err) {
+            console.warn(`Failed to read "${subfolder}/${file_name}": ${err.message}`);
+            results[subfolder][file_name] = {
+              size: null,
+              time: null,
+              contents: null,
+              error: `Failed to read "${subfolder}/${file_name}": ${err.message}`
+            };
+          }
+        }
+      }  
+      
+      if (Object.keys(results[subfolder]).length === 0) {
+        delete results[subfolder];
+      }
+    }
+  
+    return results;
+  }
+
+  const _execute_IO_plan = async function(plan) {
+    for (let idx=0; idx<plan.length;idx++) {
+      let entry = plan[idx];
+      if(entry.type === "create_dir") {
+        try {
+          await g_directory.handle.getDirectoryHandle(entry.dname, {create: true});          
+          entry.error = null;
+        } catch (error) {
+          entry.error = "Error creating dir: " + entry.path;
+          console.error(entry.error);
+        }
+      } else if (entry.type === "write_file") {
+
+        if(entry.mode === "bin"){
+          try {
+            const buffer = await _base64_to_buffer(entry.contents);
+            const dir_handle = await g_directory.handle.getDirectoryHandle(entry.path, {create: false});
+            const file_handle = await dir_handle.getFileHandle(entry.fname, {create: true});
+  
+            const writable = await file_handle.createWritable();
+            await writable.write(buffer);
+            await writable.close();
+            entry.error = null;
+          } catch (error) {
+            debugger;
+            entry.error = "Error writing: " + entry.path + "/" + entry.fname;
+            console.error(entry.error);
+          } finally {
+            entry.contents = null;
+          }
+        } else {
+          console.error("Uknown mode: " + entry.mode)
+        }        
+      } else if(entry.type === "append_file") {
+        // TODO: implement append strategy
+        debugger;        
+      } else {        
+        console.error("Uknown type: " + entry.type)
+      }
+    }
+
+    return(plan);
+  }
 
   const list = async function ({ status_input_id, folder }) {
     _assert_init_and_attached();
@@ -359,7 +448,6 @@ const dv_fsa = (function() {
       list: list,
       error: g_directory.error
     };
-    debugger;
     Shiny.setInputValue(status_input_id, status, { priority: 'event' });
     return (status);
   };
@@ -373,13 +461,26 @@ const dv_fsa = (function() {
     
     if(!file.error){
       let t0 = Date.now()
-      contents = await bufferToBase64(contents_binary)
+      contents = await _buffer_to_base64(contents_binary)
       let t1 = Date.now()
       console.log('Time in base64 encoding: '+(t1-t0)/1000)
     }
     
     let status = {file_name: file_name, contents: contents, error: file.error};
     
+    let t0 = Date.now()
+    Shiny.setInputValue(status_input_id, status, {priority: 'event'});
+    let t1 = Date.now()
+    console.log('Time in setInputValue: '+(t1-t0)/1000)
+    hide_overlay();
+    return(status);
+  };
+
+  const read_folder = async function({status_input_id, subfolder_candidates}){
+    _assert_init_and_attached();
+    show_overlay({message: "Reading all files..."});
+    let status = await _read_all_contents(subfolder_candidates);
+        
     let t0 = Date.now()
     Shiny.setInputValue(status_input_id, status, {priority: 'event'});
     let t1 = Date.now()
@@ -394,7 +495,7 @@ const dv_fsa = (function() {
     let file = await get_file(g_directory, args.file_name, 'append');
     // TODO: check size_known_to_client
     
-    let contents_base64 = await base64ToBuffer(contents);
+    let contents_base64 = await _base64_to_buffer(contents);
     await _append_file(file, contents_base64);
     
     if(file.error){
@@ -413,7 +514,7 @@ const dv_fsa = (function() {
     let file = await get_file(g_directory, args.file_name, 'append');
     // TODO: check size_known_to_client
     
-    let contents_base64 = await base64ToBuffer(contents);
+    let contents_base64 = await _base64_to_buffer(contents);
     await _write_file(file, contents_base64);
     
     if(file.error){
@@ -426,6 +527,12 @@ const dv_fsa = (function() {
     hide_overlay("Writing file...");
   };
 
+  const execute_IO_plan = async function({status_input_id, plan}) {
+    _assert_init_and_attached();
+    const status = await _execute_IO_plan(plan);
+    Shiny.setInputValue(status_input_id, status, {priority: 'event'});
+  }
+
   const init = function() {    
     Shiny.addCustomMessageHandler('dv_fsa_attach', attach);
     Shiny.addCustomMessageHandler('dv_fsa_list', list);
@@ -434,6 +541,8 @@ const dv_fsa = (function() {
     Shiny.addCustomMessageHandler('dv_fsa_append', append);    
     Shiny.addCustomMessageHandler('dv_fsa_show_overlay', append);
     Shiny.addCustomMessageHandler('dv_fsa_remove_overlay', append);
+    Shiny.addCustomMessageHandler('dv_fsa_read_folder', read_folder);
+    Shiny.addCustomMessageHandler('dv_fsa_execute_io_plan', execute_IO_plan);
   };
 
   const show_overlay = function ({message}) {
@@ -470,6 +579,7 @@ const dv_fsa = (function() {
     list: list,
     read: read,
     append: append,
+
     write: write
   };
 

@@ -86,28 +86,40 @@ REV_UI <- function(ns, roles) {
   return(res)
 }
 
-REV_load_annotation_info <- function(folder, review, dataset_lists, fsa_client) {
-  res <- list()
+REV_load_annotation_info <- function(folder_contents, review, dataset_lists, fsa_client) {
+  loaded_annotation_info <- list()
 
   # TODO: Chop it in a set of consecutive observers with the app blocked with an overlay
   # consecutive observers should allow given client time in an asynch way
   # consider including the global lock for the whole process until released
   # A queue should exist or retry in the client that is activated when the global lock is released
   # Maybe a one second wait on a general state 
+
+  folder_IO_plan <- list()
+  append_IO_action <- function(action) {    
+    folder_IO_plan <<- c(folder_IO_plan, list(action))
+  }
   
   review[["roles"]] <- make.names(review[["roles"]])
 
   for (dataset_lists_name in names(dataset_lists)) {
     sub_res <- list()
     dataset_list <- dataset_lists[[dataset_lists_name]]
-    
-    dataset_list_folder <- file.path(folder, dataset_lists_name)
-    base::dir.create(dataset_list_folder, recursive = TRUE, showWarnings = FALSE)
-    
+
+    if (!dataset_lists_name %in% names(folder_contents)) {      
+      append_IO_action(
+        list(
+          type = "create_dir",
+          dname = dataset_lists_name
+        )
+      )
+      folder_contents[[dataset_lists_name]] <- list()
+    }
+
     # review.codes (common to all datasets)
-    fname <- file.path(dataset_list_folder, "review.codes")
-    if (file.exists(fname)) {
-      contents <- readBin(con = fname, raw(), n = file.size(fname), endian = "little")
+    fname <- "review.codes"
+    if (fname %in% names(folder_contents[[dataset_lists_name]])) {
+      contents <- folder_contents[[dataset_lists_name]][[fname]][["contents"]]
       review_info <- RS_parse_review_codes(contents)
       if (!identical(review_info, review[["choices"]])) {
         stop("Impossible to add new review choices")
@@ -116,7 +128,15 @@ REV_load_annotation_info <- function(folder, review, dataset_lists, fsa_client) 
       }
     } else {
       contents <- RS_compute_review_codes_memory(review[["choices"]])
-      writeBin(contents, fname)
+      append_IO_action(
+        list(
+          type = "write_file",
+          mode = "bin",
+          path = dataset_lists_name,
+          fname = fname,
+          contents = contents
+        )
+      )                  
     }
       
     for (dataset_review_name in names(review[["datasets"]])){
@@ -139,35 +159,58 @@ REV_load_annotation_info <- function(folder, review, dataset_lists, fsa_client) 
       base_timestamp <- NA_real_
       data_timestamps <- rep(NA_real_, row_count)
       # <domain>_000.base
-      fname <- file.path(dataset_list_folder, paste0(dataset_review_name, "_000.base"))
-      if (file.exists(fname)) {
-        contents <- readBin(con = fname, raw(), n = file.size(fname), endian = "little")
-        delta_fnames <- list.files(dataset_list_folder, 
-                                   pattern = sprintf("^%s_[0-9]*.delta", dataset_review_name),
-                                   full.names = TRUE)
+      fname <- paste0(dataset_review_name, "_000.base")
+      if (fname %in% names(folder_contents[[dataset_lists_name]])) {
+        contents <- folder_contents[[dataset_lists_name]][[fname]][["contents"]]        
+
+        delta_fnames <- local({
+          dataset_fnames <- names(folder_contents[[dataset_lists_name]])
+          pattern <- sprintf("^%s_[0-9]*.delta", dataset_review_name)
+          sort(grep(pattern, dataset_fnames, value = TRUE))
+        })        
+        
         deltas <- local({
           res <- list()
-          for (fname in delta_fnames){
-            res[[length(res) + 1]] <- readBin(con = fname, raw(), n = file.size(fname), endian = "little")
+          for (fname in delta_fnames){            
+            # TODO: Control for file errors?
+            res[[length(res) + 1]] <- folder_contents[[dataset_lists_name]][[fname]][["contents"]]
           }
           return(res)
         })
         base_info <- RS_load(contents, deltas) # TODO? Call this RS_load_memory and write an RS_load() that works with fnames
         dataset_hash <- RS_hash_data_frame(dataset)
         if (!identical(dataset_hash, base_info[["contents_hash"]])) {
-          new_delta <- RS_compute_delta_memory(state = base_info, dataset)
-          deltas[[length(deltas) + 1]] <- new_delta
-          base_info <- RS_load(contents, deltas)
-          
-          delta_number <- length(delta_fnames) + 1
-          fname <- file.path(dataset_list_folder, sprintf("%s_%03d.delta", dataset_review_name, delta_number))
-          writeBin(new_delta, fname)
-          message(sprintf("Produced new delta %s", fname))
+          local({
+            new_delta <- RS_compute_delta_memory(state = base_info, dataset)
+            deltas[[length(deltas) + 1]] <- new_delta
+            base_info <- RS_load(contents, deltas)
+
+            delta_number <- length(delta_fnames) + 1
+            fname <- sprintf("%s_%03d.delta", dataset_review_name, delta_number)
+            append_IO_action(
+              list(
+                type = "write_file",
+                mode = "bin",
+                path = dataset_lists_name,
+                fname = fname,
+                contents = new_delta
+              )
+            )
+            message(sprintf("Produced new delta %s", fname))
+          })
         }
       } else {
         contents <- RS_compute_base_memory(dataset_review_name, dataset, id_vars, tracked_vars)
         base_info <- RS_parse_base(contents)
-        writeBin(contents, fname)
+        append_IO_action(
+            list(
+              type = "write_file",
+              mode = "bin",
+              path = dataset_lists_name,
+              fname = fname,
+              contents = contents
+            )
+          )  
         base_timestamp <- base_info[["timestamp"]] # TODO: Consider providing timestamp to RS_compute_base_memory instead?
         data_timestamps <- base_info[["row_timestamps"]]
       }
@@ -209,16 +252,22 @@ REV_load_annotation_info <- function(folder, review, dataset_lists, fsa_client) 
       })
 
       for (role in review[["roles"]]){
-        fname <- file.path(dataset_list_folder, paste0(dataset_review_name, "_", role, ".review"))
-        if (file.exists(fname)) {
-          f <- file(fname, "rb")
-          contents <- readBin(f, raw(), n = file.size(fname))
-          close(f)
+        fname <- paste0(dataset_review_name, "_", role, ".review")
+        if (fname %in% names(folder_contents[[dataset_lists_name]])) {          
+          contents <- folder_contents[[dataset_lists_name]][[fname]][["contents"]]          
         } else { 
           contents <- RS_compute_review_reviews_memory(role, dataset_review_name)
-          writeBin(contents, fname)
+          append_IO_action(
+            list(
+              type = "write_file",
+              mode = "bin",
+              path = dataset_lists_name,
+              fname = fname,
+              contents = contents
+            )
+          )
         }
-        
+
         # NOTE: each role keeps their own decisions...
         role_review <- RS_parse_review_reviews(contents, dataset_to_state_row_mapping = dataset_to_state_row_mapping, 
                                                expected_role = role, expected_domain = dataset_review_name)
@@ -262,8 +311,13 @@ REV_load_annotation_info <- function(folder, review, dataset_lists, fsa_client) 
       # FIXME? Base timestamp attached as attribute to avoid rewriting prototype-level code
       attr(sub_res[[dataset_review_name]], "base_timestamp") <- base_timestamp
     }
-    res[[dataset_lists_name]] <- sub_res
+    loaded_annotation_info[[dataset_lists_name]] <- sub_res
   }
+
+  res <- list(
+    loaded_annotation_info = loaded_annotation_info,
+    folder_IO_plan = folder_IO_plan
+  )
 
   return(res)
 }
@@ -271,7 +325,8 @@ REV_load_annotation_info <- function(folder, review, dataset_lists, fsa_client) 
 REV_logic_1 <- function(state, input, review, datasets, fsa_client) { # TODO: Rename
   # TODO: Flesh out the state machine. Right now there are only default selections for quick iteration
   state[["connected"]] <- shiny::reactiveVal(FALSE)
-  state[["folder"]] <- "/tmp" # TODO: Revert to NULL
+  state[["contents_ready"]] <- shiny::reactiveVal(FALSE)
+  state[["folder"]] <- NULL
   state[["annotation_info"]] <- NULL
 
   shiny::observeEvent(input[[REV$ID$CONNECT_STORAGE]], {    
@@ -286,8 +341,7 @@ REV_logic_1 <- function(state, input, review, datasets, fsa_client) { # TODO: Re
     shiny::updateActionButton(inputId = REV$ID$CONNECT_STORAGE, label = paste("Storage:", state[["folder"]]))        
 
     if (attach_status[["connected"]] == TRUE) {
-      fsa_client[["list"]][["f"]]()
-      # state[["annotation_info"]] <- REV_load_annotation_info(state[["folder"]], review, datasets, fsa_client)      
+      fsa_client[["read_folder"]][["f"]](names(datasets))      
     } else {
       if (!is.null(attach_status[["error"]])) shiny::showNotification(attach_status[["error"]], type = "error")
       state[["annotation_info"]] <- NULL
@@ -295,12 +349,19 @@ REV_logic_1 <- function(state, input, review, datasets, fsa_client) { # TODO: Re
   }, ignoreNULL = FALSE, ignoreInit = TRUE) # TODO: Remove
 
 
-  shiny::observeEvent(input[[fsa_client[["list"]][["id"]]]], {
-    browser()
+  shiny::observeEvent(input[[fsa_client[["read_folder"]][["id"]]]], {    
+    encoded_folder_contents <- input[[fsa_client[["read_folder"]][["id"]]]]
+    shiny::req(is.list(encoded_folder_contents))
 
+    decoded_folder_contents <- REV_folder_structure_base64_decode(encoded_folder_contents)
+    load_results <- REV_load_annotation_info(decoded_folder_contents, review, datasets, fsa_client)
+    state[["annotation_info"]] <- load_results[["loaded_annotation_info"]]
+    fsa_client[["execute_IO_plan"]][["f"]](REV_IO_plan_base64_encode(load_results[["folder_IO_plan"]]))
   }, ignoreNULL = FALSE, ignoreInit = TRUE) # TODO: Remove
 
-
+  shiny::observeEvent(input[[fsa_client[["execute_IO_plan"]][["id"]]]], {
+    state[["contents_ready"]](TRUE)
+  }, ignoreNULL = FALSE, ignoreInit = TRUE)
 }
 
 REV_logic_2 <- function(ns, state, input, review, datasets, selected_dataset_list_name, selected_dataset_name, data,
@@ -460,3 +521,30 @@ REV_compute_status <- function(dataset_review, role) {
     
   return(res[[REV$ID$STATUS_COL]])
 }
+
+REV_folder_structure_base64_decode <- function(encoded_struct) {  
+  decoded_struct <- encoded_struct
+  for (dataset_nm in names(encoded_struct)) {    
+    for (file_nm in names(encoded_struct[[dataset_nm]])) {
+      encoded_contents <- encoded_struct[[dataset_nm]][[file_nm]][["contents"]]
+      if (!is.null(encoded_contents)) {
+        decoded_contents <- base64enc::base64decode(encoded_contents) 
+      } else {
+        decoded_contents <- NULL
+      }
+      decoded_struct[[dataset_nm]][[file_nm]][["contents"]] <- decoded_contents
+    }
+  }
+  return(decoded_struct)
+}
+
+REV_IO_plan_base64_encode <- function(plan) {  
+  encoded_plan <- plan
+  for (idx in seq_along(plan)) {
+    if (encoded_plan[[idx]][["type"]] == "write_file") {
+      encoded_plan[[idx]][["contents"]] <- base64enc::base64encode(encoded_plan[[idx]][["contents"]])
+    }
+  }
+  return(encoded_plan)
+}
+
