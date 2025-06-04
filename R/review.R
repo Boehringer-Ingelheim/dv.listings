@@ -356,12 +356,36 @@ REV_logic_1 <- function(state, input, review, datasets, fsa_client) { # TODO: Re
     decoded_folder_contents <- REV_folder_structure_base64_decode(encoded_folder_contents)
     load_results <- REV_load_annotation_info(decoded_folder_contents, review, datasets, fsa_client)
     state[["annotation_info"]] <- load_results[["loaded_annotation_info"]]
-    fsa_client[["execute_IO_plan"]][["f"]](REV_IO_plan_base64_encode(load_results[["folder_IO_plan"]]))
+    fsa_client[["execute_IO_plan"]][["f"]](IO_plan = REV_IO_plan_base64_encode(load_results[["folder_IO_plan"]]), is_init = TRUE)
   }, ignoreNULL = FALSE, ignoreInit = TRUE) # TODO: Remove
 
-  shiny::observeEvent(input[[fsa_client[["execute_IO_plan"]][["id"]]]], {
-    state[["contents_ready"]](TRUE)
-  }, ignoreNULL = FALSE, ignoreInit = TRUE)
+
+  # TODO: fsa_client[["execute_IO_plan"]][["id"]] if we use the execute IO plan in more places this obsever will run
+  # more times than it should. Check how this can be avoided, including extra element in status, create a new input?
+  shiny::observeEvent(input[[fsa_client[["execute_IO_plan"]][["id"]]]],
+    {
+      plan_result <- input[[fsa_client[["execute_IO_plan"]][["id"]]]]
+      if (isTRUE(plan_result[["is_init"]])) {
+        plan_status <- plan_result[["status"]]
+        error <- FALSE
+        for (entry in plan_status) {
+          if (!is.null(entry[["error"]])) {
+            error <- TRUE
+            break
+          }
+        }
+
+        if (!error) {
+          state[["contents_ready"]](TRUE)
+        } else {
+          shiny::showNotification("Error in initial read and write operation", type = "error")
+          stop("Error reading and writing")
+        }
+      }
+    },
+    ignoreNULL = FALSE,
+    ignoreInit = TRUE
+  )
 }
 
 REV_logic_2 <- function(ns, state, input, review, datasets, selected_dataset_list_name, selected_dataset_name, data,

@@ -44,10 +44,10 @@ fsa_init <- function(input_id, session = shiny::getDefaultReactiveDomain()) {
       list(status_input_id = ns(read_folder_id), subfolder_candidates = base::I(subfolder_candidates)))
   }
 
-  .execute_IO_plan <- function(IO_plan) {
+  .execute_IO_plan <- function(IO_plan, is_init = FALSE) {
     session$sendCustomMessage(
       "dv_fsa_execute_io_plan",
-      list(status_input_id = ns(execute_IO_plan_id), plan = IO_plan)
+      list(status_input_id = ns(execute_IO_plan_id), plan = IO_plan, is_init = is_init)
     )
   }
 
