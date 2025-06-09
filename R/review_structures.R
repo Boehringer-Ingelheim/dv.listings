@@ -192,6 +192,9 @@ RS_compute_delta_memory <- function(state, df){
  
   # Sort remaining according to state$id_hashes order # TODO: Streamline for performance?
   mapping <- match(asplit(id_hashes, 2), asplit(state$id_hashes, 2))
+  # TODO: This mapping may fail when data updates are messed. Dataset is updated, new deltas are calculated, and the
+  # outdated is loaded in the app again. It does not fail gracefully, mapping contains more entries than expected and
+  # an out of bounds error is thrown.
   id_hashes <- id_hashes[, mapping, drop = FALSE]
   tracked_hashes <- tracked_hashes[, mapping, drop = FALSE]
 
