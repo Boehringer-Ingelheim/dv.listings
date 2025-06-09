@@ -123,8 +123,8 @@ There will use a small collection of files for each input dataset configured for
   - n `id_vars` column names
   - m `tracked_vars` column names
   - 1 row count
-  - p (1 per "ae" row) `hash(ae[id_vars])`
-  - p (1 per "ae" row) `hash(ae[tracked_vars])`
+  - p (1 per "ae" row) `hash_id(ae[id_vars])`
+  - p (1 per "ae" row, *m* bytes long) `hash_tracked(ae[tracked_vars])`
 - `ae_001.delta` (one per domain update):
   - 1 file magic code ("LISTDELT")
   - 1 format version number (0)
@@ -133,11 +133,11 @@ There will use a small collection of files for each input dataset configured for
   - 1 complete hash of new "ae" data.frame
   - 1 domain string ("ae")
   - 1 count of new rows
-  - n (1 per *new* "ae" row) `hash(ae[id_vars])`
-  - n (1 per *new* "ae" row) `hash(ae[tracked_vars])`
+  - n (1 per *new* "ae" row) `hash_id(ae[id_vars])`
+  - n (1 per *new* "ae" row, *m* bytes long) `hash_tracked(ae[tracked_vars])`
   - 1 count of modified rows
   - p (1 per *modified* "ae" row) row index
-  - p (1 per *modified* "ae" row) `hash(ae[tracked_vars])`
+  - p (1 per *modified* "ae" row, *m* bytes long) `hash_tracked(ae[tracked_vars])`
 - `review.codes` (one):
   - 1 file magic code ("LISTCODE")
   - 1 format version number (0)
@@ -158,15 +158,55 @@ These file structures are designed so that they start with a short heterogeneous
 These files won't benefit much from compression since their main content (the hashes) is by construction statistically indistinguishable from noise.
 
 ## Hashing
-We store hashes for the values of `id_vars` and `tracked_vars` dataset columns. These hashes serve as content IDs. 
+We store hashes for the values of `id_vars` and `tracked_vars` dataset columns. These hashes serve as content IDs.
 
-With a perfect hash we would expect a collision after `2^(n/2)` entries have been hashed, where `n` is the output length in bits of the chosen hash. A hash that produces 64 bits is not strong enough as 2^32 is large but bound to collide if the review feature is used long enough. We opt instead for 128 bits, which makes the possibility of a collision extremely unlikely. We expect an upper bound of one million rows per dataset, which is 13 *orders of magnitude* lower than the mean amount of entries estimated necessary to get a collision. The chosen hash won't be perfect, but we have an ample safety margin. We also assume that data has not been created through adversarial means geared towards making hash collisions more likely.
+#### Choice of hash function
 
-A popular choice for non-cryptographic hashing is the `xxh128` function (https://github.com/Cyan4973/xxHash/tree/dev?tab=readme-ov-file#xxhash---extremely-fast-hash-algorithm) for its balance of speed and perceived hash quality.
-Three independent R packages implement it:
+A popular choice for non-cryptographic hashing is the `xxh` family of function (https://github.com/Cyan4973/xxHash/tree/dev?tab=readme-ov-file#xxhash---extremely-fast-hash-algorithm) for its balance of speed and perceived hash quality.
+Three independent R packages implement them:
 
 - rlang: Provides no control over serialization, so hashes are potentially not stable across R versions. 
 - digest: Maintained by Dirk Eddelbuettel, known for being a stickler for backwards compatibility. Provides serialization options.
 - xxhashlite: Substantially faster than the other two implementations for small input sizes (our scenario). Provides serialization options.
 
-It makes sense to use the fastest implementation available, as it respects the time of users and requires less energy . `xxhashlite` is then the clear winner, but migration to `digest` (or "vendoring" of `xxhashlite` inside this package) is always possible if this lesser-known package is somehow retired from CRAN.
+It makes sense to use the fastest implementation available, as it respects the time of users and requires less energy. `xxhashlite` is then the clear winner, but migration to `digest` (or "vendoring" of `xxhashlite` inside this package) is always possible if this lesser-known package is somehow retired from CRAN.
+
+#### Hashing of ID variables (`hash_id()`)
+
+With a perfect hash function, we would expect a collision after `2^(n/2)` entries have been hashed, where `n` is the output length in bits of the chosen hash. A hash that produces 64 bits is not strong enough as 2^32 is a large quantity of hashes, but still bound to collide if the review feature is used long enough.
+
+We opt instead for 128 bits, which makes the possibility of a collision extremely unlikely. We expect an upper bound of one million rows per dataset, which is 13 *orders of magnitude* lower than the mean amount of entries estimated necessary to get a collision. The chosen hash won't be perfect, but we have an ample safety margin. We also assume that data has not been created through adversarial means geared towards making hash collisions more likely.
+
+#### Hashing of tracked variables (`hash_tracked()`)
+We could apply the same reasoning behind the choice of the `hash_id()` function to the hashing of the variable parts of each row. We instead propose a more complex hashing scheme to provide partial information about *which variables of a row have been altered* when its hash changes.
+
+Each hash value is *m* bytes long, where *m* is the number of variables tracked of a given dataset. Each of those bytes is an independent hash of three of the tracked variables of a dataset row. Each variable, in turn, contributes to three of the *m* byte-sized hashes. This mixing of variables makes it harder for an external adversarial observer of the `.base` and `.delta` files to brute-force the original values of the dataset by looking for collisions with the computed hash values.
+
+To compute which variables contribute to which hash byte, we use the following scheme:
+
+  - Byte *n*: Variables (*n*+0)%*n*, (*n*+2)%*n* and (*n*+3)%*n*
+
+Where `%` indicates the remainder of the integer division.
+
+So, for a input dataset with seven tracked variables (zero through six), this would mean:
+
+  - Byte 0: Variables 0, 2 and 3
+  - Byte 1: Variables 1, 3 and 4
+  - Byte 2: Variables 2, 4 and 5
+  - Byte 3: Variables 3, 5 and 6
+  - Byte 4: Variables 4, 6 and 0
+  - Byte 5: Variables 5, 0 and 1
+  - Byte 6: Variables 6, 1 and 2
+
+This scheme creates a unique mixtures of variables. Take, for instance, variable 0. It is combined with variables 2 and 3 on the zeroth byte, with variables 4 and 6 on the fourth byte and with 1 and 5 for the fifth byte.
+
+Each of these bytes is computed by:
+
+- Taking the three values to hash.
+- Serializing them to text and concatenating them using the non-ASCII byte separator `1D`.
+- Computing the `xxh32` hash and returning its most significant byte.
+
+This composite hash function is a compromise found through heuristic exploration. If we come up with a better option, we can version it through the "format version number" present in `.base` and `.delta` files. This means that neither app creator nor app users have to concern themselves about the underlying `hash_tracked` representation.
+
+
+
