@@ -411,16 +411,22 @@ const dv_fsa = (function() {
             const buffer = await _base64_to_buffer(entry.contents);
             const dir_handle = await g_directory.handle.getDirectoryHandle(entry.path, {create: false});
             const file_handle = await dir_handle.getFileHandle(entry.fname, {create: false});
-  
-            const writable = await file_handle.createWritable({keepExistingData: true});
-            const file_size = (await file_handle.getFile()).size;
-            await writable.seek(file_size);
+            const file = await file_handle.getFile();
+            const file_contents = new Uint8Array(await file.arrayBuffer());
 
-            await writable.write(buffer);
+            const combined_contents = new Uint8Array(file_contents.length + buffer.byteLength);
+            combined_contents.set(file_contents, 0);
+            combined_contents.set(new Uint8Array(buffer), file_contents.length);
+
+            const temp_file_name = entry.fname + "_" + crypto.randomUUID() + ".tmp"  
+            const temp_handle = await g_directory.handle.getFileHandle(temp_file_name, {create: true});
+            const writable = await temp_handle.createWritable();
+            await writable.write(combined_contents);
             await writable.close();
+            await temp_handle.move(entry.fname);
+
             entry.error = null;
           } catch (error) {
-            debugger;
             entry.error = "Error writing: " + entry.path + "/" + entry.fname;
             console.error(entry.error);
           } finally {
