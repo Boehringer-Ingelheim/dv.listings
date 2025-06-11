@@ -226,7 +226,7 @@ REV_load_annotation_info <- function(folder_contents, review, dataset_lists) {
       state_to_dataset_row_mapping <- local({ # TODO: Is this the right name?
         id_vars <- base_info[["id_vars"]]
         # FIXME: repeats #ahnail
-        id_hashes <- apply(dataset[id_vars], 1, SH$hash_data_frame_row, simplify = TRUE) # coerces all types to be the same (character?)
+        id_hashes <- apply(dataset[id_vars], 1, SH$hash_id, simplify = TRUE) # coerces all types to be the same (character?)
         mapping <- match(asplit(id_hashes, 2), asplit(base_info[["id_hashes"]], 2))
         return(mapping)
       })
@@ -481,8 +481,6 @@ REV_logic_2 <- function(ns, state, input, review, datasets, selected_dataset_lis
     )
 
     fsa_client[["execute_IO_plan"]][["f"]](REV_IO_plan_base64_encode(IO_plan), is_init = FALSE)
-
-    # RS_append(path, contents)
   })
   
   return(NULL)

@@ -15,10 +15,33 @@ SH <- local({ # _S_erialization _H_elpers
     return(res)
   }
 
-  hash_data_frame_row <- function(row) {
+  hash_id <- function(row) {
     input <- paste(row, collapse = '\1D')
     input <- charToRaw(input)
     res <- xxhashlite::xxhash_raw(input, as_raw = TRUE)
+    return(res)
+  }
+  
+  hash_tracked_inner <- function(row) {
+    # FIXME: Ensure that precision of numeric values does not affect serialization
+    #        Maybe by using a string hex representation of their binary contents
+    input <- paste(row, collapse = '\1D')
+    input <- charToRaw(input)
+    res <- xxhashlite::xxhash_raw(input, algo = "xxh32", as_raw = TRUE)
+    return(res)
+  }
+  
+  hash_tracked <- function(row) {
+    n_col <- length(row)
+    offsets <- c(0,2,3) # NOTE(miguel): 4 changes per row and 10000 updates: False positive count of 666; false negative count of 0
+    
+    res <- raw(n_col)
+    for(i_col in seq(n_col)){
+      col_indices <- (((i_col-1) + offsets) %% n_col) + 1
+      res[[i_col]] <- hash_tracked_inner(row[col_indices])[[1]] # most significant byte
+      i_col <- i_col + 1
+    }
+    
     return(res)
   }
 
@@ -43,11 +66,11 @@ SH <- local({ # _S_erialization _H_elpers
     return(res)
   }
 
-  read_hashes_from_con <- function(con, hash_count){
-    expected_hash_byte_count <- hash_count*16L
+  read_hashes_from_con <- function(con, hash_count, hash_length){
+    expected_hash_byte_count <- hash_count*hash_length
     hash_vector <- readBin(con, raw(), expected_hash_byte_count)
     ; if(length(hash_vector) < expected_hash_byte_count) return(simpleCondition("Not enough hash data"))
-    res <- array(hash_vector, dim = c(16, hash_count))
+    res <- array(hash_vector, dim = c(hash_length, hash_count))
     return(res)
   }
 
@@ -59,7 +82,8 @@ SH <- local({ # _S_erialization _H_elpers
       string_to_raw = string_to_raw,
       character_vector_to_raw = character_vector_to_raw,
       integer_vector_to_raw = integer_vector_to_raw,
-      hash_data_frame_row = hash_data_frame_row,
+      hash_id = hash_id,
+      hash_tracked = hash_tracked,
       read_string_from_con = read_string_from_con,
       read_character_vector_from_con = read_character_vector_from_con,
       read_integer_vector_from_con = read_integer_vector_from_con,
@@ -92,14 +116,14 @@ RS_compute_base_memory <- function(df_id, df, id_vars, tracked_vars){
 
   # row hashes
   # FIXME: repeats #ahnail
-  id_hashes <- apply(df[id_vars], 1, SH$hash_data_frame_row, simplify = TRUE) # coerces all types to be the same (character?)
+  id_hashes <- apply(df[id_vars], 1, SH$hash_id, simplify = TRUE) # coerces all types to be the same (character?)
   ; if(!identical(dim(id_hashes), c(16L, nrow(df)))) return(simpleCondition("Internal error in id_vars hash preparation"))
 
   ; if(any(duplicated(id_hashes, MARGIN = 2))) return(simpleCondition("Found duplicated IDs"))
 
-  tracked_hashes <- apply(df[tracked_vars], 1, SH$hash_data_frame_row, simplify = TRUE)
-  ; if(!identical(dim(tracked_hashes), c(16L, nrow(df)))) return(simpleCondition("Internal error in tracked_vars hash preparation"))
-  stopifnot(identical(dim(tracked_hashes), c(16L, nrow(df)))) # TODO: Assert
+  tracked_hashes <- apply(df[tracked_vars], 1, SH$hash_tracked, simplify = TRUE)
+  ; if(!identical(dim(tracked_hashes), c(length(tracked_vars), nrow(df)))) 
+    return(simpleCondition("Internal error in tracked_vars hash preparation"))
   
   # NOTE: We choose a serialization scheme with a well-known encoding. This avoid security concerns over 
   #       deserialization (https://aitap.github.io/2024/05/02/unserialize.html) and leaves the code open
@@ -142,8 +166,8 @@ RS_parse_base <- function(contents){
   tracked_vars <- SH$read_character_vector_from_con(con)
   row_count <- readBin(con, integer(), 1L)
  
-  id_hashes <- SH$read_hashes_from_con(con, row_count)
-  tracked_hashes <- SH$read_hashes_from_con(con, row_count)
+  id_hashes <- SH$read_hashes_from_con(con, row_count, 16L)
+  tracked_hashes <- SH$read_hashes_from_con(con, row_count, length(tracked_vars))
   
   empty_read <- readBin(con, raw(), 1L)
   ; if(length(empty_read) > 0) return(simpleCondition("Too much hash data"))
@@ -173,9 +197,10 @@ RS_compute_delta_memory <- function(state, df){
 
   id_vars <- state$id_vars
   # FIXME: repeats #ahnail
-  id_hashes <- apply(df[id_vars], 1, SH$hash_data_frame_row, simplify = TRUE) |> c() |> array(dim = c(16, nrow(df)))
+  id_hashes <- apply(df[id_vars], 1, SH$hash_id, simplify = TRUE) |> c() |> array(dim = c(16L, nrow(df)))
   tracked_vars <- state$tracked_vars
-  tracked_hashes <- apply(df[tracked_vars], 1, SH$hash_data_frame_row, simplify = TRUE) |> c() |> array(dim = c(16, nrow(df)))
+  tracked_hashes <- (apply(df[tracked_vars], 1, SH$hash_tracked, simplify = TRUE) |> c() |> 
+                       array(dim = c(length(tracked_vars), nrow(df))))
   
   merged <- cbind(state$id_hashes, id_hashes, deparse.level = 0)
   new_row_mask <- !duplicated(merged, MARGIN = 2) |> c() |> tail(n = nrow(df))
@@ -221,7 +246,7 @@ RS_compute_delta_memory <- function(state, df){
   return(res)
 }
 
-RS_parse_delta <- function(contents){
+RS_parse_delta <- function(contents, tracked_var_count){
   con <- rawConnection(contents, open = "r")
   file_magic_code <- readBin(con, raw(), 8L) |> rawToChar()
   ; if(!identical(file_magic_code, "LISTDELT")) return(simpleCondition("Wrong magic code"))
@@ -233,12 +258,12 @@ RS_parse_delta <- function(contents){
   contents_hash <- readBin(con, raw(), 16L)
   domain <- SH$read_string_from_con(con)
   new_row_count <- readBin(con, integer(), 1L)
-  new_id_hashes <- SH$read_hashes_from_con(con, new_row_count)
-  new_tracked_hashes <- SH$read_hashes_from_con(con, new_row_count)
+  new_id_hashes <- SH$read_hashes_from_con(con, new_row_count, 16L)
+  new_tracked_hashes <- SH$read_hashes_from_con(con, new_row_count, tracked_var_count)
   modified_row_count <- NA_integer_
   modified_row_indices <- SH$read_integer_vector_from_con(con)
   modified_row_count <- length(modified_row_indices)
-  modified_tracked_hashes <- SH$read_hashes_from_con(con, modified_row_count)
+  modified_tracked_hashes <- SH$read_hashes_from_con(con, modified_row_count, tracked_var_count)
 
   empty_read <- readBin(con, raw(), 1L)
   ; if(length(empty_read) > 0) return(simpleCondition("Too much hash data"))
@@ -346,7 +371,7 @@ RS_load <- function(base, deltas){
   res <- RS_parse_base(base) 
   base_timestamp <- res$timestamp
   for(delta in deltas){
-    state_delta <- RS_parse_delta(contents = delta)
+    state_delta <- RS_parse_delta(contents = delta, tracked_var_count = length(res[["tracked_vars"]]))
     
     if(!identical(state_delta$generation, res$generation+1L))
       return(simpleCondition(paste("Wrong generation marker. Should be", res$generation+1L)))

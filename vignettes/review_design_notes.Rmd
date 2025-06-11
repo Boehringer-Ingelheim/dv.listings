@@ -206,7 +206,6 @@ Each of these bytes is computed by:
 - Serializing them to text and concatenating them using the non-ASCII byte separator `1D`.
 - Computing the `xxh32` hash and returning its most significant byte.
 
+TODO(miguel): Document the false positive and false negative rates of column reporting. Also the max column cap before giving up and reporting the whole row as altered to trade false positives for false negatives. All this based on the exploration of a single dataset.
+
 This composite hash function is a compromise found through heuristic exploration. If we come up with a better option, we can version it through the "format version number" present in `.base` and `.delta` files. This means that neither app creator nor app users have to concern themselves about the underlying `hash_tracked` representation.
-
-
-
