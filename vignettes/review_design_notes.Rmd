@@ -203,9 +203,19 @@ This scheme creates a unique mixtures of variables. Take, for instance, variable
 Each of these bytes is computed by:
 
 - Taking the three values to hash.
-- Serializing them to text and concatenating them using the non-ASCII byte separator `1D`.
+- Serializing them to text and concatenating them using the non-ASCII byte separator `1D` (also known as "group separator").
 - Computing the `xxh32` hash and returning its most significant byte.
 
 TODO(miguel): Document the false positive and false negative rates of column reporting. Also the max column cap before giving up and reporting the whole row as altered to trade false positives for false negatives. All this based on the exploration of a single dataset.
+
+Informal testing (refer to `tests/testthat/tests-hash_tracked.R` for more details) of this hashing scheme shows the following properties:
+
+- It's capable of identifying up to four modified variables per row (after that, it's preferable to give up and notify the whole row as modified).
+- It has a very low **false negative rate** (a variable is modified without it being notified as such) of one for every 16 million row updates.
+- It has a low **false positive rate** (a variable that retains its value is notified as modified). This only happens when there are actual changes to a row.
+
+False positives are not critical, as they ask reviewers to consider a larger set of variables when re-reviewing a row that has been altered.
+
+False negatives *are* critical, since they allow changes to go unreported to reviewers. This is why our choice of hash favors false positives over false negatives.
 
 This composite hash function is a compromise found through heuristic exploration. If we come up with a better option, we can version it through the "format version number" present in `.base` and `.delta` files. This means that neither app creator nor app users have to concern themselves about the underlying `hash_tracked` representation.

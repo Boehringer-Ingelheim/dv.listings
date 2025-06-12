@@ -31,13 +31,14 @@ SH <- local({ # _S_erialization _H_elpers
     return(res)
   }
   
+  hash_tracked_offsets <- c(0, 2, 3)
+  
   hash_tracked <- function(row) {
     n_col <- length(row)
-    offsets <- c(0,2,3) # NOTE(miguel): 4 changes per row and 10000 updates: False positive count of 666; false negative count of 0
     
     res <- raw(n_col)
     for(i_col in seq(n_col)){
-      col_indices <- (((i_col-1) + offsets) %% n_col) + 1
+      col_indices <- (((i_col-1) + hash_tracked_offsets) %% n_col) + 1
       res[[i_col]] <- hash_tracked_inner(row[col_indices])[[1]] # most significant byte
       i_col <- i_col + 1
     }
