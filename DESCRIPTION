@@ -25,7 +25,8 @@ Suggests:
     knitr (>= 1.43),
     pharmaverseadam (>= 0.1.0),
     shinytest2 (>= 0.3.1),
-    testthat (>= 3.0.2)
+    testthat (>= 3.0.2),
+    safetyData
 Config/testthat/edition: 3
 Imports: 
     checkmate (>= 2.1.0),
