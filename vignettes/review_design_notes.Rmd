@@ -206,8 +206,6 @@ Each of these bytes is computed by:
 - Serializing them to text and concatenating them using the non-ASCII byte separator `1D` (also known as "group separator").
 - Computing the `xxh32` hash and returning its most significant byte.
 
-TODO(miguel): Document the false positive and false negative rates of column reporting. Also the max column cap before giving up and reporting the whole row as altered to trade false positives for false negatives. All this based on the exploration of a single dataset.
-
 Informal testing (refer to `tests/testthat/tests-hash_tracked.R` for more details) of this hashing scheme shows the following properties:
 
 - It's capable of identifying up to four modified variables per row (after that, it's preferable to give up and notify the whole row as modified).
