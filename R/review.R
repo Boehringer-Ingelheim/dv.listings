@@ -179,8 +179,7 @@ REV_load_annotation_info <- function(folder_contents, review, dataset_lists, fsa
         })
         base_info <- RS_load(contents, deltas) # TODO? Call this RS_load_memory and write an RS_load() that works with fnames
         dataset_hash <- RS_hash_data_frame(dataset)
-        if (!identical(dataset_hash, base_info[["contents_hash"]])) {
-          local({
+        if (!identical(dataset_hash, base_info[["contents_hash"]])) {          
             new_delta <- RS_compute_delta_memory(state = base_info, dataset)
             deltas[[length(deltas) + 1]] <- new_delta
             base_info <- RS_load(contents, deltas)
@@ -196,8 +195,7 @@ REV_load_annotation_info <- function(folder_contents, review, dataset_lists, fsa
                 contents = new_delta
               )
             )
-            message(sprintf("Produced new delta %s", fname))
-          })
+            message(sprintf("Produced new delta %s", fname))          
         }
       } else {
         contents <- RS_compute_base_memory(dataset_review_name, dataset, id_vars, tracked_vars)
@@ -234,6 +232,7 @@ REV_load_annotation_info <- function(folder_contents, review, dataset_lists, fsa
       })
       
       # Compute reverse mapping (which is a more useful representation for the running app)
+      browser()
       dataset_to_state_row_mapping <- local({ # TODO: Is this the right name?
         res <- integer(length(state_to_dataset_row_mapping))
         res[state_to_dataset_row_mapping] <- seq_along(state_to_dataset_row_mapping)
