@@ -419,11 +419,11 @@ const dv_fsa = (function() {
             combined_contents.set(new Uint8Array(buffer), file_contents.length);
 
             const temp_file_name = entry.fname + "_" + crypto.randomUUID() + ".tmp"  
-            const temp_handle = await g_directory.handle.getFileHandle(temp_file_name, {create: true});
+            const temp_handle = await dir_handle.getFileHandle(temp_file_name, {create: true});
             const writable = await temp_handle.createWritable();
             await writable.write(combined_contents);
             await writable.close();
-            await temp_handle.move(entry.fname);
+            await temp_handle.move(dir_handle, entry.fname);
 
             entry.error = null;
           } catch (error) {
