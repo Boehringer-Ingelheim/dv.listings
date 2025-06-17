@@ -16,7 +16,7 @@ knitr::opts_chunk$set(
 
 ## User Requirements
 
-These requirements are based on initial brainstorming conversations. Some of them are direct requests and some of them are educated guesses from the feature developer. All of them are subject to change until confirmed by the interested parties. The list is not exhaustive:
+These requirements are based on initial brainstorming conversations and a few rounds of user feedback. The list is not exhaustive:
 
 - User can self-select a reviewer role and, under that capacity, annotate each row of any given dataset with a value chosen from those available on a dropdown menu.
 - Several users can interact under _strictly non-overlapping_ roles with the application, each annotating individual rows of _possibly overlapping_ datasets.
@@ -25,10 +25,7 @@ These requirements are based on initial brainstorming conversations. Some of the
 - A subset of the columns (which we call `tracked` and does not overlap the `identifier` columns) is considered necessary and sufficient for review purposes.
 - Updates to the provided datasets are expected during the course of a study. 
 - Changes to contents of `tracked` columns of a previously reviewed dataset row will be highlighted in the user interface and require re-confirmation.
-
-#### Open questions
-- Do all datasets share the same decision dropdown choices?
-- Should we guard against or track "disappearing" rows (those whose `identifier` values vanish during a dataset update)?
+- All datasets share the same decision dropdown choices.
 
 ## API
 This feature can be implemented by adding an extra parameter to `mod_listings`. The names of fields and subfields are all temporary placeholders:
@@ -56,34 +53,38 @@ A possible simplification would be to make `"USUBJID"` optional on `id_vars`, si
 
 **Beware**: Once the application is configured and run once, the only change permitted to the `datasets` subfield will be to *add* extra datasets. Changes to previously configured `id_vars` or `tracked_vars` sub-subfields could potentially render the collected review information inconsistent. The module should disallow the editing controls until such a situation is addressed. Review choices and roles do not suffer from that problem.
 
-#### Open questions
-- Do we need to keep track of row numbers? They don't have an assigned column name, so this draft API would be insufficient to specify that they should/should not be tracked.
+## Data Stability Requirements
+The module only has access to the latest version of any given dataset. In order to inform users about modified and newly added records, it relies on stored summary hashes of previously seen data. Thus, it is necessary that some aspects of the representation of data are kept constant over the life of a study. Currently, these are:
+
+- Values assigned to the sub-parameters `id_vars` and `tracked_vars` are set once and remain the same for the duration of the study.
+- Variables identified by `id_vars` and `tracked_vars` retain their types (factor, numeric, ...) and are available on each revision of each dataset.
+- All rows of each provided dataset are identified uniquely by the combination of `id_vars` configured at the beginning of the study.
+- No data rows are dropped during the study. In other words, if a combination of `id_vars` is present on revision `n` of a dataset, it will be available on revision `n+1`.
 
 ## User Interface
-Basic features (sufficient for initial user feedback):
+Basic features:
 
 - Isolated drop-down to choose reviewer role. Blank every time the application starts. Not bookmarked. Only when a non-empty role is selected can the user review data.
-- A listing set up for review will have *at least* two extra columns: 
-  - Latest decision
-  - Row status: unreviewed data, reviewed data, data modified after review.
-  Sorting/Filtering by "row status" should allow to conduct reviews of incremental changes to the underlying dataset.
+- A listing set up for review will have three extra columns: 
+  - Latest review decision
+  - Latest reviewer role
+  - Row status: unreviewed data, reviewed data, data modified after review, conflict across reviewers.
+
+Sorting/Filtering by "row status" should allow to conduct reviews of incremental changes to the underlying dataset.
 
 Future features (not requested, so not planned for this development phase):
-
-- Hover-on decision info detail: date and reviewer role.
-- Warn against simultaneous conflicting editing.
 - User upload/download of review information. For manual backup purposes. Stored data consists mostly of hashes, so plaintext download should be OK. However, if necessary we could encrypt it using a symmetric key configured as an app secret and provided as an extra parameter to the module.
-- Load content from concurrent sessions.
-- Warning of conflicting decisions.
+- Load content from concurrent review sessions.
 - Acceleration options (Bulk editting, keyboard controls, etc.) outside of initial implementation.
-- Latest reviewer role column to sort/filter.
-- Bulk editing.
+- Free text entry for each row and reviewer.
 
 #### Open questions
 - The module allows to tweak column visibility. Is it OK to allow review actions performed while some `tracked_vars` are not visible?
 
-
 ## Server storage
+
+_None of the proposals of this section are in scope for the first version of the review functionality. Only the alternative "Client storage" explain in the next section is implemented_.
+
 Currently, the two available forms of storage on Connect are:
 
 - Pins
@@ -108,7 +109,7 @@ The optional `review_store_path` parameter allows to point to an arbitrary folde
 - Will client-controlled mount points become available at some point on Connect?
 
 ## Client Storage
-An alternative approach to review data storage is to use Google's [File System Access API](https://wicg.github.io/file-system-access/) that is currently available in Chrome-derived browsers. To use it, reviewers would have to point the app to a folder shared by the team.
+An alternative approach to review data storage is to use Google's [File System Access API](https://wicg.github.io/file-system-access/) that is currently available in Chrome-derived browsers. To use it, reviewers have to point the app to a folder shared by the team at the beginning of each session.
 
 ## Data structures
 There will use a small collection of files for each input dataset configured for review. If we take an imaginary "ae" domain, we would store the following files:
@@ -121,7 +122,9 @@ There will use a small collection of files for each input dataset configured for
   - 1 complete hash of "ae" data.frame
   - 1 domain string ("ae")
   - n `id_vars` column names
+  - **MISSING**: n `id_vars` column types
   - m `tracked_vars` column names
+  - **MISSING**: m `tracked_vars` column types
   - 1 row count
   - p (1 per "ae" row) `hash_id(ae[id_vars])`
   - p (1 per "ae" row, *m* bytes long) `hash_tracked(ae[tracked_vars])`
