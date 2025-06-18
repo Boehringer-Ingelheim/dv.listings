@@ -35,37 +35,12 @@ ID <- pack_of_constants(FOO = "foo", BAR = "bar")
 ID$FOO
 "foo"
 ID$BA
-NULL
+Error in \verb{$.pack_of_constants}(ID, BA) :
+Pack of constants "ID" does not contain "BA"
+
+The pack of constants is a plain named list that enforces that all elements have unique, non-null names.
+It is tagged as an S3 object to override its extraction operators.
+
+The use of checkmate is unnecessary, but it's a Good Library(TM) and your module should rely on it anyways
 }
-\keyword{Environments,}
-\keyword{The}
-\keyword{a}
-\keyword{avoid}
-\keyword{but}
-\keyword{container}
-\keyword{could}
-\keyword{data}
-\keyword{effect}
-\keyword{for}
-\keyword{hand}
-\keyword{has}
 \keyword{internal}
-\keyword{is}
-\keyword{list,}
-\keyword{matching.}
-\keyword{named}
-\keyword{of}
-\keyword{on}
-\keyword{other}
-\keyword{partial}
-\keyword{pitfall.}
-\keyword{plain}
-\keyword{purpose}
-\keyword{simpler}
-\keyword{structure}
-\keyword{that}
-\keyword{the}
-\keyword{this}
-\keyword{undesirable}
-\keyword{use}
-\keyword{we}

@@ -539,7 +539,6 @@ listings_server <- function(module_id,
       table_data <- output_table_data()
       
       column_defs <- list(list(className = "dt-center", targets = "_all"))
-      fixed_columns_left <- 0
       selected_dataset_name <- shiny::isolate(input[[TBL$DATASET_ID]])
       if (show_review_columns() && selected_dataset_name %in% names(review$datasets)) {
 

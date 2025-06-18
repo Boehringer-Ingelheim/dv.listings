@@ -86,7 +86,7 @@ REV_UI <- function(ns, roles) {
   return(res)
 }
 
-REV_load_annotation_info <- function(folder_contents, review, dataset_lists, fsa_client) {
+REV_load_annotation_info <- function(folder_contents, review, dataset_lists) {
   loaded_annotation_info <- list()
 
   # TODO: Chop it in a set of consecutive observers with the app blocked with an overlay
@@ -179,7 +179,7 @@ REV_load_annotation_info <- function(folder_contents, review, dataset_lists, fsa
         })
         base_info <- RS_load(contents, deltas) # TODO? Call this RS_load_memory and write an RS_load() that works with fnames
         dataset_hash <- RS_hash_data_frame(dataset)
-        if (!identical(dataset_hash, base_info[["contents_hash"]])) {          
+        if (!identical(dataset_hash, base_info[["contents_hash"]])) {
             new_delta <- RS_compute_delta_memory(state = base_info, dataset)
             deltas[[length(deltas) + 1]] <- new_delta
             base_info <- RS_load(contents, deltas)
@@ -195,7 +195,7 @@ REV_load_annotation_info <- function(folder_contents, review, dataset_lists, fsa
                 contents = new_delta
               )
             )
-            message(sprintf("Produced new delta %s", fname))          
+            message(sprintf("Produced new delta %s", fname))
         }
       } else {
         contents <- RS_compute_base_memory(dataset_review_name, dataset, id_vars, tracked_vars)
@@ -226,7 +226,7 @@ REV_load_annotation_info <- function(folder_contents, review, dataset_lists, fsa
       state_to_dataset_row_mapping <- local({ # TODO: Is this the right name?
         id_vars <- base_info[["id_vars"]]
         # FIXME: repeats #ahnail
-        id_hashes <- apply(dataset[id_vars], 1, SH$hash_data_frame_row, simplify = TRUE) # coerces all types to be the same (character?)
+        id_hashes <- apply(dataset[id_vars], 1, SH$hash_id, simplify = TRUE) # coerces all types to be the same (character?)
         mapping <- match(asplit(id_hashes, 2), asplit(base_info[["id_hashes"]], 2))
         return(mapping)
       })
@@ -352,13 +352,13 @@ REV_logic_1 <- function(state, input, review, datasets, fsa_client) { # TODO: Re
     shiny::req(is.list(encoded_folder_contents))
 
     decoded_folder_contents <- REV_folder_structure_base64_decode(encoded_folder_contents)
-    load_results <- REV_load_annotation_info(decoded_folder_contents, review, datasets, fsa_client)
+    load_results <- REV_load_annotation_info(decoded_folder_contents, review, datasets)
     state[["annotation_info"]] <- load_results[["loaded_annotation_info"]]
     fsa_client[["execute_IO_plan"]][["f"]](IO_plan = REV_IO_plan_base64_encode(load_results[["folder_IO_plan"]]), is_init = TRUE)
   }, ignoreNULL = FALSE, ignoreInit = TRUE) # TODO: Remove
 
 
-  # TODO: fsa_client[["execute_IO_plan"]][["id"]] if we use the execute IO plan in more places this obsever will run
+  # TODO: fsa_client[["execute_IO_plan"]][["id"]] if we use the execute IO plan in more places this observer will run
   # more times than it should. Check how this can be avoided, including extra element in status, create a new input?
   shiny::observeEvent(input[[fsa_client[["execute_IO_plan"]][["id"]]]],
     {
@@ -481,8 +481,6 @@ REV_logic_2 <- function(ns, state, input, review, datasets, selected_dataset_lis
     )
 
     fsa_client[["execute_IO_plan"]][["f"]](REV_IO_plan_base64_encode(IO_plan), is_init = FALSE)
-
-    # RS_append(path, contents)
   })
   
   return(NULL)
