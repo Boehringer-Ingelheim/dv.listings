@@ -397,7 +397,7 @@ listings_server <- function(module_id,
           scrollX = TRUE,
           ordering = TRUE,
           columnDefs = list(list(className = "dt-center", targets = "_all")),
-          dom = "Bfrtilp",          
+          dom = "frtilp",          
           rowCallback = DT::JS(set_subject_id_js)
         ),
         selection = "single"
