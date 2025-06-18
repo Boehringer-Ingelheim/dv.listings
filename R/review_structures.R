@@ -105,6 +105,31 @@ RS_hash_data_frame <- function(df){
   return(res)
 }
 
+RS_compute_data_frame_variable_types <- function(df, vars){
+  res <- raw(length(vars))
+  for(i_var in seq_along(vars)){
+    v <- 0
+    var <- df[[vars[[i_var]]]]
+    
+    if(inherits(var, "Date")) v <- 1
+    else if(inherits(var, "POSIXct")) v <- 2
+    else if(inherits(var, "POSIXlt")) v <- 3
+    else if(is.logical(var)) v <- 10
+    else if(is.factor(var)) v <- 11
+    else if(is.integer(var)) v <- 13
+    else if(is.numeric(var)) v <- 14
+    else if(is.complex(var)) v <- 15
+    else if(is.character(var)) v <- 16
+    else if(is.raw(var)) v <- 24
+    
+    checkmate::assert_true(v != 0)
+    
+    res[[i_var]] <- as.raw(v)
+  }
+  
+  return(res)
+}
+
 RS_compute_base_memory <- function(df_id, df, id_vars, tracked_vars){
   checkmate::assert_string(df_id, min.chars = 1, max.chars = 65535)
   checkmate::assert_data_frame(df)
@@ -133,17 +158,19 @@ RS_compute_base_memory <- function(df_id, df, id_vars, tracked_vars){
   #       loss of data in case something goes wrong, as we can look for the last correct byte on any given
   #       file, discard the remainder bytes and end up in a consistent state.
   res <- c(
-    charToRaw("LISTBASE"),                          # file magic code
-    as.raw(0),                                      # format version number
-    as.raw(0),                                      # generation marker
-    SH$double_to_raw(SH$get_UTC_time_in_seconds()), # timestamp
-    df_hash,                                        # complete hash of input data.frame
-    SH$string_to_raw(df_id),                        # domain string
-    SH$character_vector_to_raw(id_vars),            # identifier vars
-    SH$character_vector_to_raw(tracked_vars),       # tracked vars
-    SH$integer_to_raw(nrow(df)),                    # row count
-    id_hashes,                                      # one hash of id_vars per row
-    tracked_hashes                                  # one hash of tracked_vars per row
+    charToRaw("LISTBASE"),                                          # file magic code
+    as.raw(0),                                                      # format version number
+    as.raw(0),                                                      # generation marker
+    SH$double_to_raw(SH$get_UTC_time_in_seconds()),                 # timestamp
+    df_hash,                                                        # complete hash of input data.frame
+    SH$string_to_raw(df_id),                                        # domain string
+    SH$character_vector_to_raw(id_vars),                            # identifier vars (names)
+    as.raw(RS_compute_data_frame_variable_types(df, id_vars)),      # identifier vars (types)
+    SH$character_vector_to_raw(tracked_vars),                       # tracked vars (names)
+    as.raw(RS_compute_data_frame_variable_types(df, tracked_vars)), # tracked vars (types)
+    SH$integer_to_raw(nrow(df)),                                    # row count
+    id_hashes,                                                      # one hash of id_vars per row
+    tracked_hashes                                                  # one hash of tracked_vars per row
   )
   
   return(res)
@@ -164,7 +191,9 @@ RS_parse_base <- function(contents){
   contents_hash <- readBin(con, raw(), 16L)
   domain_string <- SH$read_string_from_con(con)
   id_vars <- SH$read_character_vector_from_con(con)
+  id_var_types <- readBin(con, raw(), length(id_vars))
   tracked_vars <- SH$read_character_vector_from_con(con)
+  tracked_var_types <- readBin(con, raw(), length(tracked_vars))
   row_count <- readBin(con, integer(), 1L)
  
   id_hashes <- SH$read_hashes_from_con(con, row_count, 16L)

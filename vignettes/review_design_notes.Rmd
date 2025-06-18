@@ -122,9 +122,9 @@ There will use a small collection of files for each input dataset configured for
   - 1 complete hash of "ae" data.frame
   - 1 domain string ("ae")
   - n `id_vars` column names
-  - **MISSING**: n `id_vars` column types
+  - n `id_vars` column types (see "Variable type encoding" below)
   - m `tracked_vars` column names
-  - **MISSING**: m `tracked_vars` column types
+  - m `tracked_vars` column types (see "Variable type encoding" below)
   - 1 row count
   - p (1 per "ae" row) `hash_id(ae[id_vars])`
   - p (1 per "ae" row, *m* bytes long) `hash_tracked(ae[tracked_vars])`
@@ -159,6 +159,26 @@ The dominant factor governing the size of these files is the length of a hash, w
 These file structures are designed so that they start with a short heterogeneous header that reiterates the information that can be gleaned from the file name. The rest of the records are all homogeneous and of known size. That allows to load them into memory without the need for expensive parsing.
 
 These files won't benefit much from compression since their main content (the hashes) is by construction statistically indistinguishable from noise.
+
+#### Variable type encoding
+The two "variable type" `.base` fields are encoded as single bytes that take the following values:
+
+- Date: 1
+- POSIXct: 2
+- POSIXlt: 3
+- Logical: 10
+- Factor: 11
+- Integer: 13
+- Numeric: 14
+- Complex: 15
+- Character: 16
+- Raw: 24
+
+Most of these values are taken from the base R `SEXPTYPE` enum definition (see `src/include/Rinternals.h` on any recent R source distribution). 
+
+The values assigned to time types are arbitrary, because they are S3 objects and thus lack dedicated `SEXPTYPE` values.
+
+The type of a `factor()` variable is not fully defined by it being tagged as such, since the levels and their internal encoding is also part of the type. For purposes of hashing, the review feature of `dv.listings` treats the content of factor columns as `character()` by mapping their value to their assign string-like representation. This feature also is indifferent to a factor being ordered.
 
 ## Hashing
 We store hashes for the values of `id_vars` and `tracked_vars` dataset columns. These hashes serve as content IDs.
