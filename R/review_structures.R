@@ -110,7 +110,9 @@ RS_compute_data_frame_variable_types <- function(df, vars){
   for(i_var in seq_along(vars)){
     v <- 0
     var <- df[[vars[[i_var]]]]
-    
+   
+    # The order of this comparison matters, because e.g. POSIXct variables are also numeric
+    # They go from more to less restrictive
     if(inherits(var, "Date")) v <- 1
     else if(inherits(var, "POSIXct")) v <- 2
     else if(inherits(var, "POSIXlt")) v <- 3
