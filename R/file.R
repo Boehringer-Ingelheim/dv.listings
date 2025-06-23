@@ -1,5 +1,3 @@
-# TODO: Rename file. No longer FSA-specific. Not really a davinci or shiny   "module".
-
 # Web browser File System Access abstraction.
 # Client-side coarse-grained file system API. The server sends file system commands as custom messages to the browser.
 # The browser uses the (Chrome-specific, experimental) File System Access API 
