@@ -42,9 +42,9 @@ review = list(
     ),
     ...
   ),
-  review_choices = c("Seen", "Should look into", "Looked into", "We don't seem to agree", "Clearly artifactual"),
-  review_roles = c("TSTAT", "SP", "Safety", "CTL"),
-  review_store_path = '/mnt/path/to/app/storage'
+  choices = c("Seen", "Should look into", "Looked into", "We don't seem to agree", "Clearly artifactual"),
+  roles = c("TSTAT", "SP", "Safety", "CTL"),
+  store_path = '/mnt/path/to/app/storage'
 )
 ```
 All leafs are of type `character(n)`, except for `review_store_path` which is optional and of type character(1). 

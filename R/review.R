@@ -94,6 +94,12 @@ REV_load_annotation_info <- function(folder_contents, review, dataset_lists) {
   # consider including the global lock for the whole process until released
   # A queue should exist or retry in the client that is activated when the global lock is released
   # Maybe a one second wait on a general state 
+  # NOTE(miguel): I think it's possible the above comment predates the IO_action plan. The expensive operations
+  #               are all I/O related and I think it's OK for the server to wait for all of them to be performed
+  #               in the client. The client can figure out which and how many blockers to put up to block the user
+  #               from interacting with the app in the meantime. After that, a single notification to the server
+  #               should be enough.
+  # TODO(miguel): Discuss the two comments above with the team. Maybe collapse them into an architectural comment.
 
   folder_IO_plan <- list()
   append_IO_action <- function(action) {    
@@ -320,7 +326,7 @@ REV_load_annotation_info <- function(folder_contents, review, dataset_lists) {
   return(res)
 }
     
-REV_logic_1 <- function(state, input, review, datasets, fsa_client) { # TODO: Rename
+REV_logic_1 <- function(state, input, review, datasets, fs_client, fs_callbacks) { # TODO: Rename
   # TODO: Flesh out the state machine. Right now there are only default selections for quick iteration
   state[["connected"]] <- shiny::reactiveVal(FALSE)
   state[["contents_ready"]] <- shiny::reactiveVal(FALSE)
@@ -328,41 +334,37 @@ REV_logic_1 <- function(state, input, review, datasets, fsa_client) { # TODO: Re
   state[["annotation_info"]] <- NULL
 
   shiny::observeEvent(input[[REV$ID$CONNECT_STORAGE]], {    
-    fsa_client[["attach"]][["f"]]()    
+    fs_client[["attach"]]()    
   }, ignoreNULL = FALSE, ignoreInit = TRUE) # TODO: Remove
 
-  shiny::observeEvent(input[[fsa_client[["attach"]][["id"]]]], {
-    attach_status <- input[[fsa_client[["attach"]][["id"]]]]
+  shiny::observeEvent(fs_callbacks[["attach"]](), {
+    attach_status <- fs_callbacks[["attach"]]()
     shiny::req(is.list(attach_status))
     state[["connected"]](attach_status[["connected"]])
     state[["folder"]] <- attach_status[["name"]]    
     shiny::updateActionButton(inputId = REV$ID$CONNECT_STORAGE, label = paste("Storage:", state[["folder"]]))        
 
     if (attach_status[["connected"]] == TRUE) {
-      fsa_client[["read_folder"]][["f"]](names(datasets))      
+      fs_client[["read_folder"]](names(datasets))      
     } else {
       if (!is.null(attach_status[["error"]])) shiny::showNotification(attach_status[["error"]], type = "error")
       state[["annotation_info"]] <- NULL
     }
   }, ignoreNULL = FALSE, ignoreInit = TRUE) # TODO: Remove
 
-
-  shiny::observeEvent(input[[fsa_client[["read_folder"]][["id"]]]], {    
-    encoded_folder_contents <- input[[fsa_client[["read_folder"]][["id"]]]]
-    shiny::req(is.list(encoded_folder_contents))
-
-    decoded_folder_contents <- REV_folder_structure_base64_decode(encoded_folder_contents)
-    load_results <- REV_load_annotation_info(decoded_folder_contents, review, datasets)
+  shiny::observeEvent(fs_callbacks[["read_folder"]](), {
+    folder_contents <- fs_callbacks[["read_folder"]]()
+    shiny::req(is.list(folder_contents))
+    load_results <- REV_load_annotation_info(folder_contents, review, datasets)
     state[["annotation_info"]] <- load_results[["loaded_annotation_info"]]
-    fsa_client[["execute_IO_plan"]][["f"]](IO_plan = REV_IO_plan_base64_encode(load_results[["folder_IO_plan"]]), is_init = TRUE)
+    fs_client[["execute_IO_plan"]](IO_plan = load_results[["folder_IO_plan"]], is_init = TRUE)
   }, ignoreNULL = FALSE, ignoreInit = TRUE) # TODO: Remove
 
-
-  # TODO: fsa_client[["execute_IO_plan"]][["id"]] if we use the execute IO plan in more places this observer will run
+  # TODO: fs_client[["execute_IO_plan"]][["v"]] if we use the execute IO plan in more places this observer will run
   # more times than it should. Check how this can be avoided, including extra element in status, create a new input?
-  shiny::observeEvent(input[[fsa_client[["execute_IO_plan"]][["id"]]]],
+  shiny::observeEvent(fs_callbacks[["execute_IO_plan"]](),
     {
-      plan_result <- input[[fsa_client[["execute_IO_plan"]][["id"]]]]
+      plan_result <- fs_callbacks[["execute_IO_plan"]]()
       if (isTRUE(plan_result[["is_init"]])) {
         plan_status <- plan_result[["status"]]
         error <- FALSE
@@ -387,7 +389,7 @@ REV_logic_1 <- function(state, input, review, datasets, fsa_client) { # TODO: Re
 }
 
 REV_logic_2 <- function(ns, state, input, review, datasets, selected_dataset_list_name, selected_dataset_name, data,
-                        dt_proxy, fsa_client) { # TODO: Rename
+                        dt_proxy, fs_execute_IO_plan) { # TODO: Rename
   shiny::observeEvent(input[[REV$ID$REVIEW_SELECT]], {
     role <- input[[REV$ID$ROLE]]
 
@@ -480,7 +482,7 @@ REV_logic_2 <- function(ns, state, input, review, datasets, selected_dataset_lis
       )
     )
 
-    fsa_client[["execute_IO_plan"]][["f"]](REV_IO_plan_base64_encode(IO_plan), is_init = FALSE)
+    fs_execute_IO_plan(IO_plan, is_init = FALSE)
   })
   
   return(NULL)
@@ -553,30 +555,3 @@ REV_compute_status <- function(dataset_review, role) {
     
   return(res[[REV$ID$STATUS_COL]])
 }
-
-REV_folder_structure_base64_decode <- function(encoded_struct) {  
-  decoded_struct <- encoded_struct
-  for (dataset_nm in names(encoded_struct)) {    
-    for (file_nm in names(encoded_struct[[dataset_nm]])) {
-      encoded_contents <- encoded_struct[[dataset_nm]][[file_nm]][["contents"]]
-      if (!is.null(encoded_contents)) {
-        decoded_contents <- base64enc::base64decode(encoded_contents) 
-      } else {
-        decoded_contents <- NULL
-      }
-      decoded_struct[[dataset_nm]][[file_nm]][["contents"]] <- decoded_contents
-    }
-  }
-  return(decoded_struct)
-}
-
-REV_IO_plan_base64_encode <- function(plan) {  
-  encoded_plan <- plan
-  for (idx in seq_along(plan)) {
-    if (encoded_plan[[idx]][["type"]] == "write_file") {
-      encoded_plan[[idx]][["contents"]] <- base64enc::base64encode(encoded_plan[[idx]][["contents"]])
-    }
-  }
-  return(encoded_plan)
-}
-

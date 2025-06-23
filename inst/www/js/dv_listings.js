@@ -385,6 +385,8 @@ const dv_fsa = (function() {
           console.error(entry.error);
         }
       } else if (entry.type === "write_file") {
+        // FIXME(miguel)? This abstraction sits unnaturally close to the FSA API.
+        //                The `entry` could be simply {full_path + contents}; no need for dir+fname or mode
         if(entry.mode === "bin"){
           try {
             const buffer = await _base64_to_buffer(entry.contents);
@@ -406,6 +408,8 @@ const dv_fsa = (function() {
           console.error("Uknown mode: " + entry.mode)
         }        
       } else if(entry.type === "append_file") {
+        // FIXME(miguel)? This abstraction sits unnaturally close to the FSA API.
+        //                The `entry` could be simply {full_path + contents}; no need for dir+fname or mode
         if(entry.mode === "bin"){
           try {
             const buffer = await _base64_to_buffer(entry.contents);

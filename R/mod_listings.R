@@ -413,7 +413,22 @@ listings_server <- function(module_id,
     REV_state <- new.env(parent = emptyenv())
     if (enable_review) {
 
-      fsa_client <- fsa_init(TBL$FSA_CLIENT)
+      fs_callbacks <- list(
+        attach = shiny::reactiveVal(NULL),
+        list = shiny::reactiveVal(NULL),
+        read = shiny::reactiveVal(NULL),
+        write = shiny::reactiveVal(NULL),
+        append = shiny::reactiveVal(NULL),
+        read_folder = shiny::reactiveVal(NULL),
+        execute_IO_plan = shiny::reactiveVal(NULL)
+      )
+     
+      fs_client <- NULL 
+      if (is.null(review[["store_path"]])) {
+        fs_client <- fsa_init(input, TBL$FSA_CLIENT, fs_callbacks)
+      } else {
+        fs_client <- fs_init(fs_callbacks, review[["store_path"]])
+      }
 
       output[[TBL$REVIEW_UI_ID]] <- shiny::renderUI(
         shinyWidgets::dropdownButton(
@@ -437,7 +452,7 @@ listings_server <- function(module_id,
 
       # TODO: Extract the REV_logic_1 logic, it just creates a set of observers that maybe better
       # located out here. Otherwise this observer declarations may be ignored.
-      REV_logic_1(REV_state, input, review, review[["data"]], fsa_client)
+      REV_logic_1(REV_state, input, review, review[["data"]], fs_client, fs_callbacks)
       show_review_columns <- REV_state[["contents_ready"]]
     }
 
@@ -529,7 +544,7 @@ listings_server <- function(module_id,
         selected_dataset_name = shiny::reactive(input[[TBL$DATASET_ID]]),
         data = shiny::reactive(output_table_data()[["data"]]),
         dt_proxy = dt_proxy,
-        fsa_client = fsa_client
+        fs_execute_IO_plan = fs_client[["execute_IO_plan"]]
       )
     }
     
