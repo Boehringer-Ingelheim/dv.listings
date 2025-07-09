@@ -1,5 +1,6 @@
-# dv.listings 4.1.0-901
+# dv.listings 4.1.1-9002
 
+- Adapt checkmate calls to allow default values for datasets that are not present
 - Top buttons are reordered in a single line to avoid consuming excessive space
 
 # dv.listings 4.1.0

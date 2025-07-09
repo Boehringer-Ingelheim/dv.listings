@@ -28,7 +28,6 @@ test_that("fill_default_vars() throws an error when default_vars argument type m
   element_mismatch <- list(dummy1 = 1:6, dummy2 = 1:10) # wrong list element types
   unnamed <- list(dummy_names[1:4], dummy_names[1:8]) # missing names
   duplicated_names <- list(dummy1 = dummy_names[1:4], dummy1 = dummy_names[1:8]) # duplicated names
-  wrong_names <- list(dummy1 = dummy_names[1:4], wrong = dummy_names[1:8]) # wrong names
   duplicated_values <- list( # duplicated vector entries
     dummy1 = c(dummy_names[1:4], dummy_names[1:2]), dummy2 = dummy_names[1:8]
   )
@@ -39,7 +38,7 @@ test_that("fill_default_vars() throws an error when default_vars argument type m
 
   # Perform tests
   purrr::walk(list(
-    type_mismatch, element_mismatch, unnamed, duplicated_names, wrong_names, duplicated_values, wrong_values
+    type_mismatch, element_mismatch, unnamed, duplicated_names, duplicated_values, wrong_values
   ), ~ expect_error(fill_default_vars(.x, dataset)))
 })
 

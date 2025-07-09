@@ -90,7 +90,7 @@ fill_default_vars <- function(default_vars, dataset) {
     combine = "and"
   )
   if (!is.null(default_vars)) {
-    checkmate::assert_names(names(default_vars), type = "unique", subset.of = names(dataset))
+    checkmate::assert_names(names(default_vars), type = "unique")
   }
   purrr::walk2(
     default_vars, names(default_vars),
@@ -98,7 +98,9 @@ fill_default_vars <- function(default_vars, dataset) {
   )
   purrr::walk(
     names(default_vars),
-    ~ checkmate::assert_subset(default_vars[[.x]], names(dataset[[.x]]), .var.name = paste0("default_vars$", .x))
+    ~ if (.x %in% names(dataset)) {
+      checkmate::assert_subset(default_vars[[.x]], names(dataset[[.x]]), .var.name = paste0("default_vars$", .x))
+    }
   )
 
   # Fill default_vars

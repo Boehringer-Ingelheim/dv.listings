@@ -613,7 +613,7 @@ listings_server <- function(module_id,
           ordering = TRUE,
           columnDefs = column_defs,
           # FIXME: Update to use https://datatables.net/reference/option/layout
-          dom = "Bfrtilp", # Buttons, filtering, processing display element, table, information summary, length, pagination
+          dom = "frtilp", # Buttons, filtering, processing display element, table, information summary, length, pagination
           fixedColumns = list(left = review_col_count),
           drawCallback = htmlwidgets::JS("
             function(settings) {
