@@ -1,4 +1,4 @@
-# YT#VHd079be9470139acf1264d75176dd9b2c#VHe9395a780f86f7653c9f11cadba1e3f0#
+# YT#VH20fe8acb2e57832933eb60226847381a#VHe9395a780f86f7653c9f11cadba1e3f0#
 CM <- local({ # _C_hecked _M_odule
   # 2025-07-11: [feature] New `manual_check` flag to tell `CM$generate_check_functions()` to ignore particular elements
   # 2025-04-09: [fix] Make `generate_map_afmm_function` maps multi-variable parameters (e.g. `visit_vars`)
@@ -284,7 +284,7 @@ CM <- local({ # _C_hecked _M_odule
       attrs_ids <- setdiff(names(attributes(elem)), c("names", "docs"))
       attrs <- attributes(elem)[attrs_ids]
       
-      if(isTRUE(attrs[["manual_check"]])) {
+      if (isTRUE(attrs[["manual_check"]])) {
         push(sprintf("'NOTE: %s (%s) tagged as \"manual_check\"'\n", elem_name, elem$kind))
         push(sprintf("'      The expectation is that it either does not require automated checks or that'\n"))
         push(sprintf("'      the caller of this function has written manual checks near the call site.'\n"))
