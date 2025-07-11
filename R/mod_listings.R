@@ -205,7 +205,7 @@ listings_UI <- function(module_id) { # nolint
 #' @param intended_use_label `[character(1) | NULL]` Either a string indicating the intended use for export, or
 #' NULL. The provided label will be displayed prior to the download and will also be included in the exported file.
 #'
-#' @param subjid_var `[character(1) | NULL]`
+#' @param subjid_var `[character(1)]`
 #'
 #' Column corresponding to subject ID. Default value is 'USUBJID'
 #'
@@ -760,19 +760,31 @@ mod_listings_API_docs <- list(
   pagination = list(""),
   intended_use_label = list(""),
   subjid_var = list(""), 
-  review = list(""), 
+  review = list(
+    "Review-related fields",
+    datasets = list(""),
+    choices = list(""),
+    roles = list(""),
+    store_path = list("")
+  ), 
   receiver_id = list("")
 )
 
 mod_listings_API_spec <- TC$group(
   module_id = TC$mod_ID(),
   dataset_names = TC$dataset_name() |> TC$flag("one_or_more"),
-  default_vars = TC$group() |> TC$flag("ignore"),         # manually tested by check_mod_listings
-  pagination = TC$group() |> TC$flag("ignore"),           # manually tested by check_mod_listings
-  intended_use_label = TC$group() |> TC$flag("ignore"),   # manually tested by check_mod_listings
-  subjid_var = TC$group() |> TC$flag("ignore"),           # manually tested by check_mod_listings
-  review = TC$group() |> TC$flag("ignore"),               # functionality is a WIP, so not defining for now
-  receiver_id = TC$group() |> TC$flag("ignore")           # manually tested by check_mod_listings
+  default_vars = TC$group() |> TC$flag("manual_check"),                         # manually tested by check_mod_listings
+  pagination = TC$logical() |> TC$flag("manual_check", "optional"),             # manually tested by check_mod_listings
+  intended_use_label = TC$character() |> TC$flag("manual_check", "optional"),   # manually tested by check_mod_listings
+  subjid_var = TC$character() |> TC$flag("manual_check"),                       # manually tested by check_mod_listings
+  review = TC$group(
+    # TODO: functionality is a WIP, so not defining for now
+    datasets = TC$group(),
+    choices = TC$character() |> TC$flag("one_or_more"),
+    roles = TC$character() |> TC$flag("one_or_more"),
+    store_path = TC$character() |> TC$flag("optional")
+  ) |> TC$flag("manual_check", "optional"),
+  receiver_id = TC$character() |> TC$flag("manual_check")                       # manually tested by check_mod_listings
 ) |> TC$attach_docs(mod_listings_API_docs)
 
 dataset_info_listings <- function(dataset_names, ...) {

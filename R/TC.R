@@ -1,4 +1,4 @@
-# YT#VH1202cc468f3cbf448dd25ff917fc4762#VH00000000000000000000000000000000#
+# YT#VHf29a3f572c107632b46daf31f56ecd34#VH1202cc468f3cbf448dd25ff917fc4762#
 TC <- local({ # _T_ype C_hecks
   # basic types
   T_logical <- function() list(kind = "logical")
@@ -78,6 +78,7 @@ TC <- local({ # _T_ype C_hecks
         "named",                      # elements of targetted argument must be named
         "map_character_to_factor",    # the target TC$col() will be transformed to factor prior to reaching the module
         "ignore",                     # argument should be ignored by Dressing Room, for now
+        "manual_check",               # CM$generate_check_functions will not generate an automated check for this element
         # domain-specific flags
         "subject_level_dataset_name", # indicates dataset with one row per subject
         "subjid_var"                  # indicates unique subject identifier column on dataset pointed at by subject_level_dataset_name 
