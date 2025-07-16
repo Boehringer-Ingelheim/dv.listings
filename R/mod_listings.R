@@ -439,12 +439,84 @@ listings_server <- function(module_id,
       # TODO: Consider adapting https://github.com/r-lib/fs/blob/main/R/sanitize.R instead to allow alternative charsets
       review[["roles"]] <- gsub("[^a-zA-Z0-9 _.-]", "", review[["roles"]]) # Accepts alpha+num+space+'.'+'_'+'-'
 
-      output[[TBL$REVIEW_UI_ID]] <- shiny::renderUI(
-        shinyWidgets::dropdownButton(
+      output[[TBL$REVIEW_UI_ID]] <- shiny::renderUI({
+
+        review_ui <- shinyWidgets::dropdownButton(
           inputId = ns(TBL$REVIEW_DROPDOWN_ID), label = shiny::textOutput(ns("review_label"), inline = TRUE), circle = FALSE,
           REV_UI(ns = ns, roles = review[["roles"]])[["ui"]]
         )
-      )
+
+        bulk_ui <- shiny::uiOutput(ns("bulk_ui"))
+
+        list(review_ui, bulk_ui)
+
+      })
+
+      output[["bulk_ui"]] <- shiny::renderUI({
+        current_role <- input[[REV$ID$ROLE]]
+        if (length(current_role) == 1 && current_role %in% review[["roles"]] && REV_state[["contents_ready"]]()) {
+          apply_to_choices <- c("All Rows" = "all_rows")
+          current_bulk_choice <- shiny::isolate(input[["bulk_choice"]])
+          current_bulk_apply_to <- shiny::isolate(input[["bulk_apply_to"]])
+
+          ui <- list(
+            shiny::radioButtons(ns("bulk_choice"), label = "Select bulk choice", choices = review[["choices"]], selected = current_bulk_choice),
+            shiny::radioButtons(ns("bulk_apply_to"), label = "Apply to", choices = apply_to_choices, selected = current_bulk_apply_to),
+            shiny::uiOutput(ns("bulk_summary_button"))
+          )
+        } else {
+          ui <- list()
+        }
+
+        ui
+      })
+
+      output[["bulk_summary_button"]] <- shiny::renderUI({
+        current_role <- input[[REV$ID$ROLE]]
+        current_apply_to <- input[["bulk_apply_to"]]
+        current_bulk_choice <- input[["bulk_choice"]]
+        all_rows <- tryCatch(
+          output_table_data()[["row_names"]],
+          error = function(e) {
+            return(character(0))
+          }
+        )
+
+        if (current_apply_to == "all_rows") {
+          affected_rows <- all_rows
+        } else {
+          affected_rows <- character(0)
+        }
+
+        if (length(affected_rows) > 0) {
+          ui <- list(
+            shiny::div(
+              style = "display:block",
+              shiny::p("Affected rows: ", paste(affected_rows, collapse = ", ")),
+              shiny::tags[["button"]](
+                type = "button",
+                class = "btn", "Apply bulk operation",
+                onclick = sprintf(
+                  "Shiny.setInputValue('%s', {row:[%s], option: '%s'}, {priority: 'event'})",
+                  ns(REV$ID$REVIEW_SELECT),
+                  paste0(affected_rows, collapse = ","),
+                  current_bulk_choice
+                )
+              )
+            )
+          )
+        } else {
+          ui <- list(
+            shiny::div(
+              shiny::p("No rows are affected"),
+              shiny::tags[["button"]](type = "button", class = "btn", "Apply bulk operation", disabled = NA)
+            )
+          )
+        }
+        ui
+      })
+
+
 
       review_button_label <- shiny::reactive({
         role <- input[[REV$ID$ROLE]]
