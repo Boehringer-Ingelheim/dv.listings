@@ -458,9 +458,11 @@ listings_server <- function(module_id,
           apply_to_choices <- c("All Rows" = "all_rows")
           current_bulk_choice <- shiny::isolate(input[["bulk_choice"]])
           current_bulk_apply_to <- shiny::isolate(input[["bulk_apply_to"]])
-
+          review_choices <- seq_along(review[["choices"]])
+          names(review_choices) <- review[["choices"]]
+          
           ui <- list(
-            shiny::radioButtons(ns("bulk_choice"), label = "Select bulk choice", choices = review[["choices"]], selected = current_bulk_choice),
+            shiny::radioButtons(ns("bulk_choice"), label = "Select bulk choice", choices = review_choices, selected = current_bulk_choice),
             shiny::radioButtons(ns("bulk_apply_to"), label = "Apply to", choices = apply_to_choices, selected = current_bulk_apply_to),
             shiny::uiOutput(ns("bulk_summary_button"))
           )
