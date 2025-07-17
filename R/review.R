@@ -631,7 +631,7 @@ REV_compute_status <- function(dataset_review, role) {
   # For now we say conflict but we don't say with whom.
 
   res <- dataset_review
-  res[[REV$ID$STATUS_COL]] <- factor(rep(REV$STATUS_LEVELS$OK, length = nrow(res)), levels = REV$STATUS_LEVELS)
+  res[[REV$ID$STATUS_COL]] <- factor(rep(REV$STATUS_LEVELS$OK, length = nrow(res)), levels = unclass(REV$STATUS_LEVELS))
   pending_mask <- dataset_review[[REV$ID$REVIEW_COL]] == levels(dataset_review[[REV$ID$REVIEW_COL]])[[1]] # First level is always default
   reviewed_status_idx <- which(dataset_review[[REV$ID$ROLE_COL]] != "")
   
