@@ -113,6 +113,12 @@ fill_default_vars <- function(default_vars, dataset) {
     }
     return(cols)
   })
+  
+  # only added so that the default_vars specified with tplyr_table module work
+  not_used_defaults <- !names(default_vars) %in% names(col_list)
+  if (any(not_used_defaults)) {
+    col_list <- append(col_list, default_vars[not_used_defaults])
+  }
 
   return(col_list)
 }
