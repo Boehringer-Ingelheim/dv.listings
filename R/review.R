@@ -89,6 +89,8 @@ REV_UI <- function(ns, roles) {
 REV_load_annotation_info <- function(folder_contents, review, dataset_lists) {
   loaded_annotation_info <- list()
 
+  error <- character()
+
   # TODO: Chop it in a set of consecutive observers with the app blocked with an overlay
   # consecutive observers should allow given client time in an asynch way
   # consider including the global lock for the whole process until released
@@ -128,9 +130,16 @@ REV_load_annotation_info <- function(folder_contents, review, dataset_lists) {
       contents <- folder_contents[[dataset_lists_name]][[fname]][["contents"]]
       review_info <- RS_parse_review_codes(contents)
       if (!identical(review_info, review[["choices"]])) {
-        stop("Impossible to add new review choices")
-        browser() # TODO: Combine new review[["choices"]] with old `review.codes`
-        browser() #       while preserving original associated integer codes
+        error <- c(
+          error, 
+          paste0(
+            "Review choices should remain stable during the course of a trial.\n",
+            "The original review choices are: ", paste(sprintf('"%s"', review_info), collapse = ", "), ".\n",
+            "This restriction is likely to be lifted in a future revision of the review feature."
+          )
+          # TODO: Combine new review[["choices"]] with old `review.codes`
+          #       while preserving original associated integer codes
+        )
       }
     } else {
       contents <- RS_compute_review_codes_memory(review[["choices"]])
@@ -183,10 +192,108 @@ REV_load_annotation_info <- function(folder_contents, review, dataset_lists) {
           }
           return(res)
         })
-        base_info <- RS_load(contents, deltas) # TODO? Call this RS_load_memory and write an RS_load() that works with fnames
+        base_info <- RS_load(contents, deltas) # TODO? Rename as `RS_load_memory` and make `RS_load` that works with fnames?
+     
+        # Data stability checks 
+        local({
+          OK <- c(id_vars = TRUE, tracked_vars = TRUE) 
+          
+          # Check `id_vars` stability
+          if (!identical(base_info[["id_vars"]], sort(id_vars))) {
+            OK[["id_vars"]] <- OK[["tracked_vars"]] <- FALSE
+            error <<- c(
+              error, 
+              paste0(
+                "[", dataset_review_name, "] ", "`id_vars` should remain stable during the course of a trial.\n",
+                "The original value is: ", paste(sprintf('"%s"', base_info[["id_vars"]]), collapse = ", "), ".\n"
+              )
+            )
+          }
+          
+          # Check tracked variables stability
+          if (OK[["id_vars"]]) {
+            # This code is guarded by a conditional because if `id_vars` is modified, `tracked_vars` will likely be 
+            # affected as a side effect. In that situation, this error is insignificant, so we don't notify it.
+            cur_tracked_vars <- base_info[["tracked_vars"]]
+            new_tracked_vars <- sort(setdiff(names(dataset), c(id_vars, untracked_vars)))
+            if (!identical(cur_tracked_vars, new_tracked_vars)) {
+              extra_vars <- setdiff(new_tracked_vars, cur_tracked_vars)
+              if (length(extra_vars)) {
+                OK[["tracked_vars"]] <- FALSE
+                error <<- c(
+                  error, 
+                  paste0(
+                    "[", dataset_review_name, "] ",
+                    "The following variables were not available on a previous iteration of the review process: ",
+                    paste(sprintf('"%s"', extra_vars), collapse = ", "), ".\n",
+                    "Please, specify them as as \"untracked\" through the `untracked_vars` parameter."
+                  )
+                )
+              } 
+              missing_vars <- setdiff(cur_tracked_vars, new_tracked_vars)
+              if (length(missing_vars)) {
+                OK[["tracked_vars"]] <- FALSE
+                error <<- c(
+                  error, 
+                  paste0(
+                    "[", dataset_review_name, "] ",
+                    "The following variables are not available or have been specified as \"untracked\": ",
+                    paste(sprintf('"%s"', missing_vars), collapse = ", "), ".\n",
+                    "Previous runs of this tool were instructed to track them. Please, reinstate them."
+                  )
+                )
+              }
+            }
+          }
+          
+          # Check `id_vars` and `tracked_vars` type stability
+          vars <- character(0)
+          prev_types_raw <- raw(0)
+          cur_types_raw <- raw(0)
+          if (OK[["id_vars"]]) {
+            vars <- sort(id_vars)
+            prev_types_raw <- base_info[["id_var_types"]]
+          }
+          
+          if (OK[["tracked_vars"]]) {
+            vars <- c(vars, sort(tracked_vars))
+            prev_types_raw <- c(prev_types_raw, base_info[["tracked_var_types"]])
+          }
+          
+          cur_types_raw <- as.raw(RS_compute_data_frame_variable_types(dataset, vars))
+          
+          if (!identical(prev_types_raw, cur_types_raw)) {
+            error_string <- paste0(
+              "[", dataset_review_name, "] ",
+              "The following variables have changed type (VAR_NAME: BEFORE, AFTER): \n"
+            )
+            prev_types <- RS_parse_data_frame_variable_types(prev_types_raw)
+            cur_types <- RS_parse_data_frame_variable_types(cur_types_raw)
+            for (i_var in seq_along(vars)){
+              var <- vars[[i_var]]
+              prev_type <- prev_types[[i_var]]
+              cur_type <- cur_types[[i_var]]
+              if (prev_type != cur_type) {
+                error_string <- paste0(error_string, sprintf("%s: %s, %s\n", var, prev_type, cur_type))
+              }
+            }
+            error_string <- paste(error_string, "Please use the types provided originally.")
+            
+            error <<- c(error, error_string)
+          }
+        })
+        
         dataset_hash <- RS_hash_data_frame(dataset)
         if (!identical(dataset_hash, base_info[["contents_hash"]])) {
-            new_delta <- RS_compute_delta_memory(state = base_info, dataset)
+            new_delta_and_errors <- RS_compute_delta_memory(state = base_info, dataset)
+           
+            error_strings <- new_delta_and_errors[["error"]]
+            if (length(error_strings)) {
+              error <- c(error, paste0("[", dataset_review_name, "] ", error_strings))
+            }
+            
+            new_delta <- new_delta_and_errors[["contents"]]
+            
             deltas[[length(deltas) + 1]] <- new_delta
             base_info <- RS_load(contents, deltas)
 
@@ -201,7 +308,6 @@ REV_load_annotation_info <- function(folder_contents, review, dataset_lists) {
                 contents = new_delta
               )
             )
-            message(sprintf("Produced new delta %s", fname))
         }
       } else {
         contents <- RS_compute_base_memory(dataset_review_name, dataset, id_vars, tracked_vars)
@@ -231,8 +337,7 @@ REV_load_annotation_info <- function(folder_contents, review, dataset_lists) {
       #               That's why we recompute the hashes here:
       state_to_dataset_row_mapping <- local({ # TODO: Is this the right name?
         id_vars <- base_info[["id_vars"]]
-        # FIXME: repeats #ahnail
-        id_hashes <- apply(dataset[id_vars], 1, SH$hash_id, simplify = TRUE) # coerces all types to be the same (character?)
+        id_hashes <- RS_compute_id_hashes(dataset, id_vars)
         mapping <- match(asplit(id_hashes, 2), asplit(base_info[["id_hashes"]], 2))
         return(mapping)
       })
@@ -320,7 +425,8 @@ REV_load_annotation_info <- function(folder_contents, review, dataset_lists) {
 
   res <- list(
     loaded_annotation_info = loaded_annotation_info,
-    folder_IO_plan = folder_IO_plan
+    folder_IO_plan = folder_IO_plan,
+    error = error
   )
 
   return(res)
@@ -356,8 +462,23 @@ REV_logic_1 <- function(state, input, review, datasets, fs_client, fs_callbacks)
     folder_contents <- fs_callbacks[["read_folder"]]()
     shiny::req(is.list(folder_contents))
     load_results <- REV_load_annotation_info(folder_contents, review, datasets)
-    state[["annotation_info"]] <- load_results[["loaded_annotation_info"]]
-    fs_client[["execute_IO_plan"]](IO_plan = load_results[["folder_IO_plan"]], is_init = TRUE)
+    if (length(load_results[["error"]])) {
+      showNotification(
+        ui = shiny::HTML(
+          paste(
+            "<h4>FAILED TO START REVIEW INTERFACE</h4>",
+            paste(
+              paste("\u2022", load_results[["error"]]), 
+              collapse = "<br>")
+          )
+        ),
+        duration = NULL, closeButton = TRUE, type = "error"
+      )
+      # NOTE: We remain in this state while we wait for the user to select an appropriate alternative folder
+    } else {
+      state[["annotation_info"]] <- load_results[["loaded_annotation_info"]]
+      fs_client[["execute_IO_plan"]](IO_plan = load_results[["folder_IO_plan"]], is_init = TRUE)
+    }
   }, ignoreNULL = FALSE, ignoreInit = TRUE) # TODO: Remove
 
   # TODO: fs_client[["execute_IO_plan"]][["v"]] if we use the execute IO plan in more places this observer will run

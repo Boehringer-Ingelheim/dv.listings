@@ -28,17 +28,17 @@ These requirements are based on initial brainstorming conversations and a few ro
 - All datasets share the same decision dropdown choices.
 
 ## API
-This feature can be implemented by adding an extra parameter to `mod_listings`. The names of fields and subfields are all temporary placeholders:
+This feature can be implemented by adding an extra parameter to `mod_listings`:
 ```
 review = list(
   datasets = list(
     dm = list(
       id_vars = "USUBJID",
-      tracked_vars = c("RFENDTC", "RFXENDTC")
+      untracked_vars = character(0)
     ),
     ae = list(
       id_vars = c("USUBJID", "AESEQ"),
-      tracked_vars = c("AESEV")
+      untracked_vars = character(0)
     ),
     ...
   ),
@@ -49,16 +49,16 @@ review = list(
 ```
 All leafs are of type `character(n)`, except for `review_store_path` which is optional and of type character(1). 
 
-A possible simplification would be to make `"USUBJID"` optional on `id_vars`, since `subjid_var` is already a mandatory parameter to the module. The logic inside the module would be that `sorted(union(subjid_var, id_vars))` would be use to identify each row. Internally `tracked_vars` would also be sorted.
+A possible simplification would be to make `"USUBJID"` optional on `id_vars`, since `subjid_var` is already a mandatory parameter to the module. The logic inside the module would be that `sorted(union(subjid_var, id_vars))` would be use to identify each row.
 
-**Beware**: Once the application is configured and run once, the only change permitted to the `datasets` subfield will be to *add* extra datasets. Changes to previously configured `id_vars` or `tracked_vars` sub-subfields could potentially render the collected review information inconsistent. The module should disallow the editing controls until such a situation is addressed. Review choices and roles do not suffer from that problem.
+**Beware**: Once the application is configured and run once, the only change permitted to the `datasets` subfield will be to *add* extra datasets. Changes to previously configured `id_vars` or `untracked_vars` sub-subfields could potentially render the collected review information inconsistent. The module should disallow the editing controls until such a situation is addressed. Review choices and roles do not suffer from that problem.
 
 ## Data Stability Requirements
 The module only has access to the latest version of any given dataset. In order to inform users about modified and newly added records, it relies on stored summary hashes of previously seen data. Thus, it is necessary that some aspects of the representation of data are kept constant over the life of a study. Currently, these are:
 
-- Values assigned to the sub-parameters `id_vars` and `tracked_vars` are set once and remain the same for the duration of the study.
-- Variables identified by `id_vars` and `tracked_vars` retain their types (factor, numeric, ...) and are available on each revision of each dataset.
 - All rows of each provided dataset are identified uniquely by the combination of `id_vars` configured at the beginning of the study.
+- Identifying variables (defined through `id_vars`) and tracked variables (defined by removing both `id_vars` and `untracked_vars` from the target dataset) have to remain the same for the duration of the study.
+- Identifying and tracked variables retain their types (factor, numeric, ...) and are available on each revision of each dataset.
 - No data rows are dropped during the study. In other words, if a combination of `id_vars` is present on revision `n` of a dataset, it will be available on revision `n+1`.
 
 ## User Interface

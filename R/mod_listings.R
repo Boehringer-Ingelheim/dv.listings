@@ -760,14 +760,14 @@ mod_listings_API_docs <- list(
   pagination = list(""),
   intended_use_label = list(""),
   subjid_var = list(""), 
+  receiver_id = list(""),
   review = list(
     "Review-related fields",
     datasets = list(""),
     choices = list(""),
     roles = list(""),
     store_path = list("")
-  ), 
-  receiver_id = list("")
+  )
 )
 
 mod_listings_API_spec <- TC$group(
@@ -777,14 +777,13 @@ mod_listings_API_spec <- TC$group(
   pagination = TC$logical() |> TC$flag("manual_check", "optional"),             # manually tested by check_mod_listings
   intended_use_label = TC$character() |> TC$flag("manual_check", "optional"),   # manually tested by check_mod_listings
   subjid_var = TC$character() |> TC$flag("manual_check"),                       # manually tested by check_mod_listings
+  receiver_id = TC$character() |> TC$flag("manual_check"),                      # manually tested by check_mod_listings
   review = TC$group(
-    # TODO: functionality is a WIP, so not defining for now
     datasets = TC$group(),
     choices = TC$character() |> TC$flag("one_or_more"),
     roles = TC$character() |> TC$flag("one_or_more"),
     store_path = TC$character() |> TC$flag("optional")
-  ) |> TC$flag("manual_check", "optional"),
-  receiver_id = TC$character() |> TC$flag("manual_check")                       # manually tested by check_mod_listings
+  ) |> TC$flag("manual_check", "optional")
 ) |> TC$attach_docs(mod_listings_API_docs)
 
 dataset_info_listings <- function(dataset_names, ...) {
@@ -800,7 +799,7 @@ check_mod_listings <- function(afmm, datasets, module_id, dataset_names,
   ok <- check_mod_listings_auto(
     afmm, datasets,
     module_id, dataset_names, default_vars, pagination, intended_use_label,
-    subjid_var, receiver_id, warn, err
+    subjid_var, receiver_id, review, warn, err
   )
   
   # default_vars 
@@ -845,10 +844,6 @@ check_mod_listings <- function(afmm, datasets, module_id, dataset_names,
     msg = "`subjid_var` should be either character(1) or NULL."
   )
   
-  # review
-  # TODO:
-  
-  # receiver_id
   CM$assert(
     container = err,
     cond = checkmate::test_string(receiver_id, null.ok = TRUE),
@@ -860,6 +855,82 @@ check_mod_listings <- function(afmm, datasets, module_id, dataset_names,
                   receiver_id, paste(names(afmm$module_names), collapse = ", ")
     )
   )
+
+  # review
+  local({
+    if (is.null(review)) return(NULL)
+    ok <- CM$assert(
+      container = err,
+      cond = (checkmate::test_list(review, names = "unique") &&
+                checkmate::test_subset(c("datasets", "choices", "roles"), names(review))),
+      msg = "`review` should be a list with at least three elements: `datasets`, `choices` and `roles`"
+    ) &&
+      CM$assert(
+        container = err,
+        cond = (checkmate::test_list(review[["datasets"]], names = "unique") &&
+                  checkmate::test_subset(names(review[["datasets"]]), dataset_names)),
+        msg = sprintf(
+          "`review$datasets` should be a list and its elements should be named after the following dataset names: %s",
+          paste(dataset_names, collapse = ", ")
+        )
+      ) &&
+      CM$assert(
+        container = err,
+        cond = checkmate::test_character(review[["choices"]], min.len = 1, min.chars = 1, unique = TRUE),
+        msg = "`review$choices` should be a non-empty character vector of unique, non-empty strings"
+      ) &&
+      CM$assert(
+        container = err,
+        cond = checkmate::test_character(review[["roles"]], min.len = 1, min.chars = 1, unique = TRUE),
+        msg = "`review$roles` should be a non-empty character vector of unique, non-empty strings"
+      )
+    
+    if (!ok) return(NULL)
+    for (domain in names(review[["datasets"]])){
+      info <- review[["datasets"]][[domain]]
+      
+      for (ds_name in names(afmm[["data"]])){
+        datasets <- afmm[["data"]][[ds_name]]
+        dataset <- datasets[[domain]]
+        
+        CM$assert(
+          container = err,
+          cond = (checkmate::test_list(review, names = "unique") &&
+                    checkmate::test_subset(c("id_vars", "untracked_vars"), names(info))),
+          msg = sprintf("`review$datasets$%s` should be a list with two elements named `id_vars` and `untracked_vars`",
+                        domain)
+        ) &&
+          CM$assert(
+            container = err,
+            cond = (checkmate::test_character(info[["id_vars"]], min.len = 1, min.chars = 1, unique = TRUE) &&
+                      checkmate::test_subset(info[["id_vars"]], names(dataset))),
+            msg = sprintf(
+              paste(
+                "`review$datasets$%s$id_vars` should be a character vector listing a subset of the columns",
+                "available in dataset `%s`"
+              ), domain, domain
+            )
+          ) &&
+          CM$assert(
+            container = err,
+            cond = nrow(dataset[info[["id_vars"]]]) == nrow(unique(dataset[info[["id_vars"]]])),
+            msg = sprintf("`review$datasets$%s$id_vars` should identify uniquely every row of the dataset `%s`", 
+                          domain, domain)
+          ) &&
+          CM$assert(
+            container = err,
+            cond = (checkmate::test_character(info[["untracked_vars"]], min.chars = 1, unique = TRUE, null.ok = TRUE) &&
+                      checkmate::test_subset(info[["untracked_vars"]], names(dataset))),
+            msg = sprintf(
+              paste(
+                "`review$datasets$%s$untracked_vars` should be a character vector listing a subset of the columns",
+                "available in dataset `%s`"
+              ), domain, domain
+            )
+          )
+      }
+    }
+  })
   
   res <- list(warnings = warn[["messages"]], errors = err[["messages"]])
   return(res)

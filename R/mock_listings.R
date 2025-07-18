@@ -129,3 +129,123 @@ mock_listings_mm <- function() {
     enableBookmarking = "url"
   )
 }
+
+mock_cqm <- function() {
+  ae <- safetyData::sdtm_ae
+  dm <- safetyData::sdtm_dm
+  
+  # Filter out subjects that didn't pass initial screening
+  screen_fail_mask <- dm[["ACTARMCD"]] == "Scrnfail"
+  dm <- dm[!screen_fail_mask, ]
+  
+  # Subset AE columns and extend the domain with a couple of date columns from the demographic data frame
+  ae_cols <- c("STUDYID", "USUBJID", "AETERM", "AEHLGT", "AEHLT", "AELLT", "AEDECOD", "AESOC",
+               "AESTDTC", "AEENDTC", "AEOUT", "AEACN", "AEREL", "AESEV", "AESEQ")
+  ae <- merge(dm[c("USUBJID", "RFXSTDTC", "RFSTDTC")], ae[ae_cols], by = "USUBJID")
+  
+  # Add labels
+  var_labels <- c(
+    STUDYID = "Study Identifier",
+    USUBJID = "Unique Subject Identifier",
+    AETERM = "Reported Term for the Adverse Event",
+    AEHLGT = "High Level Group Term",
+    AEHLT = "High Level Term",
+    AELLT = "Lowest Level Term",
+    AEDECOD = "Dictionary-Derived Term",
+    AESEQ = "Sequence Number",
+    AESOC = "Primary System Organ Class",
+    AESTDTC = "Start Date/Time of Adverse Event",
+    AEENDTC = "End Date/Time of Adverse Event",
+    AEOUT = "Outcome of Adverse Event",
+    AEACN = "Action Taken with Study Treatment",
+    AEREL = "Causality",
+    AESEV = "Severity/Intensity",
+    RFXSTDTC = "Date/Time of First Study Treatment",
+    RFSTDTC = "Subject Reference Start Date/Time",
+    DOMAIN = "Domain Abbreviation",
+    SUBJID = "Subject Identifier for the Study",
+    RFENDTC = "Subject Reference End Date/Time",
+    RFXENDTC = "Date/Time of Last Study Treatment",
+    RFICDTC = "Date/Time of Informed Consent",
+    RFPENDTC = "Date/Time of End of Participation",
+    DTHDTC = "Date/Time of Death",
+    DTHFL = "Subject Death Flag",
+    SITEID = "Study Site Identifier",
+    AGE = "Age",
+    AGEU = "Age Units",
+    SEX = "Sex",
+    RACE = "Race",
+    ETHNIC = "Ethnicity",
+    ARMCD = "Planned Arm Code",
+    ARM = "Description of Planned Arm",
+    ACTARMCD = "Actual Arm Code",
+    ACTARM = "Description of Actual Arm",
+    COUNTRY = "Country",
+    DMDTC = "Date/Time of Collection",
+    DMDY = "Study Day of Collection"
+  )
+ 
+  dm <- set_labels(dm, var_labels[names(dm)]) 
+  ae <- set_labels(ae, var_labels[names(ae)])
+  
+  data_list <- list(ae = ae, dm = dm)
+  
+  attr(data_list[["ae"]], "label") <- "Adverse Events"  # NOTE(miguel): Otherwise uses label from the `dm` dataset
+  
+  # Step 4 - Module specification
+  listing <- mod_listings(
+    module_id = "listing",
+    dataset_names = c("ae", "dm"),
+    default_vars = list(
+      ae = c(
+        "USUBJID",
+        "AESEV",
+        "RFXSTDTC",
+        "RFSTDTC",
+        "AETERM",
+        "AEHLGT", "AEHLT", "AELLT", "AEDECOD", "AESOC",
+        "AESTDTC", "AEENDTC",
+        "AEOUT",
+        "AEACN",
+        "AEREL"
+      ),
+      dm = c("COUNTRY", "RFXSTDTC")
+    ),
+    # Jumping to the Patient Profile module is possible, provided that it is included as well:
+    receiver_id = "papo",
+    review = list(
+      datasets = list(ae = list(id_vars = c("USUBJID", "AESEQ"), untracked_vars = c())),
+      choices = c("Pending", "Reviewed with no issues", "Action required", "Resolved"),
+      roles = c("TSTAT", "SP", "Safety", "CTL"),
+      store_path = tempdir()
+    )
+  )
+  
+  mod_receiver <- function(module_id, sender_id) {
+    list(
+      ui = function(id) shiny::verbatimTextOutput(shiny::NS(id)("out")),
+      server = function(afmm) {
+        shiny::moduleServer(
+          module_id,
+          function(input, output, session) {
+            output[["out"]] <- shiny::reactive({
+              sprintf('Message from module "%s": %s', sender_id, afmm[["module_output"]]()[[sender_id]][["subj_id"]]())
+            })
+          }
+        )
+      },
+      module_id = module_id
+    )
+  }
+  
+  # Step 5 - Run app
+  dv.manager::run_app(
+    data = list("CQM_AE_list" = data_list),
+    module_list = list(
+      "Listing" = listing,
+      "Signal receiver" = mod_receiver(module_id = "papo", sender_id = "listing")
+    ),
+    filter_data = "dm",
+    filter_key = "USUBJID"
+  )
+}

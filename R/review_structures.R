@@ -105,31 +105,51 @@ RS_hash_data_frame <- function(df){
   return(res)
 }
 
+RS_variable_type_encoding <- list(
+  # The order of this list matters, because e.g. POSIXct variables are also numeric
+  # They go from most to least restrictive
+  list(code = 1,  desc = "Date",      fn = function(v) inherits(v, "Date")),
+  list(code = 2,  desc = "POSIXct",   fn = function(v) inherits(v, "POSIXct")),
+  list(code = 3,  desc = "POSIXlt",   fn = function(v) inherits(v, "POSIXlt")),
+  list(code = 10, desc = "logical",   fn = is.logical),
+  list(code = 11, desc = "factor",    fn = is.factor),
+  list(code = 13, desc = "integer",   fn = is.integer),
+  list(code = 14, desc = "numeric",   fn = is.numeric),
+  list(code = 15, desc = "complex",   fn = is.complex),
+  list(code = 16, desc = "character", fn = is.character),
+  list(code = 24, desc = "raw",       fn = is.raw)
+)
+RS_variable_type_desc_from_code <- local({
+  res <- character()
+  for(elem in RS_variable_type_encoding) res[[elem[["code"]]]] <- elem[["desc"]]
+  return(res)
+})
+
 RS_compute_data_frame_variable_types <- function(df, vars){
   res <- raw(length(vars))
   for(i_var in seq_along(vars)){
     v <- 0
     var <- df[[vars[[i_var]]]]
-   
-    # The order of this comparison matters, because e.g. POSIXct variables are also numeric
-    # They go from more to less restrictive
-    if(inherits(var, "Date")) v <- 1
-    else if(inherits(var, "POSIXct")) v <- 2
-    else if(inherits(var, "POSIXlt")) v <- 3
-    else if(is.logical(var)) v <- 10
-    else if(is.factor(var)) v <- 11
-    else if(is.integer(var)) v <- 13
-    else if(is.numeric(var)) v <- 14
-    else if(is.complex(var)) v <- 15
-    else if(is.character(var)) v <- 16
-    else if(is.raw(var)) v <- 24
-    
+    for(encoding in RS_variable_type_encoding){
+      if(encoding[["fn"]](var)){
+        v <- encoding[["code"]]
+        break
+      }
+    }
     checkmate::assert_true(v != 0)
-    
     res[[i_var]] <- as.raw(v)
   }
-  
   return(res)
+}
+
+RS_parse_data_frame_variable_types <- function(v){
+  res <- RS_variable_type_desc_from_code[as.integer(v)]
+  res[is.na(res)] <- "unknown"
+  return(res)
+}
+
+RS_compute_id_hashes <- function(df, id_vars){
+  return(apply(df[id_vars], 1, SH$hash_id, simplify = TRUE)) # coerces all types to be the same (character?)
 }
 
 RS_compute_base_memory <- function(df_id, df, id_vars, tracked_vars){
@@ -143,10 +163,8 @@ RS_compute_base_memory <- function(df_id, df, id_vars, tracked_vars){
   df_hash <- RS_hash_data_frame(df)
 
   # row hashes
-  # FIXME: repeats #ahnail
-  id_hashes <- apply(df[id_vars], 1, SH$hash_id, simplify = TRUE) # coerces all types to be the same (character?)
+  id_hashes <- RS_compute_id_hashes(df, id_vars)
   ; if(!identical(dim(id_hashes), c(16L, nrow(df)))) return(simpleCondition("Internal error in id_vars hash preparation"))
-
   ; if(any(duplicated(id_hashes, MARGIN = 2))) return(simpleCondition("Found duplicated IDs"))
 
   tracked_hashes <- apply(df[tracked_vars], 1, SH$hash_tracked, simplify = TRUE)
@@ -209,7 +227,9 @@ RS_parse_base <- function(contents){
     domain = domain_string,
     generation = generation,
     id_vars = id_vars,
+    id_var_types = id_var_types,
     tracked_vars = tracked_vars,
+    tracked_var_types = tracked_var_types,
     contents_hash = contents_hash,
     row_count = row_count,
     timestamp = timestamp,
@@ -224,15 +244,27 @@ RS_parse_base <- function(contents){
 RS_compute_delta_memory <- function(state, df){
   checkmate::assert_data_frame(df) # TODO: etc.
   
+  error <- character(0)
+  
   time_delta <- as.integer(ceiling(SH$get_UTC_time_in_seconds() - state$timestamp))
   df_hash <- RS_hash_data_frame(df)
 
   id_vars <- state$id_vars
-  # FIXME: repeats #ahnail
-  id_hashes <- apply(df[id_vars], 1, SH$hash_id, simplify = TRUE) |> c() |> array(dim = c(16L, nrow(df)))
+  id_hashes <- RS_compute_id_hashes(df, id_vars) |> c() |> array(dim = c(16L, nrow(df)))
+
   tracked_vars <- state$tracked_vars
   tracked_hashes <- (apply(df[tracked_vars], 1, SH$hash_tracked, simplify = TRUE) |> c() |> 
                        array(dim = c(length(tracked_vars), nrow(df))))
+  
+  # Assert against removal of rows
+  local({
+    merged <- cbind(id_hashes, state$id_hashes, deparse.level = 0)
+    dropped_row_mask <- !duplicated(merged, MARGIN = 2) |> c() |> tail(n = ncol(state$id_hashes))
+    dropped_row_count <- sum(dropped_row_mask)
+    if(dropped_row_count > 0){
+      error <<- c(error, sprintf("Dataset update is missing %s previously known row(s).\n", dropped_row_count))
+    }
+  })
   
   merged <- cbind(state$id_hashes, id_hashes, deparse.level = 0)
   new_row_mask <- !duplicated(merged, MARGIN = 2) |> c() |> tail(n = nrow(df))
@@ -249,30 +281,32 @@ RS_compute_delta_memory <- function(state, df){
  
   # Sort remaining according to state$id_hashes order # TODO: Streamline for performance?
   mapping <- match(asplit(id_hashes, 2), asplit(state$id_hashes, 2))
+  # FIXME(miguel): Ask Luis for details. Suggest the use of `error` to shortcircuit file actions for the case described.
   # TODO: This mapping may fail when data updates are messed. Dataset is updated, new deltas are calculated, and the
   # outdated is loaded in the app again. It does not fail gracefully, mapping contains more entries than expected and
   # an out of bounds error is thrown.
   id_hashes <- id_hashes[, mapping, drop = FALSE]
   tracked_hashes <- tracked_hashes[, mapping, drop = FALSE]
 
-  # TODO: Assert against removal of rows
-  
   merged <- cbind(state$tracked_hashes, tracked_hashes, deparse.level = 0)
   modified_row_mask <- !duplicated(merged, MARGIN = 2) |> c() |> tail(n = nrow(df)-length(new_row_indices))
   modified_row_indices <- which(modified_row_mask)
   
-  res <- c(
-    charToRaw("LISTDELT"),                                # file magic code
-    as.raw(0),                                            # format version number
-    as.raw(state$generation+1L),                          # generation marker
-    SH$integer_to_raw(time_delta),                        # delta timestamp (seconds since state)
-    df_hash,                                              # complete hash of input data.frame
-    SH$string_to_raw(state$domain),                       # domain string
-    SH$integer_to_raw(length(new_row_indices)),           # count of new rows
-    new_id_hashes,                                        # one hash of id_vars per new row
-    new_tracked_hashes,                                   # one hash of tracked_vars per new row
-    SH$integer_vector_to_raw(modified_row_indices),       # modified row indices
-    tracked_hashes[, modified_row_indices, drop = FALSE]  # one hash of tracked_vars per modified row
+  res <- list(
+    contents = c(
+      charToRaw("LISTDELT"),                                # file magic code
+      as.raw(0),                                            # format version number
+      as.raw(state$generation+1L),                          # generation marker
+      SH$integer_to_raw(time_delta),                        # delta timestamp (seconds since state)
+      df_hash,                                              # complete hash of input data.frame
+      SH$string_to_raw(state$domain),                       # domain string
+      SH$integer_to_raw(length(new_row_indices)),           # count of new rows
+      new_id_hashes,                                        # one hash of id_vars per new row
+      new_tracked_hashes,                                   # one hash of tracked_vars per new row
+      SH$integer_vector_to_raw(modified_row_indices),       # modified row indices
+      tracked_hashes[, modified_row_indices, drop = FALSE]  # one hash of tracked_vars per modified row
+    ),
+    error = error
   )
   
   return(res)
@@ -436,6 +470,7 @@ RS_append <- function(path, contents){
 
 # NOTE: The contents of the following conditional are a WIP of the annotation feature.
 #       They are parked until user requirements and technical blockers are clarified.
+# TODO? Repurpose as test/performance test/"live documentation"
 if(FALSE){
   describe_and_time <- function(description, expr){
     t0 <- Sys.time()
@@ -466,7 +501,7 @@ if(FALSE){
     
     delta1_contents <- describe_and_time(
       "Processing dataset update (done first time app is run after update)",
-      RS_compute_delta_memory(review_state, df)
+      RS_compute_delta_memory(review_state, df)[["contents"]]
     )
     
     review_state <- describe_and_time(
@@ -477,7 +512,7 @@ if(FALSE){
     df[1,][["AESEV"]] <- 'SEVERE'
     delta2_contents <- describe_and_time(
       "Processing dataset update (done first time app is run after update)",
-      RS_compute_delta_memory(review_state, df)
+      RS_compute_delta_memory(review_state, df)[["contents"]]
     )
   
 
@@ -541,7 +576,7 @@ if(FALSE){
   
   delta1_contents <- describe_and_time(
     "Processing dataset update (done first time app is run after update)",
-    RS_compute_delta_memory(review_state, df)
+    RS_compute_delta_memory(review_state, df)[["contents"]]
   )
   
   review_state <- describe_and_time(
@@ -557,7 +592,7 @@ if(FALSE){
   df <- rbind(safetyData::adam_adae[1002:1003,], df)
   delta2_contents <- describe_and_time(
     "Processing dataset update (done first time app is run after update)",
-    RS_compute_delta_memory(review_state, df)
+    RS_compute_delta_memory(review_state, df)[["contents"]]
   )
   
   review_state <- describe_and_time(
