@@ -214,7 +214,14 @@ mock_cqm <- function() {
     # Jumping to the Patient Profile module is possible, provided that it is included as well:
     receiver_id = "papo",
     review = list(
-      datasets = list(ae = list(id_vars = c("USUBJID", "AESEQ"), untracked_vars = c())),
+      datasets = list(
+        ae = list(
+          id_vars = c("USUBJID", "AESEQ"), 
+          tracked_vars = c(
+            "AESEV", "RFXSTDTC", "RFSTDTC", "AETERM", "AEHLGT", "AEHLT", "AELLT", 
+            "AEDECOD", "AESOC", "AESTDTC", "AEENDTC", "AEOUT", "AEACN", "AEREL"
+          ))
+      ),
       choices = c("Pending", "Reviewed with no issues", "Action required", "Resolved"),
       roles = c("TSTAT", "SP", "Safety", "CTL"),
       store_path = tempdir()

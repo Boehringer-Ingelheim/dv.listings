@@ -15,14 +15,22 @@ local({
   
   # Review folder contents is initialized here
   review = list(
-    datasets = list(ae = list(id_vars = c("USUBJID", "AESEQ"), untracked_vars = c())),
+    datasets = list(
+      ae = list(
+        id_vars = c("USUBJID", "AESEQ"), 
+        tracked_vars = c(
+          "AESEV", "AETERM", "AEHLGT", "AEHLT", "AELLT", 
+          "AEDECOD", "AESOC", "AESTDTC", "AEENDTC", "AESTDY","AEOUT", "AEACN", "AEREL"
+        )
+      )
+    ),
     choices = c("choiceA", "choiceB"),
     roles = c("roleA", "roleB")
   )
   
   dataset_lists <- list(
     dataset_list = list(
-      ae = safetyData::adam_adae[1:2,]
+      ae = safetyData::sdtm_ae[1:2,]
     )
   )
   
@@ -49,24 +57,25 @@ local({
     
   test_that("Review error message when `tracked_vars` disappear", {
     review2 <- review
-    review2[["datasets"]][["ae"]][["untracked_vars"]] <- c("STUDYID")
+    review2[["datasets"]][["ae"]][["tracked_vars"]] <- review2[["datasets"]][["ae"]][["tracked_vars"]][-1]
     info <- REV_load_annotation_info(folder_contents, review2, dataset_lists)
     expect_true(
       length(info[["error"]]) == 1 &&
         startsWith(info[["error"]][[1]], 
-                   '[ae] The following variables are not available or have been specified as "untracked": "STUDYID"')
+                   '[ae] The following variables have not been specified as `tracked_vars`: "AESEV"')
+      
     )
   })
-    
+  
   test_that("Review error message when `tracked_vars` appear", {
-    dataset_lists2 <- dataset_lists
-    dataset_lists2[["dataset_list"]][["ae"]][["EXTRA_VAR"]] <- ''
-    info <- REV_load_annotation_info(folder_contents, review, dataset_lists2)
+    review2 <- review
+    review2[["datasets"]][["ae"]][["tracked_vars"]] <- c(review2[["datasets"]][["ae"]][["tracked_vars"]], "DOMAIN")
+    info <- REV_load_annotation_info(folder_contents, review2, dataset_lists)
     expect_true(
       length(info[["error"]]) == 1 &&
         startsWith(
           info[["error"]][[1]], 
-          '[ae] The following variables were not available on a previous iteration of the review process: "EXTRA_VAR".'
+          '[ae] The following variables were not available on a previous iteration of the review process: "DOMAIN".'
         )
     )
   })
@@ -93,8 +102,8 @@ local({
   test_that("Review error message when a `tracked_var` changes type", {
     review2 <- review
     dataset_lists2 <- dataset_lists
-    dataset_lists2[["dataset_list"]][["ae"]][["TRTEDT"]] <- 
-      as.numeric(dataset_lists2[["dataset_list"]][["ae"]][["TRTEDT"]])
+    dataset_lists2[["dataset_list"]][["ae"]][["AESTDY"]] <- 
+      as.numeric(dataset_lists2[["dataset_list"]][["ae"]][["AESTDY"]])
     
     info <- REV_load_annotation_info(folder_contents, review, dataset_lists2)
     
@@ -102,7 +111,7 @@ local({
       length(info[["error"]]) == 1 &&
         startsWith(
           info[["error"]][[1]], 
-          "[ae] The following variables have changed type (VAR_NAME: BEFORE, AFTER): \nTRTEDT: Date, numeric"
+          "[ae] The following variables have changed type (VAR_NAME: BEFORE, AFTER): \nAESTDY: integer, numeric"
         )
     )
   })

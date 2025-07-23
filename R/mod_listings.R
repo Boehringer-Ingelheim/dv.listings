@@ -896,8 +896,8 @@ check_mod_listings <- function(afmm, datasets, module_id, dataset_names,
         CM$assert(
           container = err,
           cond = (checkmate::test_list(review, names = "unique") &&
-                    checkmate::test_subset(c("id_vars", "untracked_vars"), names(info))),
-          msg = sprintf("`review$datasets$%s` should be a list with two elements named `id_vars` and `untracked_vars`",
+                    checkmate::test_subset(c("id_vars", "tracked_vars"), names(info))),
+          msg = sprintf("`review$datasets$%s` should be a list with two elements named `id_vars` and `tracked_vars`",
                         domain)
         ) &&
           CM$assert(
@@ -919,11 +919,11 @@ check_mod_listings <- function(afmm, datasets, module_id, dataset_names,
           ) &&
           CM$assert(
             container = err,
-            cond = (checkmate::test_character(info[["untracked_vars"]], min.chars = 1, unique = TRUE, null.ok = TRUE) &&
-                      checkmate::test_subset(info[["untracked_vars"]], names(dataset))),
+            cond = (checkmate::test_character(info[["tracked_vars"]], min.chars = 1, unique = TRUE) &&
+                      checkmate::test_subset(info[["tracked_vars"]], names(dataset))),
             msg = sprintf(
               paste(
-                "`review$datasets$%s$untracked_vars` should be a character vector listing a subset of the columns",
+                "`review$datasets$%s$tracked_vars` should be a character vector listing a subset of the columns",
                 "available in dataset `%s`"
               ), domain, domain
             )
