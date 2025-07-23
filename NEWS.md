@@ -1,6 +1,7 @@
-# dv.listings 4.1.1-9002
+# dv.listings 4.1.1-9003
 
-- Adapt checkmate calls to allow default values for datasets that are not present
+- Adapt fill_default_vars to keep specified default values for datastes which are not present
+- Adapt checkmate calls to allow default values for datasets wjich are not present
 - Top buttons are reordered in a single line to avoid consuming excessive space
 
 # dv.listings 4.1.0
