@@ -168,8 +168,7 @@ REV_load_annotation_info <- function(folder_contents, review, dataset_lists) {
                                    data_timestamp = numeric(row_count))
       
       id_vars <- review[["datasets"]][[dataset_review_name]][["id_vars"]]
-      untracked_vars <- review[["datasets"]][[dataset_review_name]][["untracked_vars"]]
-      tracked_vars <- setdiff(names(dataset), c(id_vars, untracked_vars))
+      tracked_vars <- setdiff(review[["datasets"]][[dataset_review_name]][["tracked_vars"]], id_vars)
      
       base_timestamp <- NA_real_
       data_timestamps <- rep(NA_real_, row_count)
@@ -215,7 +214,7 @@ REV_load_annotation_info <- function(folder_contents, review, dataset_lists) {
             # This code is guarded by a conditional because if `id_vars` is modified, `tracked_vars` will likely be 
             # affected as a side effect. In that situation, this error is insignificant, so we don't notify it.
             cur_tracked_vars <- base_info[["tracked_vars"]]
-            new_tracked_vars <- sort(setdiff(names(dataset), c(id_vars, untracked_vars)))
+            new_tracked_vars <- sort(tracked_vars)
             if (!identical(cur_tracked_vars, new_tracked_vars)) {
               extra_vars <- setdiff(new_tracked_vars, cur_tracked_vars)
               if (length(extra_vars)) {
@@ -226,7 +225,7 @@ REV_load_annotation_info <- function(folder_contents, review, dataset_lists) {
                     "[", dataset_review_name, "] ",
                     "The following variables were not available on a previous iteration of the review process: ",
                     paste(sprintf('"%s"', extra_vars), collapse = ", "), ".\n",
-                    "Please, specify them as as \"untracked\" through the `untracked_vars` parameter."
+                    "Please, exclude them from the \"tracked_vars\" parameter."
                   )
                 )
               } 
@@ -237,7 +236,7 @@ REV_load_annotation_info <- function(folder_contents, review, dataset_lists) {
                   error, 
                   paste0(
                     "[", dataset_review_name, "] ",
-                    "The following variables are not available or have been specified as \"untracked\": ",
+                    "The following variables have not been specified as `tracked_vars`: ",
                     paste(sprintf('"%s"', missing_vars), collapse = ", "), ".\n",
                     "Previous runs of this tool were instructed to track them. Please, reinstate them."
                   )
