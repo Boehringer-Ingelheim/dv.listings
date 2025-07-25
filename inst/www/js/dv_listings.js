@@ -105,13 +105,14 @@ const dv_listings = (function () {
   const render_selection = function (id, role, choices) {
     let in_f = function (data, type, row, meta) {
       if (type === 'display') {
-        let result = '';
+        let result = '<div style="display: flex; align-items: baseline; gap: 0.5rem;">';
+        result += `<input type="checkbox" data-for-row="${row[row_number_idx]}" data-input-type="bulk-control">`;
         let options = choices;
-        result += `<select style=\"width:100%%\" onchange=\"Shiny.setInputValue('${id}', {row:${row[row_number_idx]}, option:this.value}, {priority: 'event'});\">`;
+        result += `<select onchange=\"Shiny.setInputValue('${id}', {row:${row[row_number_idx]}, option:this.value}, {priority: 'event'});\">`;
         for (let i = 0; i < options.length; i += 1) {
           result += `<option value=${i + 1}${options[i] == data ? ' selected' : ''}>${options[i]}</option>`;
         }
-        result += '</select>';
+        result += '</select></div>';
 
         return result;
       } else {
@@ -195,11 +196,72 @@ const dv_listings = (function () {
     }
   }
 
+  const render_bulk_menu = function(id, choices, input_id) {    
+    const container = $("#" + id).find('.top');
+
+    let choices_menu = '';
+    let options = choices;
+    choices_menu += `<select>`;
+        for (let i = 0; i < options.length; i += 1) {
+          choices_menu += `<option value=${i + 1}${i == 0 ? ' selected' : ''}>${options[i]}</option>`;
+        }
+    choices_menu += '</select>';
+
+    const select_all_visible = `
+    <button class = "btn" onclick = "dv_listings.select_all_visible(event, '${id}')">Select All Visible</button>
+    `;
+    const apply_bulk_full = `
+    <button class = "btn" onclick = "dv_listings.apply_bulk_full(event, '${id}', '${input_id}')">Apply full table</button>
+    `;
+    const apply_bulk_visible = `
+    <button class = "btn" onclick = "dv_listings.apply_bulk_visible(event, '${id}', '${input_id}')">Apply selected</button>
+    `;
+
+    const html = `
+      <div id='bulk-menu-wrapper'>
+        ${select_all_visible}
+        ${choices_menu}
+        ${apply_bulk_full}
+        ${apply_bulk_visible}
+      </div>`;
+
+    container.prepend(html);
+  }
+
+  const select_all_visible = function(event, container_id) {
+    const inputs = $("#" + container_id).find('input[data-input-type="bulk-control"]');
+    for (let i = 0; i < inputs.length; i++) {
+      inputs[i].checked = true;      
+    }
+  };
+
+  const apply_bulk_visible = function(event, container_id, input_id) {
+    const inputs = $("#" + container_id + " input[data-input-type='bulk-control']:checked");
+    const choice_value = $("#" + container_id + " .top select").val();
+    let selected_row_ids = [];
+    for (let i = 0; i < inputs.length; i++) {
+      const row_id = inputs[i].getAttribute('data-for-row');  
+      selected_row_ids.push(row_id);  
+    }
+    Shiny.setInputValue(input_id, {row:selected_row_ids, option:choice_value}, {priority: 'event'})
+  };
+
+  const apply_bulk_full = function(event, container_id, input_id) {
+    const table = $("#" + container_id + " table").DataTable();
+    const selected_row_ids = table.column(row_number_idx).data().toArray();    
+    const choice_value = $("#" + container_id + " .top select").val();
+    Shiny.setInputValue(input_id, {row:selected_row_ids, option:choice_value, bulk:'filtered'}, {priority: 'event'})
+  };
+
   const res = {
     review_column_render: review_column_render,
     render_selection: render_selection,
     render_identity: render_identity,
     render_status: render_status,
+    render_bulk_menu: render_bulk_menu,
+    select_all_visible: select_all_visible,
+    apply_bulk_visible: apply_bulk_visible,
+    apply_bulk_full: apply_bulk_full,
     show_child: show_child
   }
   return (res)

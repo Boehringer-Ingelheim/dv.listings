@@ -446,79 +446,9 @@ listings_server <- function(module_id,
           REV_UI(ns = ns, roles = review[["roles"]])[["ui"]]
         )
 
-        bulk_ui <- shiny::uiOutput(ns("bulk_ui"))
-
-        list(review_ui, bulk_ui)
+        review_ui
 
       })
-
-      output[["bulk_ui"]] <- shiny::renderUI({
-        current_role <- input[[REV$ID$ROLE]]
-        if (length(current_role) == 1 && current_role %in% review[["roles"]] && REV_state[["contents_ready"]]()) {
-          apply_to_choices <- c("All Rows" = "all_rows")
-          current_bulk_choice <- shiny::isolate(input[["bulk_choice"]])
-          current_bulk_apply_to <- shiny::isolate(input[["bulk_apply_to"]])
-          review_choices <- seq_along(review[["choices"]])
-          names(review_choices) <- review[["choices"]]
-          
-          ui <- list(
-            shiny::radioButtons(ns("bulk_choice"), label = "Select bulk choice", choices = review_choices, selected = current_bulk_choice),
-            shiny::radioButtons(ns("bulk_apply_to"), label = "Apply to", choices = apply_to_choices, selected = current_bulk_apply_to),
-            shiny::uiOutput(ns("bulk_summary_button"))
-          )
-        } else {
-          ui <- list()
-        }
-
-        ui
-      })
-
-      output[["bulk_summary_button"]] <- shiny::renderUI({
-        current_role <- input[[REV$ID$ROLE]]
-        current_apply_to <- input[["bulk_apply_to"]]
-        current_bulk_choice <- input[["bulk_choice"]]
-        all_rows <- tryCatch(
-          output_table_data()[["row_names"]],
-          error = function(e) {
-            return(character(0))
-          }
-        )
-
-        if (current_apply_to == "all_rows") {
-          affected_rows <- all_rows
-        } else {
-          affected_rows <- character(0)
-        }
-
-        if (length(affected_rows) > 0) {
-          ui <- list(
-            shiny::div(
-              style = "display:block",
-              shiny::p("Affected rows: ", paste(affected_rows, collapse = ", ")),
-              shiny::tags[["button"]](
-                type = "button",
-                class = "btn", "Apply bulk operation",
-                onclick = sprintf(
-                  "Shiny.setInputValue('%s', {row:[%s], option: '%s'}, {priority: 'event'})",
-                  ns(REV$ID$REVIEW_SELECT),
-                  paste0(affected_rows, collapse = ","),
-                  current_bulk_choice
-                )
-              )
-            )
-          )
-        } else {
-          ui <- list(
-            shiny::div(
-              shiny::p("No rows are affected"),
-              shiny::tags[["button"]](type = "button", class = "btn", "Apply bulk operation", disabled = NA)
-            )
-          )
-        }
-        ui
-      })
-
-
 
       review_button_label <- shiny::reactive({
         role <- input[[REV$ID$ROLE]]
@@ -697,11 +627,19 @@ listings_server <- function(module_id,
           ordering = TRUE,
           columnDefs = column_defs,
           # FIXME: Update to use https://datatables.net/reference/option/layout
-          dom = "frtilp", # Buttons, filtering, processing display element, table, information summary, length, pagination
+          dom = "<'top'>rtilp", # Buttons, filtering, processing display element, table, information summary, length, pagination
           fixedColumns = list(left = review_col_count),
+          initComplete = htmlwidgets::JS(
+            sprintf(
+            "function(settings, json) {
+              dv_listings.render_bulk_menu(settings.sTableId + \"_wrapper\", [%s], '%s');
+            }", paste(paste0("'", review[["choices"]], "'"), collapse = ", "),
+            ns(REV$ID$REVIEW_SELECT)
+            )
+          ),
           drawCallback = htmlwidgets::JS("
-            function(settings) {
-              $('.dataTables_wrapper thead input[type=\"search\"]').removeAttr('disabled');
+            function (settings) {  
+              $(settings.nTableWrapper).find('thead input[type=\"search\"]').removeAttr('disabled');
             }
           ") # Keep filtering enabled even for columns that have a unique value
         ),

@@ -273,9 +273,7 @@ RS_parse_base <- function(contents) {
 
 RS_compute_delta_memory <- function(state, df) {
   checkmate::assert_data_frame(df) # TODO: etc.
-  
-  error <- character(0)
-  
+
   time_delta <- as.integer(ceiling(SH$get_UTC_time_in_seconds() - state$timestamp))
   df_hash <- RS_hash_data_frame(df)
 
@@ -319,8 +317,23 @@ RS_compute_delta_memory <- function(state, df) {
   id_hashes <- id_hashes[, mapping, drop = FALSE]
   tracked_hashes <- tracked_hashes[, mapping, drop = FALSE]
 
+  # TODO: Assert against removal of rows
+
+  browser()
+  
   merged <- cbind(state$tracked_hashes, tracked_hashes, deparse.level = 0)
-  modified_row_mask <- !duplicated(merged, MARGIN = 2) |> c() |> tail(n = nrow(df) - length(new_row_indices))
+
+  mask <- array(FALSE, dim = dim(state$tracked_hashes))
+
+  for(idx in seq_len(dim(state$tracked_hashes)[[1]])) {
+    for(jdx in seq_len(dim(state$tracked_hashes)[[2]])){
+      
+      mask[idx, jdx] <- (state$tracked_hashes[idx, jdx] != tracked_hashes[idx, jdx])
+    }
+
+  }
+
+  modified_row_mask <- !duplicated(merged, MARGIN = 2) |> c() |> tail(n = nrow(df)-length(new_row_indices))
   modified_row_indices <- which(modified_row_mask)
   
   res <- list(
