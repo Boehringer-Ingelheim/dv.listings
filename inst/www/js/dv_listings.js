@@ -106,7 +106,7 @@ const dv_listings = (function () {
     let in_f = function (data, type, row, meta) {
       if (type === 'display') {
         let result = '<div style="display: flex; align-items: baseline; gap: 0.5rem;">';
-        result += `<input type="checkbox" data-for-row="${row[row_number_idx]}" data-input-type="bulk-control">`;
+        result += `<input type="checkbox" data-for-row="${row[row_number_idx]}" data-input-type="bulk-control" onchange = "dv_listings.on_change_table_checkbox(event)">`;
         let options = choices;
         result += `<select onchange=\"Shiny.setInputValue('${id}', {row:${row[row_number_idx]}, option:this.value}, {priority: 'event'});\">`;
         for (let i = 0; i < options.length; i += 1) {
@@ -208,34 +208,106 @@ const dv_listings = (function () {
     choices_menu += '</select>';
 
     const select_all_visible = `
-    <button class = "btn" onclick = "dv_listings.select_all_visible(event, '${id}')">Select All Visible</button>
+    <input type="checkbox" onchange="dv_listings.on_change_select_all_checkbox('${id}')">
     `;
     const apply_bulk_full = `
-    <button class = "btn" onclick = "dv_listings.apply_bulk_full(event, '${id}', '${input_id}')">Apply full table</button>
+    <button class = "btn" onclick = "dv_listings.apply_bulk_full('${id}', '${input_id}')">Apply full table</button>
     `;
     const apply_bulk_visible = `
-    <button class = "btn" onclick = "dv_listings.apply_bulk_visible(event, '${id}', '${input_id}')">Apply selected</button>
+    <button class = "btn" onclick = "dv_listings.apply_bulk_visible('${id}', '${input_id}')">Apply selected</button>
+    `;
+
+    const apply_bulk_split = `
+    <div class="btn-group">
+    <button type="button" class="btn" 
+            onclick="dv_listings.apply_bulk_visible('${id}', '${input_id}')">
+      Apply selected
+    </button>
+    <button type="button" class="btn btn-primary dropdown-toggle" data-toggle="dropdown" aria-expanded="false">
+      <span class="caret"></span>
+      <span class="sr-only">Toggle Dropdown</span>
+    </button>
+    <ul class="dropdown-menu" role="menu">
+      <li>
+        <a href="#" onclick="dv_listings.apply_bulk_full('${id}', '${input_id}'); return false;">
+          Apply full table
+        </a>
+      </li>
+    </ul>
+  </div>    
     `;
 
     const html = `
-      <div id='bulk-menu-wrapper'>
+      <div class='bulk-menu-wrapper'>
         ${select_all_visible}
         ${choices_menu}
-        ${apply_bulk_full}
-        ${apply_bulk_visible}
+        ${apply_bulk_split}
+        
       </div>`;
+      // ${apply_bulk_full}
+      //   ${apply_bulk_visible}
 
     container.prepend(html);
   }
 
-  const select_all_visible = function(event, container_id) {
+  const get_all_select_checkbox = function(container_id) {
     const inputs = $("#" + container_id).find('input[data-input-type="bulk-control"]');
-    for (let i = 0; i < inputs.length; i++) {
-      inputs[i].checked = true;      
+      return(inputs);
+  }
+
+  const compute_select_all_checkbox_state = function (container_id) {
+    const inputs = get_all_select_checkbox(container_id);
+    let checkbox_state;
+    let all_false;
+    let all_true;    
+    if (inputs.length > 0) {
+      all_false = true;
+      all_true = true;    
+      for (let i = 0; i < inputs.length; i++) {
+        all_false = all_false && !inputs[i].checked;
+        all_true = all_true && inputs[i].checked;
+      }      
+    } else {
+      all_false = true;
+      all_true = false;    
     }
+    checkbox_state = {checked: all_true, indeterminate: !all_false&&!all_true}
+    return (checkbox_state);    
   };
 
-  const apply_bulk_visible = function(event, container_id, input_id) {
+  const set_select_all_checkbox_state = function (state, container_id) {    
+    const checkbox = document.querySelector(`#${container_id} .bulk-menu-wrapper input[type="checkbox"]`);
+    checkbox.checked = state.checked;
+    checkbox.indeterminate = state.indeterminate;    
+  };
+
+  const on_change_table_checkbox = function (event) {
+    const container_id = event.target.closest(".dataTables_wrapper").id;
+    const state = compute_select_all_checkbox_state(container_id);
+    set_select_all_checkbox_state(state, container_id);
+  };
+
+  const on_change_select_all_checkbox = function (container_id) {    
+    const inputs = get_all_select_checkbox(container_id);    
+    const current_state = compute_select_all_checkbox_state(container_id);
+    let next_state;
+
+    if(current_state.indeterminate || !current_state.checked) {
+      for (let i = 0; i < inputs.length; i++) {
+        inputs[i].checked = true;
+      }
+      next_state = {checked: true, indeterminate: false};
+    } else if(current_state.checked) {
+      for (let i = 0; i < inputs.length; i++) {
+        inputs[i].checked = false;
+      }
+      next_state = {checked: false, indeterminate: false};
+    }
+
+    set_select_all_checkbox_state(next_state, container_id);
+  };
+
+  const apply_bulk_visible = function(container_id, input_id) {
     const inputs = $("#" + container_id + " input[data-input-type='bulk-control']:checked");
     const choice_value = $("#" + container_id + " .top select").val();
     let selected_row_ids = [];
@@ -246,7 +318,7 @@ const dv_listings = (function () {
     Shiny.setInputValue(input_id, {row:selected_row_ids, option:choice_value}, {priority: 'event'})
   };
 
-  const apply_bulk_full = function(event, container_id, input_id) {
+  const apply_bulk_full = function(container_id, input_id) {
     const table = $("#" + container_id + " table").DataTable();
     const selected_row_ids = table.column(row_number_idx).data().toArray();    
     const choice_value = $("#" + container_id + " .top select").val();
@@ -259,7 +331,8 @@ const dv_listings = (function () {
     render_identity: render_identity,
     render_status: render_status,
     render_bulk_menu: render_bulk_menu,
-    select_all_visible: select_all_visible,
+    on_change_select_all_checkbox: on_change_select_all_checkbox,
+    on_change_table_checkbox: on_change_table_checkbox,
     apply_bulk_visible: apply_bulk_visible,
     apply_bulk_full: apply_bulk_full,
     show_child: show_child
