@@ -218,7 +218,7 @@ const dv_listings = (function () {
     `;
 
     const apply_bulk_split = `
-    <div class="btn-group">
+    <div class="btn-group" style = "display:inline-flex">
     <button type="button" class="btn" 
             onclick="dv_listings.apply_bulk_visible('${id}', '${input_id}')">
       Apply selected

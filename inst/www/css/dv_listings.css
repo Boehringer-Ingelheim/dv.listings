@@ -1,7 +1,8 @@
 .bulk-menu-wrapper {
   display: flex;
-  gap: 2px;
-  align-items: center;
+  width: fit-content;
+  gap: 5px;
+  align-items: baseline;
   background-color: #f8f9fa;
   padding: 10px 15px;
   border: 1px solid #dee2e6;
