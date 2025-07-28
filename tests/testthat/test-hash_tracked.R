@@ -1,6 +1,6 @@
 test_that("SH$hash_tracked exhibits almost no false negatives and few false positives", {
   hash_df <- function(df, tracked_vars) {
-    hashes <- SH$hash_trackeddf[tracked_vars]
+    hashes <- SH$hash_tracked(df[tracked_vars])
     return(hashes)
   }
  
