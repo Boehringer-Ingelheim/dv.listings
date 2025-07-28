@@ -315,6 +315,8 @@ const dv_listings = (function () {
       const row_id = inputs[i].getAttribute('data-for-row');  
       selected_row_ids.push(row_id);  
     }
+    const state = compute_select_all_checkbox_state(container_id);
+    set_select_all_checkbox_state(state, container_id);
     Shiny.setInputValue(input_id, {row:selected_row_ids, option:choice_value}, {priority: 'event'})
   };
 
@@ -322,6 +324,8 @@ const dv_listings = (function () {
     const table = $("#" + container_id + " table").DataTable();
     const selected_row_ids = table.column(row_number_idx).data().toArray();    
     const choice_value = $("#" + container_id + " .top select").val();
+    const state = compute_select_all_checkbox_state(container_id);
+    set_select_all_checkbox_state(state, container_id);
     Shiny.setInputValue(input_id, {row:selected_row_ids, option:choice_value, bulk:'filtered'}, {priority: 'event'})
   };
 
