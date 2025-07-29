@@ -1,6 +1,6 @@
 test_that("SH$hash_tracked exhibits almost no false negatives and few false positives", {
   hash_df <- function(df, tracked_vars) {
-    hashes <- apply(df[tracked_vars], 1, SH$hash_tracked, simplify = TRUE) # coerces all types to be the same (character?)
+    hashes <- SH$hash_tracked(df[tracked_vars])
     return(hashes)
   }
  
