@@ -519,7 +519,7 @@ REV_logic_2 <- function(ns, state, input, review, datasets, selected_dataset_lis
     info <- input[[REV$ID$REVIEW_SELECT]]
 
     # Replace in full bulk operation
-    if ("bulk" %in% names(info) && info[["bulk"]] == "filtered") {
+    if ("bulk" %in% names(info) && identical(info[["bulk"]], "filtered")) {
       info[["row"]] <- input[[paste0(TBL$TABLE_ID, "_rows_all")]]
     }
 

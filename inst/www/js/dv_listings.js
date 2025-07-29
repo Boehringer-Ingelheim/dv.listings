@@ -108,7 +108,7 @@ const dv_listings = (function () {
         let result = '<div style="display: flex; align-items: baseline; gap: 0.5rem;">';
         result += `<input type="checkbox" data-for-row="${row[row_number_idx]}" data-input-type="bulk-control" onchange = "dv_listings.on_change_table_checkbox(event)">`;
         let options = choices;
-        result += `<select onchange=\"Shiny.setInputValue('${id}', {row:${row[row_number_idx]}, option:this.value, bulk:null}, {priority: 'event'});\">`;
+        result += `<select onchange=\"Shiny.setInputValue('${id}', {row:${row[row_number_idx]}, option:this.value, bulk:'false'}, {priority: 'event'});\">`;
         for (let i = 0; i < options.length; i += 1) {
           result += `<option value=${i + 1}${options[i] == data ? ' selected' : ''}>${options[i]}</option>`;
         }
@@ -150,7 +150,7 @@ const dv_listings = (function () {
 
         if (add_confirm_button) {
           result += `
-          <button class = "btn btn-primary btn-xs" style=\"width:100%%\" onclick=\"Shiny.setInputValue('${id}', {row:${row[row_number_idx]}, option:'${options.indexOf(row[latest_review_idx]) + 1}', bulk:null}, {priority: 'event'})\" title="Agree with latest review">\u2714</button>          
+          <button class = "btn btn-primary btn-xs" style=\"width:100%%\" onclick=\"Shiny.setInputValue('${id}', {row:${row[row_number_idx]}, option:'${options.indexOf(row[latest_review_idx]) + 1}', bulk:'false'}, {priority: 'event'})\" title="Agree with latest review">\u2714</button>          
           `
         }
         result += `</div></div>`
@@ -316,7 +316,7 @@ const dv_listings = (function () {
       const row_id = inputs[i].getAttribute('data-for-row');  
       selected_row_ids.push(row_id);  
     }    
-    Shiny.setInputValue(input_id, {row:selected_row_ids, option:choice_value, bulk:null}, {priority: 'event'})
+    Shiny.setInputValue(input_id, {row:selected_row_ids, option:choice_value, bulk:'false'}, {priority: 'event'})
   };
 
   const apply_bulk_full = function(container_id, input_id) {        
