@@ -15,14 +15,14 @@ SH <- local({ # _S_erialization _H_elpers
     return(res)
   }
 
-  ..old_hash_id <- function(row) {
+  ..ref_hash_id <- function(row) {
     input <- paste(row, collapse = '\1D')
     input <- charToRaw(input)
     res <- xxhashlite::xxhash_raw(input, as_raw = TRUE)
     return(res)
   }
   
-..old_hash_tracked_inner <- function(row) {
+..ref_hash_tracked_inner <- function(row) {
     # FIXME: Ensure that precision of numeric values does not affect serialization
     #        Maybe by using a string hex representation of their binary contents
     input <- paste(row, collapse = '\1D')
@@ -33,13 +33,13 @@ SH <- local({ # _S_erialization _H_elpers
   
   hash_tracked_offsets <- c(0, 2, 3)
   
-  ..old_hash_tracked <- function(row) {
+  ..ref_hash_tracked <- function(row) {
     n_col <- length(row)
     
     res <- raw(n_col)
     for(i_col in seq(n_col)){      
       col_indices <- (((i_col-1) + hash_tracked_offsets) %% n_col) + 1
-      res[[i_col]] <- ..old_hash_tracked_inner(row[col_indices])[[1]] # most significant byte
+      res[[i_col]] <- ..ref_hash_tracked_inner(row[col_indices])[[1]] # most significant byte
       i_col <- i_col + 1
     }
     
@@ -108,9 +108,9 @@ SH <- local({ # _S_erialization _H_elpers
       integer_vector_to_raw = integer_vector_to_raw,
       hash_id = hash_id,
       hash_tracked = hash_tracked,
-      ..old = list(
-        hash_id = ..old_hash_id,
-        hash_tracked = ..old_hash_tracked
+      ..ref = list(
+        hash_id = ..ref_hash_id,
+        hash_tracked = ..ref_hash_tracked
       ),
       read_string_from_con = read_string_from_con,
       read_character_vector_from_con = read_character_vector_from_con,
@@ -281,9 +281,9 @@ RS_compute_delta_memory <- function(state, df){
 
   tracked_vars <- state$tracked_vars
   # FIXME: (LUIS): Ask Miguel about the postlude
-  tracked_hashes <- (SH$hash_tracke(df[tracked_vars]) |> c() |> 
+  tracked_hashes <- (SH$hash_tracked(df[tracked_vars]) |> c() |> 
                        array(dim = c(length(tracked_vars), nrow(df))))
-  
+
   # Assert against removal of rows
   local({
     merged <- cbind(id_hashes, state$id_hashes, deparse.level = 0)

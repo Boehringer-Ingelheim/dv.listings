@@ -77,8 +77,8 @@ test_that(
   "apply, fixed_lapply and hash_id are identical when rows of each column have the same width", {
   
   df <- generate_random_df(100, equal_length = TRUE)
-  apply_hash_res <- apply(df, 1, SH$`..old`$hash_id, simplify = TRUE)
-  fixed_apply_hash_res <- fixed_apply_hash(df, SH$`..old`$hash_id)
+  apply_hash_res <- apply(df, 1, SH$`..ref`$hash_id, simplify = TRUE)
+  fixed_apply_hash_res <- fixed_apply_hash(df, SH$`..ref`$hash_id)
   vectorized_hash <- SH$hash_id(df)
   expect_identical(apply_hash_res, fixed_apply_hash_res)
   expect_identical(apply_hash_res, vectorized_hash)  
@@ -87,7 +87,7 @@ test_that(
 test_that(
   "fixed_lapply and hash_id are identical when rows of each column have different width", {  
   df <- generate_random_df(100, equal_length = FALSE)  
-  fixed_apply_hash_res <- fixed_apply_hash(df, SH$`..old`$hash_id)
+  fixed_apply_hash_res <- fixed_apply_hash(df, SH$`..ref`$hash_id)
   vectorized_hash <- SH$hash_id(df)
   expect_identical(fixed_apply_hash_res, vectorized_hash)  
 })
@@ -96,8 +96,8 @@ test_that(
   "apply, fixed_lapply and hash_tracked are identical when rows of each column have the same width", {
   
   df <- generate_random_df(100, equal_length = TRUE)
-  apply_hash_res <- apply(df, 1, SH$`..old`$hash_tracked, simplify = TRUE)
-  fixed_apply_hash_res <- fixed_apply_hash(df, SH$`..old`$hash_tracked)
+  apply_hash_res <- apply(df, 1, SH$`..ref`$hash_tracked, simplify = TRUE)
+  fixed_apply_hash_res <- fixed_apply_hash(df, SH$`..ref`$hash_tracked)
   vectorized_hash <- SH$hash_tracked(df)
   expect_identical(apply_hash_res, fixed_apply_hash_res)
   expect_identical(apply_hash_res, vectorized_hash)  
@@ -106,20 +106,7 @@ test_that(
 test_that(
   "fixed_lapply and hash_tracked are identical when rows of each column have different width", {  
   df <- generate_random_df(100, equal_length = FALSE)  
-  fixed_apply_hash_res <- fixed_apply_hash(df, SH$`..old`$hash_tracked)
+  fixed_apply_hash_res <- fixed_apply_hash(df, SH$`..ref`$hash_tracked)
   vectorized_hash <- SH$hash_tracked(df)
   expect_identical(fixed_apply_hash_res, vectorized_hash)  
 })
-
-# df <- generate_random_df(10000, equal_length = TRUE)
-# microbenchmark::microbenchmark(
-#   apply = apply(df, 1, SH$`..old`$hash_id, simplify = TRUE),
-#   fixed_apply = fixed_apply_hash(df, SH$`..old`$hash_id),
-#   vectorized = SH$hash_id(df)
-# )
-
-# microbenchmark::microbenchmark(
-#   apply = apply(df, 1, SH$`..old`$hash_tracked, simplify = TRUE),
-#   fixed_apply = fixed_apply_hash(df, SH$`..old`$hash_tracked),  
-#   vectorized = SH$hash_tracked(df)
-# )
