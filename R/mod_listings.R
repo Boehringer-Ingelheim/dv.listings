@@ -608,9 +608,24 @@ listings_server <- function(module_id,
                  targets = review_column_indices[[4]])            
           )
         )
+
+        # TODO: find a place for this if
+        if (checkmate::test_string(input[[REV$ID$ROLE]], min.chars = 1)) {
+          bulk_render <-  sprintf(
+            "function(settings, json) {
+              dv_listings.render_bulk_menu(settings.sTableId + \"_wrapper\", [%s], '%s');
+            }", paste(paste0("'", review[["choices"]], "'"), collapse = ", "),
+            ns(REV$ID$REVIEW_SELECT)
+            )
+        } else {
+          bulk_render <- ""
+        }
       } else {
+        bulk_render <- ""
         review_col_count <- 0        
       }
+
+     
 
       DT::datatable(
         data = table_data[["data"]],
@@ -629,14 +644,7 @@ listings_server <- function(module_id,
           # FIXME: Update to use https://datatables.net/reference/option/layout
           dom = "<'top'>rtilp", # Buttons, filtering, processing display element, table, information summary, length, pagination
           fixedColumns = list(left = review_col_count),
-          initComplete = htmlwidgets::JS(
-            sprintf(
-            "function(settings, json) {
-              dv_listings.render_bulk_menu(settings.sTableId + \"_wrapper\", [%s], '%s');
-            }", paste(paste0("'", review[["choices"]], "'"), collapse = ", "),
-            ns(REV$ID$REVIEW_SELECT)
-            )
-          ),
+          initComplete = htmlwidgets::JS(bulk_render),
           drawCallback = htmlwidgets::JS("
             function (settings) {  
               $(settings.nTableWrapper).find('thead input[type=\"search\"]').removeAttr('disabled');

@@ -511,6 +511,14 @@ REV_logic_2 <- function(ns, state, input, review, datasets, selected_dataset_lis
   shiny::observeEvent(input[[REV$ID$REVIEW_SELECT]], {
     role <- input[[REV$ID$ROLE]]
 
+    if (!checkmate::test_string(role, min.chars = 1)) {
+      msg <- "Attempted write with unset role"
+      shiny::showNotification(msg, type = "warning")
+      warning(msg)
+      shiny::req(FALSE)
+    }
+    
+
     dataset_list_name <- selected_dataset_list_name() 
     dataset_name <- selected_dataset_name()
     
