@@ -210,12 +210,6 @@ const dv_listings = (function () {
     const select_all_visible = `
     <input type="checkbox" onchange="dv_listings.on_change_select_all_checkbox('${id}')">
     `;
-    const apply_bulk_full = `
-    <button class = "btn" onclick = "dv_listings.apply_bulk_full('${id}', '${input_id}')">Apply full table</button>
-    `;
-    const apply_bulk_visible = `
-    <button class = "btn" onclick = "dv_listings.apply_bulk_visible('${id}', '${input_id}')">Apply selected</button>
-    `;
 
     const apply_bulk_split = `
     <div class="btn-group" style = "display:inline-flex">
@@ -321,19 +315,13 @@ const dv_listings = (function () {
     for (let i = 0; i < inputs.length; i++) {
       const row_id = inputs[i].getAttribute('data-for-row');  
       selected_row_ids.push(row_id);  
-    }
-    const state = compute_select_all_checkbox_state(container_id);
-    set_select_all_checkbox_state(state, container_id);
+    }    
     Shiny.setInputValue(input_id, {row:selected_row_ids, option:choice_value}, {priority: 'event'})
   };
 
-  const apply_bulk_full = function(container_id, input_id) {
-    const table = $("#" + container_id + " table").DataTable();
-    const selected_row_ids = table.column(row_number_idx).data().toArray();    
-    const choice_value = $("#" + container_id + " .top select").val();
-    const state = compute_select_all_checkbox_state(container_id);
-    set_select_all_checkbox_state(state, container_id);
-    Shiny.setInputValue(input_id, {row:selected_row_ids, option:choice_value, bulk:'filtered'}, {priority: 'event'})
+  const apply_bulk_full = function(container_id, input_id) {        
+    const choice_value = $("#" + container_id + " .top select").val();    
+    Shiny.setInputValue(input_id, {row:null, option:choice_value, bulk:'filtered'}, {priority: 'event'})
   };
 
   const res = {
@@ -342,6 +330,7 @@ const dv_listings = (function () {
     render_identity: render_identity,
     render_status: render_status,
     render_bulk_menu: render_bulk_menu,
+    refresh_bulk_select_all_checkbox: refresh_bulk_select_all_checkbox,
     on_change_select_all_checkbox: on_change_select_all_checkbox,
     on_change_table_checkbox: on_change_table_checkbox,
     apply_bulk_visible: apply_bulk_visible,
