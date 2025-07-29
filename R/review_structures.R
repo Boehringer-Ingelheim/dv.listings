@@ -15,14 +15,14 @@ SH <- local({ # _S_erialization _H_elpers
     return(res)
   }
 
-  hash_id <- function(row) {
+  ..ref_hash_id <- function(row) {
     input <- paste(row, collapse = '\1D')
     input <- charToRaw(input)
     res <- xxhashlite::xxhash_raw(input, as_raw = TRUE)
     return(res)
   }
   
-  hash_tracked_inner <- function(row) {
+..ref_hash_tracked_inner <- function(row) {
     # FIXME: Ensure that precision of numeric values does not affect serialization
     #        Maybe by using a string hex representation of their binary contents
     input <- paste(row, collapse = '\1D')
@@ -33,16 +33,39 @@ SH <- local({ # _S_erialization _H_elpers
   
   hash_tracked_offsets <- c(0, 2, 3)
   
-  hash_tracked <- function(row) {
+  ..ref_hash_tracked <- function(row) {
     n_col <- length(row)
     
     res <- raw(n_col)
-    for(i_col in seq(n_col)){
+    for(i_col in seq(n_col)){      
       col_indices <- (((i_col-1) + hash_tracked_offsets) %% n_col) + 1
-      res[[i_col]] <- hash_tracked_inner(row[col_indices])[[1]] # most significant byte
+      res[[i_col]] <- ..ref_hash_tracked_inner(row[col_indices])[[1]] # most significant byte
       i_col <- i_col + 1
     }
     
+    return(res)
+  }
+
+  vectorized_hash_row <- function(df, algo = "xxh128") {  
+    vectorized_hash_id <- Vectorize(function(x) xxhashlite::xxhash_raw(charToRaw(x), as_raw = TRUE, algo = algo), USE.NAMES = FALSE, SIMPLIFY = FALSE)
+    single_col <- do.call(function(...) paste(..., sep = "\1D"), lapply(df, as.character))
+    hashed_col <- vectorized_hash_id(single_col)
+    n_col <- length(hashed_col)
+    n_row <- if (length(hashed_col) > 0) length(hashed_col[[1]]) else 0
+    res <- matrix(unlist(vectorized_hash_id(single_col)), nrow = n_row, ncol = n_col)  
+    res
+  }
+
+  hash_id <- vectorized_hash_row
+
+  hash_tracked <- function(df) {
+    n_col <- ncol(df)
+    res <- list()   
+    for (i_col in seq_len(n_col)) {
+      col_indices <- (((i_col - 1) + hash_tracked_offsets) %% n_col) + 1
+      res[[i_col]] <- vectorized_hash_row(df[col_indices], algo = "xxh32")[1,] # most significant byte    
+    }
+    res <- matrix(unlist(res), nrow = ncol(df), ncol = nrow(df), byrow = TRUE)  
     return(res)
   }
 
@@ -85,6 +108,10 @@ SH <- local({ # _S_erialization _H_elpers
       integer_vector_to_raw = integer_vector_to_raw,
       hash_id = hash_id,
       hash_tracked = hash_tracked,
+      ..ref = list(
+        hash_id = ..ref_hash_id,
+        hash_tracked = ..ref_hash_tracked
+      ),
       read_string_from_con = read_string_from_con,
       read_character_vector_from_con = read_character_vector_from_con,
       read_integer_vector_from_con = read_integer_vector_from_con,
@@ -149,7 +176,7 @@ RS_parse_data_frame_variable_types <- function(v){
 }
 
 RS_compute_id_hashes <- function(df, id_vars){
-  return(apply(df[id_vars], 1, SH$hash_id, simplify = TRUE)) # coerces all types to be the same (character?)
+  return(SH$hash_id(df[id_vars]))
 }
 
 RS_compute_base_memory <- function(df_id, df, id_vars, tracked_vars){
@@ -167,7 +194,7 @@ RS_compute_base_memory <- function(df_id, df, id_vars, tracked_vars){
   ; if(!identical(dim(id_hashes), c(16L, nrow(df)))) return(simpleCondition("Internal error in id_vars hash preparation"))
   ; if(any(duplicated(id_hashes, MARGIN = 2))) return(simpleCondition("Found duplicated IDs"))
 
-  tracked_hashes <- apply(df[tracked_vars], 1, SH$hash_tracked, simplify = TRUE)
+  tracked_hashes <- SH$hash_tracked(df[tracked_vars])
   ; if(!identical(dim(tracked_hashes), c(length(tracked_vars), nrow(df)))) 
     return(simpleCondition("Internal error in tracked_vars hash preparation"))
   
@@ -253,9 +280,10 @@ RS_compute_delta_memory <- function(state, df){
   id_hashes <- RS_compute_id_hashes(df, id_vars) |> c() |> array(dim = c(16L, nrow(df)))
 
   tracked_vars <- state$tracked_vars
-  tracked_hashes <- (apply(df[tracked_vars], 1, SH$hash_tracked, simplify = TRUE) |> c() |> 
+  # FIXME: (LUIS): Ask Miguel about the postlude
+  tracked_hashes <- (SH$hash_tracked(df[tracked_vars]) |> c() |> 
                        array(dim = c(length(tracked_vars), nrow(df))))
-  
+
   # Assert against removal of rows
   local({
     merged <- cbind(id_hashes, state$id_hashes, deparse.level = 0)
