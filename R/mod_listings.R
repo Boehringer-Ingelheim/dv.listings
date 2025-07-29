@@ -640,6 +640,7 @@ listings_server <- function(module_id,
           drawCallback = htmlwidgets::JS("
             function (settings) {  
               $(settings.nTableWrapper).find('thead input[type=\"search\"]').removeAttr('disabled');
+              dv_listings.refresh_bulk_select_all_checkbox(settings.sTableId + \"_wrapper\");              
             }
           ") # Keep filtering enabled even for columns that have a unique value
         ),

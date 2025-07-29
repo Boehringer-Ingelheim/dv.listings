@@ -277,8 +277,15 @@ const dv_listings = (function () {
 
   const set_select_all_checkbox_state = function (state, container_id) {    
     const checkbox = document.querySelector(`#${container_id} .bulk-menu-wrapper input[type="checkbox"]`);
-    checkbox.checked = state.checked;
-    checkbox.indeterminate = state.indeterminate;    
+    if(checkbox!==null) {
+      checkbox.checked = state.checked;
+      checkbox.indeterminate = state.indeterminate;    
+    }    
+  };
+
+  const refresh_bulk_select_all_checkbox = function(container_id) {
+    const state = compute_select_all_checkbox_state(container_id);
+    set_select_all_checkbox_state(state, container_id);
   };
 
   const on_change_table_checkbox = function (event) {
