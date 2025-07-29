@@ -55,7 +55,7 @@ mod_listings(
     datasets = list(
       dm = list(
         id_vars = "USUBJID",
-        tracked_vars = c("RFSTDTC", "RFENDTC")
+        tracked_vars = c("DMDTC", "RFSTDTC", "RFENDTC")
       ),
       ae = list(
         id_vars = c("USUBJID", "AESEQ"), 
@@ -76,7 +76,7 @@ The `review` parameter is itself divided into four subfields:
 - `datasets`: A named list of domain configurations. The names refer to datasets with associated listings, i.e. those provided through the `dataset_names` parameter. Each of the elements in that list is itself a list with two elements:
 
   - `id_vars`: `[character(n)]` Immutable variables that uniquely identify each record for a given domain. For example, in the case of the demographics domain, the **U**nique **SUBJ**ect **ID**entifier is enough. In the case of the adverse events domain, both USUBJID and the **A**dverse **E**vent **SEQ**uence number are necessary.
-  - `tracked_vars`: `[character(n)]` Variables to track across dataset updates. If the contents of one of this columns changes on an already reviewed row, that review will be marked as potentially outdated.
+  - `tracked_vars`: `[character(3+)]` Variables to track across dataset updates. If the contents of one of this columns changes on an already reviewed row, that review will be marked as potentially outdated. This vector should list at least three variables.
 - `choices`: `[character(n)]` Review choices available to assign to each listing row.
 - `roles`: `[character(n)]` Names of reviewer roles.
 - `store_path`: `[character(1)]` Optional. If specified, files associated to the review process will be stored on this path on the server. If left unspecified, those files will be stored on a folder of the _client_'s computer. The users of the app will have the opportunity to choose the path when they launch it.
@@ -261,7 +261,7 @@ Each of these bytes is computed by:
 Informal testing (refer to `tests/testthat/tests-hash_tracked.R` for more details) of this hashing scheme shows the following properties:
 
 - It's capable of identifying up to four modified variables per row (after that, it's preferable to give up and notify the whole row as modified).
-- It has a very low **false negative rate** (a variable is modified without it being notified as such) of one for every 16 million row updates.
+- It has a very low **false negative rate** (a variable is modified without it being notified as such) of one for every 8 million row updates.
 - It has a low **false positive rate** (a variable that retains its value is notified as modified). This only happens when there are actual changes to a row.
 
 False positives are not critical, as they ask reviewers to consider a larger set of variables when re-reviewing a row that has been altered.

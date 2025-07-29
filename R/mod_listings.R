@@ -919,12 +919,12 @@ check_mod_listings <- function(afmm, datasets, module_id, dataset_names,
           ) &&
           CM$assert(
             container = err,
-            cond = (checkmate::test_character(info[["tracked_vars"]], min.chars = 1, unique = TRUE) &&
+            cond = (checkmate::test_character(info[["tracked_vars"]], min.chars = 1, min.len = 3, unique = TRUE) &&
                       checkmate::test_subset(info[["tracked_vars"]], names(dataset))),
             msg = sprintf(
               paste(
-                "`review$datasets$%s$tracked_vars` should be a character vector listing a subset of the columns",
-                "available in dataset `%s`"
+                "`review$datasets$%s$tracked_vars` should be a character vector listing a subset of",
+                " at least three columns available in dataset `%s`"
               ), domain, domain
             )
           )
