@@ -389,7 +389,7 @@ listings_server <- function(module_id,
       "clear_filters",
       # NOTE(miguel): Added here for easier merge with other branches
       # TODO(miguel): Move elsewhere after merging 
-      REV_UI(ns = ns, roles = review[["roles"]])[["input_ids_to_exclude_from_bookmarking"]]
+      REV_UI(ns = ns, roles = character(0))[["input_ids_to_exclude_from_bookmarking"]]
     ))
     
     # Bookmarking (end)
@@ -429,6 +429,10 @@ listings_server <- function(module_id,
       } else {
         fs_client <- fs_init(fs_callbacks, review[["store_path"]])
       }
+      
+      # Overly restrictive sanitization of role strings, as they will be used for file names:
+      # TODO: Consider adapting https://github.com/r-lib/fs/blob/main/R/sanitize.R instead to allow alternative charsets
+      review[["roles"]] <- gsub("[^a-zA-Z0-9 _.-]", "", review[["roles"]]) # Accepts alpha+num+space+'.'+'_'+'-'
 
       output[[TBL$REVIEW_UI_ID]] <- shiny::renderUI(
         shinyWidgets::dropdownButton(
