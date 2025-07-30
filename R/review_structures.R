@@ -502,9 +502,10 @@ RS_append <- function(path, contents){
   close(f)
 }
 
-# NOTE: The contents of the following conditional are a WIP of the annotation feature.
-#       They are parked until user requirements and technical blockers are clarified.
-# TODO? Repurpose as test/performance test/"live documentation"
+# NOTE: The contents of the following conditional are a WIP of the review feature.
+#       They may be useful for performance testing, but maybe a higher-level approach,
+#       such as that on `tests/testthat/test-review.R`, is enough and we don't need
+#       to call the `RS_*` functions directly.
 if(FALSE){
   describe_and_time <- function(description, expr){
     t0 <- Sys.time()
