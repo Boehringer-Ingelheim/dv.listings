@@ -1,4 +1,7 @@
 # nolint start
+
+BYTES_PER_TRACKED_HASH <- 2L
+
 SH <- local({ # _S_erialization _H_elpers
   get_UTC_time_in_seconds <- function() as.numeric(structure(Sys.time(), tzone = 'UTC'))
   double_to_raw <- function(v) writeBin(v, con = raw(0), endian = 'little', useBytes = TRUE)
@@ -36,10 +39,12 @@ SH <- local({ # _S_erialization _H_elpers
   ..ref_hash_tracked <- function(row) {
     n_col <- length(row)
     
-    res <- raw(n_col)
+    res <- raw(BYTES_PER_TRACKED_HASH * n_col)
     for(i_col in seq(n_col)){      
       col_indices <- (((i_col-1) + hash_tracked_offsets) %% n_col) + 1
-      res[[i_col]] <- ..ref_hash_tracked_inner(row[col_indices])[[1]] # most significant byte
+      first <- BYTES_PER_TRACKED_HASH * (i_col-1) + 1
+      last <- BYTES_PER_TRACKED_HASH * i_col
+      res[first:last] <- ..ref_hash_tracked_inner(row[col_indices])[1:BYTES_PER_TRACKED_HASH] # most significant bytes
       i_col <- i_col + 1
     }
     
@@ -63,9 +68,9 @@ SH <- local({ # _S_erialization _H_elpers
     res <- list()   
     for (i_col in seq_len(n_col)) {
       col_indices <- (((i_col - 1) + hash_tracked_offsets) %% n_col) + 1
-      res[[i_col]] <- vectorized_hash_row(df[col_indices], algo = "xxh32")[1,] # most significant byte    
+      res[[i_col]] <- vectorized_hash_row(df[col_indices], algo = "xxh32")[1:BYTES_PER_TRACKED_HASH,] # most significant bytes
     }
-    res <- matrix(unlist(res), nrow = ncol(df), ncol = nrow(df), byrow = TRUE)  
+    res <- do.call(rbind, res)
     return(res)
   }
 
@@ -195,7 +200,7 @@ RS_compute_base_memory <- function(df_id, df, id_vars, tracked_vars){
   ; if(any(duplicated(id_hashes, MARGIN = 2))) return(simpleCondition("Found duplicated IDs"))
 
   tracked_hashes <- SH$hash_tracked(df[tracked_vars])
-  ; if(!identical(dim(tracked_hashes), c(length(tracked_vars), nrow(df)))) 
+  ; if(!identical(dim(tracked_hashes), c(BYTES_PER_TRACKED_HASH*length(tracked_vars), nrow(df)))) 
     return(simpleCondition("Internal error in tracked_vars hash preparation"))
   
   # NOTE: We choose a serialization scheme with a well-known encoding. This avoid security concerns over 
@@ -244,7 +249,7 @@ RS_parse_base <- function(contents){
   row_count <- readBin(con, integer(), 1L)
  
   id_hashes <- SH$read_hashes_from_con(con, row_count, 16L)
-  tracked_hashes <- SH$read_hashes_from_con(con, row_count, length(tracked_vars))
+  tracked_hashes <- SH$read_hashes_from_con(con, row_count, BYTES_PER_TRACKED_HASH*length(tracked_vars))
   
   empty_read <- readBin(con, raw(), 1L)
   ; if(length(empty_read) > 0) return(simpleCondition("Too much hash data"))
@@ -282,7 +287,7 @@ RS_compute_delta_memory <- function(state, df){
   tracked_vars <- state$tracked_vars
   # FIXME: (LUIS): Ask Miguel about the postlude
   tracked_hashes <- (SH$hash_tracked(df[tracked_vars]) |> c() |> 
-                       array(dim = c(length(tracked_vars), nrow(df))))
+                       array(dim = c(BYTES_PER_TRACKED_HASH*length(tracked_vars), nrow(df))))
 
   # Assert against removal of rows
   local({
@@ -353,11 +358,11 @@ RS_parse_delta <- function(contents, tracked_var_count){
   domain <- SH$read_string_from_con(con)
   new_row_count <- readBin(con, integer(), 1L)
   new_id_hashes <- SH$read_hashes_from_con(con, new_row_count, 16L)
-  new_tracked_hashes <- SH$read_hashes_from_con(con, new_row_count, tracked_var_count)
+  new_tracked_hashes <- SH$read_hashes_from_con(con, new_row_count, BYTES_PER_TRACKED_HASH*tracked_var_count)
   modified_row_count <- NA_integer_
   modified_row_indices <- SH$read_integer_vector_from_con(con)
   modified_row_count <- length(modified_row_indices)
-  modified_tracked_hashes <- SH$read_hashes_from_con(con, modified_row_count, tracked_var_count)
+  modified_tracked_hashes <- SH$read_hashes_from_con(con, modified_row_count, BYTES_PER_TRACKED_HASH*tracked_var_count)
 
   empty_read <- readBin(con, raw(), 1L)
   ; if(length(empty_read) > 0) return(simpleCondition("Too much hash data"))
@@ -466,6 +471,7 @@ RS_load <- function(base, deltas){
   base_timestamp <- res$timestamp
   for(delta in deltas){
     state_delta <- RS_parse_delta(contents = delta, tracked_var_count = length(res[["tracked_vars"]]))
+    if(inherits(state_delta, "simpleCondition")) return(state_delta)
     
     if(!identical(state_delta$generation, res$generation+1L))
       return(simpleCondition(paste("Wrong generation marker. Should be", res$generation+1L)))
