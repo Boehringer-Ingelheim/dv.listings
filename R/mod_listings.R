@@ -217,6 +217,11 @@ listings_UI <- function(module_id) { # nolint
 #' @param on_sbj_click `[function()]`
 #'
 #' Function to invoke when a subject ID is clicked in a listing
+#' 
+#' @param review `[list()]`
+#'
+#' Configuration of the experimental data review feature. 
+#' For more details, please refer to `vignette("data_review")`.
 #'
 #' @export
 listings_server <- function(module_id,
