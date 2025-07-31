@@ -69,7 +69,7 @@ REV_include_review_info <- function(annotation_info, data, col_names, extra_col_
 }
 
 REV_UI <- function(ns, roles) {
-  choices <- setNames(c("", roles), c("<select reviewer role>", make.names(roles)))
+  choices <- setNames(c("", roles), c("<select reviewer role>", roles))
 
   res <- list()
   res[["ui"]] <- shiny::tagList(
@@ -108,8 +108,6 @@ REV_load_annotation_info <- function(folder_contents, review, dataset_lists) {
     folder_IO_plan <<- c(folder_IO_plan, list(action))
   }
   
-  review[["roles"]] <- make.names(review[["roles"]])
-
   for (dataset_lists_name in names(dataset_lists)) {
     sub_res <- list()
     dataset_list <- dataset_lists[[dataset_lists_name]]
@@ -590,7 +588,7 @@ REV_logic_2 <- function(ns, state, input, review, datasets, selected_dataset_lis
       SH$double_to_raw(timestamp)
     )
     
-    fname <- paste0(dataset_name, "_", make.names(role), ".review")
+    fname <- paste0(dataset_name, "_", role, ".review")
 
     IO_plan <- list(
       list(

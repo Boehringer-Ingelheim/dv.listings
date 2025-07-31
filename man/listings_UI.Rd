@@ -52,6 +52,11 @@ Column corresponding to subject ID. Default value is 'USUBJID'}
 
 Function to invoke when a subject ID is clicked in a listing}
 
+\item{review}{\verb{[list()]}
+
+Configuration of the experimental data review feature.
+For more details, please refer to \code{vignette("data_review")}.}
+
 \item{receiver_id}{\verb{[character(1) | NULL]}
 
 Character string defining the ID of the module to which to send a subject ID. The
