@@ -1,8 +1,8 @@
 ---
-title: "Data review"
+title: "Data review (experimental feature)"
 output: rmarkdown::html_vignette
 vignette: >
-  %\VignetteIndexEntry{Data review}
+  %\VignetteIndexEntry{Data review (experimental feature)}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
