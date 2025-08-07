@@ -1,13 +1,8 @@
 test_that("SH$hash_tracked exhibits almost no false negatives and few false positives", {
-  hash_df <- function(df, tracked_vars) {
-    hashes <- SH$hash_tracked(df[tracked_vars])
-    return(hashes)
-  }
- 
   # TODO(miguel): Refactor and move next to hash_tracked into SH  
   report_changes <- function(df, h0, verbose = FALSE){
     res <- list()
-    h1 <- hash_df(df, tracked_vars = colnames(df))
+    h1 <- SH$hash_tracked(df[colnames(df)])
     
     offsets <- c(0, 2, 3)
     
@@ -17,6 +12,7 @@ test_that("SH$hash_tracked exhibits almost no false negatives and few false posi
       prev <- as.integer(h0[,i_row])
       cur <- as.integer(h1[,i_row])
       diff <- (prev != cur)
+      diff <- apply(matrix(diff, ncol = BYTES_PER_TRACKED_HASH, byrow = TRUE), 1, any)
       evidence <- integer(n_col)
       for(i in seq_len(n_col)){
         v <- diff[[i]]
@@ -56,7 +52,7 @@ test_that("SH$hash_tracked exhibits almost no false negatives and few false posi
   }
   
   stress <- function(df, test_count, changes_per_test){
-    hashes <- hash_df(df, tracked_vars = colnames(df))
+    hashes <- SH$hash_tracked(df[colnames(df)])
     
     n_row <- nrow(df)
     n_col <- ncol(df)
@@ -116,7 +112,7 @@ test_that("SH$hash_tracked exhibits almost no false negatives and few false posi
           false_negatives <- append(false_negatives, tail)
         }
         if(i_rep <= length(reported_changes)) {
-          if(length(false_positives) == 0)  false_positive_first_delta <- expected_changes
+          if(length(false_positives) == 0) false_positive_first_delta <- expected_changes
           tail <- reported_changes[i_rep:length(reported_changes)]
           false_positives <- append(false_positives, tail)
         }

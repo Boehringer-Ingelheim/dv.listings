@@ -217,6 +217,11 @@ listings_UI <- function(module_id) { # nolint
 #' @param on_sbj_click `[function()]`
 #'
 #' Function to invoke when a subject ID is clicked in a listing
+#' 
+#' @param review `[list()]`
+#'
+#' Configuration of the experimental data review feature. 
+#' For more details, please refer to `vignette("data_review")`.
 #'
 #' @export
 listings_server <- function(module_id,
@@ -389,7 +394,7 @@ listings_server <- function(module_id,
       "clear_filters",
       # NOTE(miguel): Added here for easier merge with other branches
       # TODO(miguel): Move elsewhere after merging 
-      REV_UI(ns = ns, roles = review[["roles"]])[["input_ids_to_exclude_from_bookmarking"]]
+      REV_UI(ns = ns, roles = character(0))[["input_ids_to_exclude_from_bookmarking"]]
     ))
     
     # Bookmarking (end)
@@ -429,6 +434,10 @@ listings_server <- function(module_id,
       } else {
         fs_client <- fs_init(fs_callbacks, review[["store_path"]])
       }
+      
+      # Overly restrictive sanitization of role strings, as they will be used for file names:
+      # TODO: Consider adapting https://github.com/r-lib/fs/blob/main/R/sanitize.R instead to allow alternative charsets
+      review[["roles"]] <- gsub("[^a-zA-Z0-9 _.-]", "", review[["roles"]]) # Accepts alpha+num+space+'.'+'_'+'-'
 
       output[[TBL$REVIEW_UI_ID]] <- shiny::renderUI(
         shinyWidgets::dropdownButton(
@@ -919,12 +928,12 @@ check_mod_listings <- function(afmm, datasets, module_id, dataset_names,
           ) &&
           CM$assert(
             container = err,
-            cond = (checkmate::test_character(info[["tracked_vars"]], min.chars = 1, unique = TRUE) &&
+            cond = (checkmate::test_character(info[["tracked_vars"]], min.chars = 1, min.len = 3, unique = TRUE) &&
                       checkmate::test_subset(info[["tracked_vars"]], names(dataset))),
             msg = sprintf(
               paste(
-                "`review$datasets$%s$tracked_vars` should be a character vector listing a subset of the columns",
-                "available in dataset `%s`"
+                "`review$datasets$%s$tracked_vars` should be a character vector listing a subset of",
+                " at least three columns available in dataset `%s`"
               ), domain, domain
             )
           )

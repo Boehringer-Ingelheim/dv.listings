@@ -130,7 +130,7 @@ mock_listings_mm <- function() {
   )
 }
 
-mock_cqm <- function() {
+mock_review <- function() {
   ae <- safetyData::sdtm_ae
   dm <- safetyData::sdtm_dm
   
@@ -247,7 +247,7 @@ mock_cqm <- function() {
   
   # Step 5 - Run app
   dv.manager::run_app(
-    data = list("CQM_AE_list" = data_list),
+    data = list("AE_list_review" = data_list),
     module_list = list(
       "Listing" = listing,
       "Signal receiver" = mod_receiver(module_id = "papo", sender_id = "listing")
