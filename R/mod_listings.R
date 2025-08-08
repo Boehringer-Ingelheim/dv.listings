@@ -257,8 +257,8 @@ listings_server <- function(module_id,
 
     ns <- session[["ns"]]
     
-    v_dataset_list <- shiny::reactive({
-      checkmate::assert_list(dataset_list(), types = "data.frame", null.ok = TRUE, names = "named")
+    v_dataset_list <- shiny::reactive({      
+      checkmate::assert_list(dataset_list(), types = "data.frame", null.ok = TRUE, names = "named")      
       dataset_list()
     })
     
@@ -564,7 +564,7 @@ listings_server <- function(module_id,
       
       column_defs <- list(list(className = "dt-center", targets = "_all"))
       selected_dataset_name <- shiny::isolate(input[[TBL$DATASET_ID]])
-      if (show_review_columns() && selected_dataset_name %in% names(review$datasets)) {
+      if (show_review_columns() && selected_dataset_name %in% names(review$datasets) && nrow(output_table_data()[["data"]]) > 0) {
 
         js_render_call <- js_generate_review_column_contents()[["js_render_call"]]
         render_status_js_call <- js_generate_review_column_contents()[["render_status_js_call"]]
