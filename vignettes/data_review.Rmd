@@ -17,6 +17,7 @@ knitr::opts_chunk$set(
 ## Introduction
 
 The `dv.listings` module provides an optional user interface to assist data review processes. It enables a team of reviewers to annotate each row of a given listing with a tag chosen from a preconfigured list of options. In addition, it keeps track of changes to the data underlying the listings to warn about possibly outdated reviews.
+Please note that this feature is still experimental and maybe subject to change.  
 
 Here's a more detailed description of the review function:
 
