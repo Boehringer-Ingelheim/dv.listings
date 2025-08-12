@@ -1,5 +1,7 @@
-# YT#VHb3a67af97b323ee47762788154a489fd#VHa53bd254d6ac8e6a19dfa057febb06b5#
+# YT#VH20fe8acb2e57832933eb60226847381a#VHe9395a780f86f7653c9f11cadba1e3f0#
 CM <- local({ # _C_hecked _M_odule
+  # 2025-07-11: [feature] New `manual_check` flag to tell `CM$generate_check_functions()` to ignore particular elements
+  # 2025-04-09: [fix] Make `generate_map_afmm_function` maps multi-variable parameters (e.g. `visit_vars`)
   # 2025-03-21: [feature] report errors for all loaded datasets and [fix] dehardcode "PARAM" string and use `par` argument
 
   message_well <- function(title, contents, color = "f5f5f5") {
@@ -281,6 +283,13 @@ CM <- local({ # _C_hecked _M_odule
       elem <- spec$elements[[elem_name]]
       attrs_ids <- setdiff(names(attributes(elem)), c("names", "docs"))
       attrs <- attributes(elem)[attrs_ids]
+      
+      if (isTRUE(attrs[["manual_check"]])) {
+        push(sprintf("'NOTE: %s (%s) tagged as \"manual_check\"'\n", elem_name, elem$kind))
+        push(sprintf("'      The expectation is that it either does not require automated checks or that'\n"))
+        push(sprintf("'      the caller of this function has written manual checks near the call site.'\n"))
+        next
+      }
 
       if (isTRUE(attrs[["subjid_var"]])) {
         subjid_vars <- c(subjid_vars, elem_name)
@@ -320,6 +329,11 @@ CM <- local({ # _C_hecked _M_odule
           "OK[['%s']] <- CM$check_function('%s', %s, %d, flags, warn, err)\n",
           elem_name, elem_name, elem_name, elem$arg_count
         ))
+      } else if (elem$kind == "group") {
+        push(sprintf("'NOTE: %s (%s) unsupported as the check generator cannot handle nested elements yet'\n",
+                     elem_name, elem$kind))
+        push(sprintf("'      The expectation is that it either does not require automated checks or that'\n"))
+        push(sprintf("'      the caller of this function has written manual checks near the call site.'\n"))
       } else {
         push(sprintf("'NOTE: %s (%s) has no associated automated checks'\n", elem_name, elem$kind))
         push(sprintf("'      The expectation is that it either does not require them or that'\n"))
@@ -422,11 +436,24 @@ CM <- local({ # _C_hecked _M_odule
         elem <- spec$elements[[elem_name]]
         stopifnot(elem$kind == "col")
         dataset_name <- elem[["dataset_name"]]
-        push(sprintf("if(is.character(ds[[%s]][[%s]])){\n", dataset_name, elem_name))
-        push("mapping_summary <- c(mapping_summary,")
-        push(sprintf("paste0('(', ds_name, ') ', %s, '[[\"', %s, '\"]]')", dataset_name, elem_name))
-        push(")\n")
-        push("}\n")
+        
+        multiple <- (isTRUE(attr(elem, "zero_or_more")) || isTRUE(attr(elem, "one_or_more")))
+        if (multiple) {
+          push(sprintf("for (.elem in %s) {\n", elem_name))
+          push(sprintf("if(is.character(ds[[%s]][[.elem]])){\n", dataset_name))
+          push("mapping_summary <- c(mapping_summary,")
+          push(sprintf("paste0('(', ds_name, ') ', %s, '[[\"', .elem, '\"]]')", dataset_name))
+          push(")\n")
+          push("}\n")
+          push("}\n")
+        } else {
+          push(sprintf("if(is.character(ds[[%s]][[%s]])){\n", dataset_name, elem_name))
+          push("mapping_summary <- c(mapping_summary,")
+          push(sprintf("paste0('(', ds_name, ') ', %s, '[[\"', %s, '\"]]')", dataset_name, elem_name))
+          push(")\n")
+          push("}\n")
+        }
+        
       }
       push("}\n")
       
@@ -449,10 +476,20 @@ CM <- local({ # _C_hecked _M_odule
         elem <- spec$elements[[elem_name]]
         dataset_name <- elem[["dataset_name"]]
         
-        push(sprintf("if (is.character(res[[%s]][[%s]])) {\n", dataset_name, elem_name))
-        push(sprintf("  res[[%s]][[%s]] <- ", dataset_name, elem_name))
-        push(sprintf("    as.factor(res[[%s]][[%s]])\n", dataset_name, elem_name))
-        push("}\n")
+        multiple <- (isTRUE(attr(elem, "zero_or_more")) || isTRUE(attr(elem, "one_or_more")))
+        if (multiple) {
+          push(sprintf("for (.elem in %s) {\n", elem_name))
+          push(sprintf("if (is.character(res[[%s]][[.elem]])) {\n", dataset_name))
+          push(sprintf("  res[[%s]][[.elem]] <- ", dataset_name))
+          push(sprintf("    as.factor(res[[%s]][[.elem]])\n", dataset_name))
+          push("}\n")
+          push("}\n")
+        } else {
+          push(sprintf("if (is.character(res[[%s]][[%s]])) {\n", dataset_name, elem_name))
+          push(sprintf("  res[[%s]][[%s]] <- ", dataset_name, elem_name))
+          push(sprintf("    as.factor(res[[%s]][[%s]])\n", dataset_name, elem_name))
+          push("}\n")
+        }
       }
       
       push("  return(res)\n")
