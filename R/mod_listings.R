@@ -394,9 +394,9 @@ listings_server <- function(module_id,
       "clear_filters",
       # NOTE(miguel): Added here for easier merge with other branches
       # TODO(miguel): Move elsewhere after merging 
-      REV_UI(ns = ns, roles = character(0))[["input_ids_to_exclude_from_bookmarking"]]
+      REV_UI(ns = identity, roles = character(0))[["input_ids_to_exclude_from_bookmarking"]]
     ))
-    
+
     # Bookmarking (end)
     
     mod_export_listings_server(
@@ -896,10 +896,8 @@ check_mod_listings <- function(afmm, datasets, module_id, dataset_names,
     
     if (!ok) return(NULL)
     for (domain in names(review[["datasets"]])){
-      info <- review[["datasets"]][[domain]]
-      
-      for (ds_name in names(afmm[["data"]])){
-        datasets <- afmm[["data"]][[ds_name]]
+      info <- review[["datasets"]][[domain]]            
+        
         dataset <- datasets[[domain]]
         
         CM$assert(
@@ -937,9 +935,10 @@ check_mod_listings <- function(afmm, datasets, module_id, dataset_names,
               ), domain, domain
             )
           )
-      }
+      
     }
   })
+
   
   res <- list(warnings = warn[["messages"]], errors = err[["messages"]])
   return(res)
