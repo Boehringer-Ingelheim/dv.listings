@@ -394,9 +394,9 @@ listings_server <- function(module_id,
       "clear_filters",
       # NOTE(miguel): Added here for easier merge with other branches
       # TODO(miguel): Move elsewhere after merging 
-      REV_UI(ns = ns, roles = character(0))[["input_ids_to_exclude_from_bookmarking"]]
+      REV_UI(ns = identity, roles = character(0))[["input_ids_to_exclude_from_bookmarking"]]
     ))
-    
+
     # Bookmarking (end)
     
     mod_export_listings_server(
