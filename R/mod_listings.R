@@ -271,7 +271,7 @@ listings_server <- function(module_id,
       r_selected_columns_in_dataset(fill_default_vars(r_selected_columns_in_dataset(), v_dataset_list()))
       
       selected <- if (is.null(bmk_dataset)) {
-        if (input[[TBL$DATASET_ID]] == "") names(v_dataset_list())[1] else input[[TBL$DATASET_ID]]
+        if (input[[TBL$DATASET_ID]] == "" || !input[[TBL$DATASET_ID]] %in% names(v_dataset_list())) names(v_dataset_list())[1] else input[[TBL$DATASET_ID]]
       } else {
         bmk_dataset
       }
@@ -279,7 +279,7 @@ listings_server <- function(module_id,
       
       rvs$dataset_choices <- generate_choices(v_dataset_list())
       shiny::exportTestValues(dataset_choices = rvs$dataset_choices) # Export values for shinytest2  tests
-      
+
       shiny::updateSelectizeInput(inputId = TBL$DATASET_ID, choices = rvs$dataset_choices, selected = selected)
     })
     
@@ -298,7 +298,7 @@ listings_server <- function(module_id,
     shiny::observeEvent(
       # React to changes in the listings identity or full dataset change
       list(input[[TBL$DATASET_ID]], dataset_metadata[["name"]]()),
-      {
+      { 
         # Notify of columns not present in the dataset
         p_selected_cols <- intersect(r_selected_columns_in_dataset()[[input[[TBL$DATASET_ID]]]], names(listings_data()))
         np_selected_cols <- setdiff(r_selected_columns_in_dataset()[[input[[TBL$DATASET_ID]]]], p_selected_cols)
@@ -503,6 +503,7 @@ listings_server <- function(module_id,
       dataset <- listings_data()[selected_cols]
       
       # drop factor levels to ensure column filter of DT don't show non-existing levels
+      shiny::req(!is.null(dataset))
       labels <- get_labels(dataset)
       data <- droplevels(dataset)
       data <- set_labels(data, labels)

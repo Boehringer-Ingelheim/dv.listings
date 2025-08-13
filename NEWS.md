@@ -1,3 +1,7 @@
+# dv.listings 4.1.3-9000
+
+- adapt dataset selection to accommodate for switching of dataset_list
+
 # dv.listings 4.1.2-9000
 
 - Includes the experimental review functionality
