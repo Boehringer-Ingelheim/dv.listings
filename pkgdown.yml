@@ -1,8 +1,8 @@
-pandoc: 2.9.2.1
-pkgdown: 2.0.7
+pandoc: 3.6.4
+pkgdown: 2.1.1
 pkgdown_sha: ~
 articles:
   Communication_jumping_feature: Communication_jumping_feature.html
+  data_review: data_review.html
   qc: qc.html
-last_built: 2025-02-20T12:29Z
-
+last_built: 2025-08-14T12:04Z
