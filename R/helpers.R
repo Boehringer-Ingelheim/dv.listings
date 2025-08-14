@@ -28,8 +28,8 @@ get_labels <- function(dataset) {
 
 
   # Gather labels
-  all_labels <- names(dataset) %>%
-    purrr::set_names() %>%
+  all_labels <- names(dataset) |>
+    purrr::set_names() |>
     purrr::map_chr(function(name) {
       label <- attributes(dataset[[name]])$label
       if (is.null(label)) {
@@ -90,7 +90,7 @@ fill_default_vars <- function(default_vars, dataset) {
     combine = "and"
   )
   if (!is.null(default_vars)) {
-    checkmate::assert_names(names(default_vars), type = "unique", subset.of = names(dataset))
+    checkmate::assert_names(names(default_vars), type = "unique")
   }
   purrr::walk2(
     default_vars, names(default_vars),
@@ -98,7 +98,9 @@ fill_default_vars <- function(default_vars, dataset) {
   )
   purrr::walk(
     names(default_vars),
-    ~ checkmate::assert_subset(default_vars[[.x]], names(dataset[[.x]]), .var.name = paste0("default_vars$", .x))
+    ~ if (.x %in% names(dataset)) {
+      checkmate::assert_subset(default_vars[[.x]], names(dataset[[.x]]), .var.name = paste0("default_vars$", .x))
+    }
   )
 
   # Fill default_vars
@@ -111,6 +113,12 @@ fill_default_vars <- function(default_vars, dataset) {
     }
     return(cols)
   })
+  
+  # only added so that the default_vars specified with tplyr_table module work
+  not_used_defaults <- !names(default_vars) %in% names(col_list)
+  if (any(not_used_defaults)) {
+    col_list <- append(col_list, default_vars[not_used_defaults])
+  }
 
   return(col_list)
 }
@@ -147,8 +155,8 @@ set_data <- function(base_data, selector) {
   }
 
   # Select user specified (or default) columns from data and force order as determined by the user
-  data <- base_data %>%
-    dplyr::select(dplyr::all_of(selector)) %>%
+  data <- base_data |>
+    dplyr::select(dplyr::all_of(selector)) |>
     dplyr::relocate(dplyr::all_of(selector))
 
   # Get labels for selected columns
@@ -185,7 +193,7 @@ set_labels <- function(dataset, labels) {
     combine = "and"
   )
 
-  ret_dataset <- dataset %>%
+  ret_dataset <- dataset |>
     dplyr::mutate(dplyr::across(dplyr::everything(), ~ structure(.x, label = labels[[dplyr::cur_column()]])))
 
   return(ret_dataset)
@@ -231,11 +239,11 @@ convert_data <- function(dataset) {
 #' @return List containing character vectors for column names and row names and
 #' a logical value for de-/activating paging
 #' @keywords internal
-set_up_datatable <- function(dataset, selected_cols, pagination) {
+set_up_datatable <- function(dataset, pagination) {
   # skip checkmate checks because this function only exists to be able to test paging
 
   labels <- get_labels(dataset) # Get labels for selected columns
-  col_names <- paste0(selected_cols, " [", labels, "]") # Combine names with labels
+  col_names <- paste0(names(dataset), " [", labels, "]") # Combine names with labels
   row_names <- as.character(seq_len(nrow(dataset)))
   paging <- if (is.null(pagination)) nrow(dataset) > 1000 else pagination
 
@@ -248,33 +256,12 @@ set_up_datatable <- function(dataset, selected_cols, pagination) {
   )
 }
 
-#' Produce a warning for non-available receiver names
-#'
-#' @param receiver_id Character string defining the module that should receive a subject identifier
-#'   from the listings module.
-#' @param module_ids Vector of characters defining all available module IDs.
-#'
-#' @return Logical outcome of the test invisible.
-#' @keywords internal
-#'
-check_receiver <- function(receiver_id, module_ids) {
-  if (!is.null(receiver_id) && !receiver_id %in% module_ids) {
-    rlang::warn(
-      message = c(
-        "Listings: You tried to point to a receiver module
-              that does not exist in your module list.",
-        x = paste0("You have set '", receiver_id, "' as receiver_id."),
-        i = paste0(
-          "Your module list contains ",
-          paste(module_ids, collapse = ", "),
-          "."
-        ),
-        i = "Have you spelled receiver_id correctly?"
-      )
-    )
-    
-    return(invisible(FALSE))
-  }
-  
-  return(invisible(TRUE))
+add_dv_listings_dependency <- function() {
+  htmltools::htmlDependency(
+    name = "dv_listings",
+    version = utils::packageVersion("dv.listings"),
+    src = system.file("www/", package = "dv.listings", mustWork = TRUE),
+    script = c("js/dv_listings.js"),
+    stylesheet = c("css/dv_listings.css"),
+  )
 }

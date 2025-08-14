@@ -28,7 +28,6 @@ test_that("fill_default_vars() throws an error when default_vars argument type m
   element_mismatch <- list(dummy1 = 1:6, dummy2 = 1:10) # wrong list element types
   unnamed <- list(dummy_names[1:4], dummy_names[1:8]) # missing names
   duplicated_names <- list(dummy1 = dummy_names[1:4], dummy1 = dummy_names[1:8]) # duplicated names
-  wrong_names <- list(dummy1 = dummy_names[1:4], wrong = dummy_names[1:8]) # wrong names
   duplicated_values <- list( # duplicated vector entries
     dummy1 = c(dummy_names[1:4], dummy_names[1:2]), dummy2 = dummy_names[1:8]
   )
@@ -39,7 +38,7 @@ test_that("fill_default_vars() throws an error when default_vars argument type m
 
   # Perform tests
   purrr::walk(list(
-    type_mismatch, element_mismatch, unnamed, duplicated_names, wrong_names, duplicated_values, wrong_values
+    type_mismatch, element_mismatch, unnamed, duplicated_names, duplicated_values, wrong_values
   ), ~ expect_error(fill_default_vars(.x, dataset)))
 })
 
@@ -176,7 +175,7 @@ attributes(df1)$label <- "Test data 1"
 attributes(df1$mpg)$label <- "Col label 1"
 attributes(df1$type)$label <- "Col label 2"
 
-test_that("generate_choices() generates meaningful choices for datasets and columns to be used in the corresponding dropdown menues" %>% # nolint
+test_that("generate_choices() generates meaningful choices for datasets and columns to be used in the corresponding dropdown menus" |> # nolint
   vdoc[["add_spec"]](
     c(
       specs$listings_label,
@@ -319,10 +318,9 @@ test_that("set_up_datatable() returns correct column names, row names, and pagin
   attributes(df$A)$label <- "Label A"
   attributes(df$C)$label <- "Label C"
 
-  selected_cols <- c("A", "B", "C")
   pagination <- NULL
 
-  actual <- set_up_datatable(df, selected_cols, pagination)
+  actual <- set_up_datatable(df, pagination)
 
   expected <- list(
     col_names = c("A [Label A]", "B [No label]", "C [Label C]"),
@@ -339,10 +337,9 @@ test_that("set_up_datatable() automatically activates pagination for large datas
     C = sample(c("a", "b", "c"), 1001, replace = TRUE)
   )
 
-  selected_cols <- c("A", "B", "C")
   pagination <- NULL
 
-  actual <- set_up_datatable(df, selected_cols, pagination)
+  actual <- set_up_datatable(df, pagination)
 
   expect_true(actual$paging)
 })
@@ -354,10 +351,9 @@ test_that("set_up_datatable() automatically deactivates pagination for small dat
     C = sample(c("a", "b", "c"), 100, replace = TRUE)
   )
 
-  selected_cols <- c("A", "B", "C")
   pagination <- NULL
 
-  actual <- set_up_datatable(df, selected_cols, pagination)
+  actual <- set_up_datatable(df, pagination)
 
   expect_false(actual$paging)
 })

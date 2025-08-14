@@ -12,7 +12,8 @@ mod_listings(
   intended_use_label =
     "Use only for internal review and monitoring during the conduct of clinical trials.",
   subjid_var = "USUBJID",
-  receiver_id = NULL
+  receiver_id = NULL,
+  review = NULL
 )
 }
 \arguments{
@@ -34,7 +35,7 @@ NULL for which pagination will be activated for large datasets (nrows > 1000) au
 \item{intended_use_label}{\verb{[character(1) | NULL]} Either a string indicating the intended use for export, or
 NULL. The provided label will be displayed prior to the download and will also be included in the exported file.}
 
-\item{subjid_var}{\verb{[character(1) | NULL]}
+\item{subjid_var}{\verb{[character(1)]}
 
 Column corresponding to subject ID. Default value is 'USUBJID'}
 
@@ -42,6 +43,11 @@ Column corresponding to subject ID. Default value is 'USUBJID'}
 
 Character string defining the ID of the module to which to send a subject ID. The
 module must exist in the module list. The default is NULL which disables communication.}
+
+\item{review}{\verb{[list()]}
+
+Configuration of the experimental data review feature.
+For more details, please refer to \code{vignette("data_review")}.}
 }
 \description{
 This module will present the dataset as listing using the DT package.

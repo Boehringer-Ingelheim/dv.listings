@@ -27,10 +27,40 @@
 #'  ID$FOO
 #'  "foo"
 #'  ID$BA
-#'  NULL
+#'  Error in `$.pack_of_constants`(ID, BA) :
+#'  Pack of constants "ID" does not contain "BA"
 #'
+#' The pack of constants is a plain named list that enforces that all elements have unique, non-null names.
+#' It is tagged as an S3 object to override its extraction operators.
+#'
+#' The use of checkmate is unnecessary, but it's a Good Library(TM) and your module should rely on it anyways
 #' @keywords internal
+pack_of_constants <- function(...) {
+  result <- list(...)
+  checkmate::assert_list(result, any.missing = FALSE, names = "unique")
+  class(result) <- c("pack_of_constants", class(result))
+  result
+}
+
+#' Extract constant from pack
 #'
-#' The simpler container we could use for this purpose is a plain named list, but that data structure has the
-#' undesirable effect of partial matching. Environments, on the other hand avoid that pitfall.
-pack_of_constants <- function(...) list2env(list(...))
+#' @param pack pack_of_constants
+#' @param name target constant
+#'
+#' This function differs from the base list extraction method in that it avoids partial matching of keys and throws
+#' an error if the looked-for constant is not contained within the pack.
+#' @keywords internal
+`$.pack_of_constants` <- function(pack, name) {
+  checkmate::assert_true(name %in% names(pack), .var.name = paste0(deparse(substitute(pack)), "$", name))
+  NextMethod()
+}
+
+#' @keywords internal
+`[[.pack_of_constants` <- `$.pack_of_constants`
+
+#' @keywords internal
+`[.pack_of_constants` <- function(pack, name) {
+  stop("Invalid pack_of_constants method")
+}
+
+poc <- pack_of_constants

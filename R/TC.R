@@ -1,4 +1,4 @@
-# YT#VH5cf018ae9cef0cbf83422a7d2b6b6b04#VH00000000000000000000000000000000#
+# YT#VHf29a3f572c107632b46daf31f56ecd34#VH1202cc468f3cbf448dd25ff917fc4762#
 TC <- local({ # _T_ype C_hecks
   # basic types
   T_logical <- function() list(kind = "logical")
@@ -71,9 +71,17 @@ TC <- local({ # _T_ype C_hecks
     unknown_flags <- setdiff(
       flag_names,
       c( # common flags
-        "optional", "zero_or_more", "one_or_more", "as_array", "named", "ignore",
+        "optional",                   # parameter can be skipped
+        "zero_or_more",               # array/list contains a variable number of elements
+        "one_or_more",                # array/list contains at least one element and possibly more
+        "as_array",                   # list is converted to array for the sake of implementation simplicity (miguel: I believe it's only used in papo)
+        "named",                      # elements of targetted argument must be named
+        "map_character_to_factor",    # the target TC$col() will be transformed to factor prior to reaching the module
+        "ignore",                     # argument should be ignored by Dressing Room, for now
+        "manual_check",               # CM$generate_check_functions will not generate an automated check for this element
         # domain-specific flags
-        "subject_level_dataset_name", "subjid_var"
+        "subject_level_dataset_name", # indicates dataset with one row per subject
+        "subjid_var"                  # indicates unique subject identifier column on dataset pointed at by subject_level_dataset_name 
       )
     )
     if (length(unknown_flags)) browser()
@@ -362,6 +370,7 @@ TC <- local({ # _T_ype C_hecks
     honor_as_array_flag_inner = T_honor_as_array_flag_inner,
     honor_as_array_flag = T_honor_as_array_flag,
     honor_map_to_flag_inner = T_honor_map_to_flag_inner,
-    honor_map_to_flag = T_honor_map_to_flag
+    honor_map_to_flag = T_honor_map_to_flag,
+    get_type_as_text = T_get_type_as_text
   )
 })
