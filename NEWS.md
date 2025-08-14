@@ -1,13 +1,7 @@
-# dv.listings 4.1.3-9000
-
-- adapt dataset selection to accommodate for switching of dataset_list
-
-# dv.listings 4.1.2-9000
+# dv.listings 4.2.0
 
 - Includes the experimental review functionality
-
-# dv.listings 4.1.1-9003
-
+- Adapt dataset selection to accommodate for switching of dataset_list
 - Adapt fill_default_vars to keep specified default values for datasets which are not present
 - Adapt checkmate calls to allow default values for datasets which are not present
 - Top buttons are reordered in a single line to avoid consuming excessive space
