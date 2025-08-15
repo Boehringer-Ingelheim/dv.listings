@@ -319,8 +319,6 @@ RS_compute_delta_memory <- function(state, df) {
 
   # TODO: Assert against removal of rows
 
-  browser()
-  
   merged <- cbind(state$tracked_hashes, tracked_hashes, deparse.level = 0)
 
   mask <- array(FALSE, dim = dim(state$tracked_hashes))
