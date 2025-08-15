@@ -274,6 +274,8 @@ RS_parse_base <- function(contents) {
 RS_compute_delta_memory <- function(state, df) {
   checkmate::assert_data_frame(df) # TODO: etc.
 
+  error <- character(0)
+
   time_delta <- as.integer(ceiling(SH$get_UTC_time_in_seconds() - state$timestamp))
   df_hash <- RS_hash_data_frame(df)
 
