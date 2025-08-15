@@ -323,17 +323,7 @@ RS_compute_delta_memory <- function(state, df) {
 
   merged <- cbind(state$tracked_hashes, tracked_hashes, deparse.level = 0)
 
-  mask <- array(FALSE, dim = dim(state$tracked_hashes))
-
-  for(idx in seq_len(dim(state$tracked_hashes)[[1]])) {
-    for(jdx in seq_len(dim(state$tracked_hashes)[[2]])){
-      
-      mask[idx, jdx] <- (state$tracked_hashes[idx, jdx] != tracked_hashes[idx, jdx])
-    }
-
-  }
-
-  modified_row_mask <- !duplicated(merged, MARGIN = 2) |> c() |> tail(n = nrow(df)-length(new_row_indices))
+  modified_row_mask <- !duplicated(merged, MARGIN = 2) |> c() |> tail(n = nrow(df) - length(new_row_indices))
   modified_row_indices <- which(modified_row_mask)
   
   res <- list(
