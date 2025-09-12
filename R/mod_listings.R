@@ -177,7 +177,7 @@ listings_UI <- function(module_id) { # nolint
       for(let i = 0; i < tds.length; i += 1){
         let td = tds[i];
         let dropdown_content = td.querySelector('div.selectize-dropdown-content');
-        dropdown_content.setAttribute('style','width:max-content; background-color:white; border:1px solid rgba(0, 0, 0, 0.15); border-radius:4px; box-shadow:0 6px 12px rgba(0, 0, 0, 0.175);');
+        dropdown_content.setAttribute('style','min-width:100%%; width:max-content; background-color:white; border:1px solid rgba(0, 0, 0, 0.15); border-radius:4px; box-shadow:0 6px 12px rgba(0, 0, 0, 0.175);');
       }
   });", ns(TBL$TABLE_ID), ns(TBL$TABLE_ID))))
   )
