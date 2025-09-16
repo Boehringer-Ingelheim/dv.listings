@@ -511,25 +511,39 @@ REV_logic_2 <- function(ns, state, input, review, datasets, selected_dataset_lis
   shiny::observeEvent(input[[REV$ID$REVIEW_SELECT]], {
     role <- input[[REV$ID$ROLE]]
 
+    if (!checkmate::test_string(role, min.chars = 1)) {
+      msg <- "Attempted write with unset role"
+      shiny::showNotification(msg, type = "warning")
+      warning(msg)
+      shiny::req(FALSE)
+    }
+    
+
     dataset_list_name <- selected_dataset_list_name() 
     dataset_name <- selected_dataset_name()
     
     new_data <- data()
     
     info <- input[[REV$ID$REVIEW_SELECT]]
-    i_row <- info[["row"]]
-    
+
+    # Replace in full bulk operation
+    if ("bulk" %in% names(info) && identical(info[["bulk"]], "filtered")) {
+      info[["row"]] <- input[[paste0(TBL$TABLE_ID, "_rows_all")]]
+    }
+
+    i_row <- as.numeric(info[["row"]])
+
     defiltered_i_row <- local({
       # `i_row` is relative to the filtered data sent to the client ...
       filter_mask <- attr(new_data, "filter_mask")
-      res <- which(filter_mask)[[i_row]]
+      res <- which(filter_mask)[i_row]
       return(res)
     })
     
     stored_i_row <- local({
       # ... and that `i_row` needs to be mapped into a base+deltas (stable) index
       row_map <- attr(state[["annotation_info"]][[dataset_list_name]][[dataset_name]], "state_to_dataset_row_mapping")
-      res <- row_map[[defiltered_i_row]]
+      res <- row_map[defiltered_i_row]
       return(res)
     })
     option <- as.integer(info[["option"]])
@@ -547,32 +561,52 @@ REV_logic_2 <- function(ns, state, input, review, datasets, selected_dataset_lis
     )
     new_data <- changes[["data"]]
 
-    last_review_entry <- new_data[i_row, ][[REV$ID$LATEST_REVIEW_COL]][[1]]
-    last_review_entry[["reviews"]][[role]][["role"]] <- role
-    last_review_entry[["reviews"]][[role]][["review"]] <- review[["choices"]][[option]]
-    last_review_entry[["reviews"]][[role]][["timestamp"]] <- timestamp
+    contents <- c()
 
-    # Fixed columns
-    new_data[i_row, ][[REV$ID$REVIEW_COL]] <- review[["choices"]][[option]]
-    new_data[i_row, ][[REV$ID$ROLE_COL]] <- role
-    new_data[i_row, ][[REV$ID$LATEST_REVIEW_COL]][[1]] <- last_review_entry
+    # TODO: This loop can be too long when there are too many rows
+    # Writing is done in one step but by row update is done one by one.
+    for (idx in seq_along(i_row)) {
+
+      curr_i_row <- i_row[[idx]]
+      curr_defiltered_i_row <- defiltered_i_row[[idx]]
+      curr_stored_i_row <- stored_i_row[[idx]]
+
+      last_review_entry <- new_data[curr_i_row, ][[REV$ID$LATEST_REVIEW_COL]][[1]]
+      last_review_entry[["reviews"]][[role]][["role"]] <- role
+      last_review_entry[["reviews"]][[role]][["review"]] <- review[["choices"]][[option]]
+      last_review_entry[["reviews"]][[role]][["timestamp"]] <- timestamp
+
+      # Fixed columns
+      new_data[curr_i_row, ][[REV$ID$REVIEW_COL]] <- review[["choices"]][[option]]
+      new_data[curr_i_row, ][[REV$ID$ROLE_COL]] <- role
+      new_data[curr_i_row, ][[REV$ID$LATEST_REVIEW_COL]][[1]] <- last_review_entry
+      
+      # - data_time does not change when reviewed
+      
+      # `REV_load_annotation_info()` would return this same (modified) state, but we do manual synchronization
+      # to avoid potentially expensive data reloading
+      row_contents <- state[["annotation_info"]][[dataset_list_name]][[dataset_name]][curr_defiltered_i_row, ]
+      row_contents[["review"]] <- review[["choices"]][[option]]
+      row_contents[["timestamp"]] <- timestamp
+      row_contents[["role"]] <- role    
+      row_contents[["latest_reviews"]][[1]] <- last_review_entry
+      # > row_contents[["data_timestamp"]] # unchanged
+      
+      state[["annotation_info"]][[dataset_list_name]][[dataset_name]][curr_defiltered_i_row, ] <- row_contents
+
+      contents <- c(
+        contents,
+        SH$integer_to_raw(curr_stored_i_row),
+        SH$integer_to_raw(option),
+        SH$double_to_raw(timestamp)
+      )
+
+    }
 
     # TODO: Benchmark to decide if this is a bottleneck for bigger datasets
     new_data[[REV$ID$STATUS_COL]] <- REV_compute_status(new_data, role)
     new_data[[REV$ID$LATEST_REVIEW_COL]] <- REV_review_var_to_json(new_data[[REV$ID$LATEST_REVIEW_COL]])
-    
-    # - data_time does not change when reviewed
-    
-    # `REV_load_annotation_info()` would return this same (modified) state, but we do manual synchronization
-    # to avoid potentially expensive data reloading
-    row_contents <- state[["annotation_info"]][[dataset_list_name]][[dataset_name]][defiltered_i_row, ]
-    row_contents[["review"]] <- review[["choices"]][[option]]
-    row_contents[["timestamp"]] <- timestamp
-    row_contents[["role"]] <- role    
-    row_contents[["latest_reviews"]][[1]] <- last_review_entry
-    # > row_contents[["data_timestamp"]] # unchanged
-    
-    state[["annotation_info"]][[dataset_list_name]][[dataset_name]][defiltered_i_row, ] <- row_contents
+
    
     # If we were doing pure client-side rendering of DT, maybe we could do a lighter upgrade with javascript:
     # > var table = $('#DataTables_Table_0').DataTable();
@@ -580,13 +614,7 @@ REV_logic_2 <- function(ns, state, input, review, datasets, selected_dataset_lis
     # > table.columns()[0].length;
     # > tmp[9] = '2';
     # > table.row(5).data(tmp).invalidate();
-    DT::replaceData(dt_proxy, new_data, resetPaging = FALSE, clearSelection = "none")
-
-    contents <- c(
-      SH$integer_to_raw(stored_i_row),
-      SH$integer_to_raw(option),
-      SH$double_to_raw(timestamp)
-    )
+    DT::replaceData(dt_proxy, new_data, resetPaging = FALSE, clearSelection = "none")    
     
     fname <- paste0(dataset_name, "_", role, ".review")
 
@@ -631,7 +659,8 @@ REV_compute_status <- function(dataset_review, role) {
   # For now we say conflict but we don't say with whom.
 
   res <- dataset_review
-  res[[REV$ID$STATUS_COL]] <- factor(rep(REV$STATUS_LEVELS$OK, length = nrow(res)), levels = REV$STATUS_LEVELS)
+  unclassed_status_levels <- unclass(REV$STATUS_LEVELS) # Get rid of poc class, otherwise factor levels errors
+  res[[REV$ID$STATUS_COL]] <- factor(rep(REV$STATUS_LEVELS$OK, length = nrow(res)), levels = unclassed_status_levels)
   pending_mask <- dataset_review[[REV$ID$REVIEW_COL]] == levels(dataset_review[[REV$ID$REVIEW_COL]])[[1]] # First level is always default
   reviewed_status_idx <- which(dataset_review[[REV$ID$ROLE_COL]] != "")
   

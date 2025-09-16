@@ -105,13 +105,14 @@ const dv_listings = (function () {
   const render_selection = function (id, role, choices) {
     let in_f = function (data, type, row, meta) {
       if (type === 'display') {
-        let result = '';
+        let result = '<div style="display: flex; align-items: baseline; gap: 0.5rem;">';
+        result += `<input type="checkbox" data-for-row="${row[row_number_idx]}" data-input-type="bulk-control" onchange = "dv_listings.on_change_table_checkbox(event)">`;
         let options = choices;
-        result += `<select style=\"width:100%%\" onchange=\"Shiny.setInputValue('${id}', {row:${row[row_number_idx]}, option:this.value}, {priority: 'event'});\">`;
+        result += `<select onchange=\"Shiny.setInputValue('${id}', {row:${row[row_number_idx]}, option:this.value, bulk:'false'}, {priority: 'event'});\">`;
         for (let i = 0; i < options.length; i += 1) {
           result += `<option value=${i + 1}${options[i] == data ? ' selected' : ''}>${options[i]}</option>`;
         }
-        result += '</select>';
+        result += '</select></div>';
 
         return result;
       } else {
@@ -149,7 +150,7 @@ const dv_listings = (function () {
 
         if (add_confirm_button) {
           result += `
-          <button class = "btn btn-primary btn-xs" style=\"width:100%%\" onclick=\"Shiny.setInputValue('${id}', {row:${row[row_number_idx]}, option:'${options.indexOf(row[latest_review_idx]) + 1}'}, {priority: 'event'})\" title="Agree with latest review">\u2714</button>          
+          <button class = "btn btn-primary btn-xs" style=\"width:100%%\" onclick=\"Shiny.setInputValue('${id}', {row:${row[row_number_idx]}, option:'${options.indexOf(row[latest_review_idx]) + 1}', bulk:'false'}, {priority: 'event'})\" title="Agree with latest review">\u2714</button>          
           `
         }
         result += `</div></div>`
@@ -195,11 +196,142 @@ const dv_listings = (function () {
     }
   }
 
+  const render_bulk_menu = function(id, choices, input_id) {    
+    const container = $("#" + id).find('.top');
+
+    let choices_menu = '';
+    let options = choices;
+    choices_menu += `<select>`;
+        for (let i = 0; i < options.length; i += 1) {
+          choices_menu += `<option value=${i + 1}${i == 0 ? ' selected' : ''}>${options[i]}</option>`;
+        }
+    choices_menu += '</select>';
+
+    const select_all_visible = `
+    <input type="checkbox" onchange="dv_listings.on_change_select_all_checkbox('${id}')">
+    `;
+
+    const apply_bulk_split = `
+    <div class="btn-group" style = "display:inline-flex">
+    <button type="button" class="btn" 
+            onclick="dv_listings.apply_bulk_visible('${id}', '${input_id}')">
+      Apply selected
+    </button>
+    <button type="button" class="btn btn-primary dropdown-toggle" data-toggle="dropdown" aria-expanded="false">
+      <span class="caret"></span>
+      <span class="sr-only">Toggle Dropdown</span>
+    </button>
+    <ul class="dropdown-menu" role="menu">
+      <li>
+        <a href="#" onclick="dv_listings.apply_bulk_filtered('${id}', '${input_id}'); return false;">
+          Apply full table
+        </a>
+      </li>
+    </ul>
+  </div>    
+    `;
+
+    const html = `
+      <div class='bulk-menu-wrapper'>
+        ${select_all_visible}
+        ${choices_menu}
+        ${apply_bulk_split}
+        
+      </div>`;
+    container.prepend(html);
+  }
+
+  const get_all_select_checkbox = function(container_id) {
+    const inputs = $("#" + container_id).find('input[data-input-type="bulk-control"]');
+      return(inputs);
+  }
+
+  const compute_select_all_checkbox_state = function (container_id) {
+    const inputs = get_all_select_checkbox(container_id);
+    let checkbox_state;
+    let all_false;
+    let all_true;    
+    if (inputs.length > 0) {
+      all_false = true;
+      all_true = true;    
+      for (let i = 0; i < inputs.length; i++) {
+        all_false = all_false && !inputs[i].checked;
+        all_true = all_true && inputs[i].checked;
+      }      
+    } else {
+      all_false = true;
+      all_true = false;    
+    }
+    checkbox_state = {checked: all_true, indeterminate: !all_false&&!all_true}
+    return (checkbox_state);    
+  };
+
+  const set_select_all_checkbox_state = function (state, container_id) {    
+    const checkbox = document.querySelector(`#${container_id} .bulk-menu-wrapper input[type="checkbox"]`);
+    if(checkbox!==null) {
+      checkbox.checked = state.checked;
+      checkbox.indeterminate = state.indeterminate;    
+    }    
+  };
+
+  const refresh_bulk_select_all_checkbox = function(container_id) {
+    const state = compute_select_all_checkbox_state(container_id);
+    set_select_all_checkbox_state(state, container_id);
+  };
+
+  const on_change_table_checkbox = function (event) {
+    const container_id = event.target.closest(".dataTables_wrapper").id;
+    const state = compute_select_all_checkbox_state(container_id);
+    set_select_all_checkbox_state(state, container_id);
+  };
+
+  const on_change_select_all_checkbox = function (container_id) {    
+    const inputs = get_all_select_checkbox(container_id);    
+    const current_state = compute_select_all_checkbox_state(container_id);
+    let next_state;
+
+    if(current_state.indeterminate || !current_state.checked) {
+      for (let i = 0; i < inputs.length; i++) {
+        inputs[i].checked = true;
+      }
+      next_state = {checked: true, indeterminate: false};
+    } else if(current_state.checked) {
+      for (let i = 0; i < inputs.length; i++) {
+        inputs[i].checked = false;
+      }
+      next_state = {checked: false, indeterminate: false};
+    }
+
+    set_select_all_checkbox_state(next_state, container_id);
+  };
+
+  const apply_bulk_visible = function(container_id, input_id) {
+    const inputs = $("#" + container_id + " input[data-input-type='bulk-control']:checked");
+    const choice_value = $("#" + container_id + " .top select").val();
+    let selected_row_ids = [];
+    for (let i = 0; i < inputs.length; i++) {
+      const row_id = inputs[i].getAttribute('data-for-row');  
+      selected_row_ids.push(row_id);  
+    }    
+    Shiny.setInputValue(input_id, {row:selected_row_ids, option:choice_value, bulk:'false'}, {priority: 'event'})
+  };
+
+  const apply_bulk_filtered = function(container_id, input_id) {        
+    const choice_value = $("#" + container_id + " .top select").val();    
+    Shiny.setInputValue(input_id, {row:null, option:choice_value, bulk:'filtered'}, {priority: 'event'})
+  };
+
   const res = {
     review_column_render: review_column_render,
     render_selection: render_selection,
     render_identity: render_identity,
     render_status: render_status,
+    render_bulk_menu: render_bulk_menu,
+    refresh_bulk_select_all_checkbox: refresh_bulk_select_all_checkbox,
+    on_change_select_all_checkbox: on_change_select_all_checkbox,
+    on_change_table_checkbox: on_change_table_checkbox,
+    apply_bulk_visible: apply_bulk_visible,
+    apply_bulk_filtered: apply_bulk_filtered,
     show_child: show_child
   }
   return (res)
