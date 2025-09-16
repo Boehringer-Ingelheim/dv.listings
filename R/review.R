@@ -416,6 +416,8 @@ REV_load_annotation_info <- function(folder_contents, review, dataset_lists) {
       attr(sub_res[[dataset_review_name]], "state_to_dataset_row_mapping") <- state_to_dataset_row_mapping
       # FIXME? Base timestamp attached as attribute to avoid rewriting prototype-level code
       attr(sub_res[[dataset_review_name]], "base_timestamp") <- base_timestamp
+      # Add tracked_hashes for each revision of the dataset to be able to attribute row changes to specific columns
+      attr(sub_res[[dataset_review_name]], "revisions") <- base_info[["revisions"]]
     }
     loaded_annotation_info[[dataset_lists_name]] <- sub_res
   }
@@ -702,4 +704,63 @@ REV_compute_status <- function(dataset_review, role) {
   res[[REV$ID$STATUS_COL]][conflict_with_role_mask & !outdated_latest_mask] <- REV$STATUS_LEVELS$CONFLICT_ROLE
     
   return(res[[REV$ID$STATUS_COL]])
+}
+
+# Collect hashes that were known prior to the times indicated by `review_timestamps` 
+REV_collect_latest_review_hashes <- function(revisions, review_timestamps) {
+  res <- revisions$tracked_hashes[[1]]
+  
+  revision_count <- length(revisions$tracked_hashes)
+  i_revision <- 2
+  while (i_revision <= revision_count) {
+    ts <- revisions$timestamps[[i_revision]]
+    hashes <- revisions$tracked_hashes[[i_revision]]
+    update_mask <- (ts < review_timestamps)
+    res[, update_mask] <- hashes[, update_mask]
+    i_revision <- i_revision + 1
+  }
+  return(res)
+}
+
+# Infer which cells changed based of two matrices of old (`h0`) and new (`h1`) hashes
+# Returns pairs of (row, col) based on the ordering of h0
+# The hashes are kept in canonical order, so that's the order this function outputs
+REV_report_changes <- function(h0, h1, verbose = FALSE) {
+  res <- list()
+  if (nrow(h0) != nrow(h1) || nrow(h0) %% 2 != 0) {
+    stop(paste("Hashes of tracked columns are expected to be multiples of 16 bits",
+               "and the count of tracked columns should remain the same across the",
+               "lifetime of the stury"))
+  }
+  
+  offsets <- c(0, 2, 3)
+  
+  n_col <- nrow(h1) %/% 2L
+  
+  row_diff_indices <- which(apply(h0 != h1, 2, any))
+  for (i_row in row_diff_indices) {
+    prev <- as.integer(h0[, i_row])
+    cur <- as.integer(h1[, i_row])
+    diff <- (prev != cur)
+    diff <- apply(matrix(diff, ncol = BYTES_PER_TRACKED_HASH, byrow = TRUE), 1, any)
+    evidence <- integer(n_col)
+    for (i in seq_len(n_col)){
+      v <- diff[[i]]
+      affected_indices <- (((i - 1) + offsets) %% n_col) + 1
+      delta <- isTRUE(v)
+      evidence[affected_indices] <- evidence[affected_indices] + delta
+      
+      if (verbose) print(evidence)
+    }
+    inferred_change_count <- ceiling(sum(diff) / length(offsets))
+    
+    # removes false negatives at the cost of false positives
+    threshold <- min(head(sort(evidence, decreasing = TRUE), inferred_change_count))
+    col_indices <- which(evidence >= threshold)
+    
+    for (i_col in col_indices){
+      res[[length(res) + 1]] <- c(i_row, i_col)
+    }
+  }
+  return(res)
 }

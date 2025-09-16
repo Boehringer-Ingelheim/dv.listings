@@ -470,8 +470,9 @@ RS_parse_review_reviews <- function(contents, dataset_to_state_row_mapping, expe
 RS_load <- function(base, deltas) {
   res <- RS_parse_base(base) 
   base_timestamp <- res$timestamp
-  for (delta in deltas){
-    state_delta <- RS_parse_delta(contents = delta, tracked_var_count = length(res[["tracked_vars"]]))
+  res$revisions <- list(timestamps = res$timestamp, tracked_hashes = list(res$tracked_hashes))
+  for (i_delta in seq_along(deltas)){
+    state_delta <- RS_parse_delta(contents = deltas[[i_delta]], tracked_var_count = length(res[["tracked_vars"]]))
     if (inherits(state_delta, "simpleCondition")) return(state_delta)
     
     if (!identical(state_delta$generation, res$generation + 1L))
@@ -491,7 +492,33 @@ RS_load <- function(base, deltas) {
     # modified rows
     res$tracked_hashes[, state_delta$modified_row_indices] <- state_delta$modified_tracked_hashes
     res$row_timestamps[state_delta$modified_row_indices] <- base_timestamp + state_delta$time_delta
+    
+    # collect all tracked_hashes revisions to allow change attribution to specific columns
+    res$revisions$timestamps <- c(res$revisions$timestamps, base_timestamp + state_delta$time_delta)
+    res$revisions$tracked_hashes[[i_delta + 1]] <- res$tracked_hashes
   }
+  
+  # extend all revision hashes with dummy tracked_hashes for rows not present at a particular timestamp
+  if (length(deltas)) {
+    last_known_col_count <- ncol(res$revisions$tracked_hashes[[length(deltas) + 1]])
+    for (i_revision in seq_len(length(deltas))){
+      revision_row_count <- ncol(res$revisions$tracked_hashes[[i_revision]])
+      if (revision_row_count < last_known_col_count) {
+        missing_col_count <- last_known_col_count - revision_row_count
+        row_count <- nrow(res$revisions$tracked_hashes[[i_revision]])
+        extra_cols <- matrix(raw(0), row_count, missing_col_count)
+        res$revisions$tracked_hashes[[i_revision]] <- cbind(res$revisions$tracked_hashes[[i_revision]], extra_cols)
+      } else if (last_known_col_count < revision_row_count) {
+        return( # The diagnostic message could be improved, but we don't expect this one to trigger
+          simpleCondition(sprintf(
+            "Integrity error: Revision %d contains %d more rows than latest revision", 
+            i_revision, revision_row_count - last_known_col_count)
+          )
+        )
+      }
+    }
+  }
+  
   return(res)
 }
 
