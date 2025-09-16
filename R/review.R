@@ -530,6 +530,7 @@ REV_logic_2 <- function(ns, state, input, review, datasets, selected_dataset_lis
     if ("bulk" %in% names(info) && identical(info[["bulk"]], "filtered")) {
       info[["row"]] <- input[[paste0(TBL$TABLE_ID, "_rows_all")]]
     }
+    shiny::req(length(info[["row"]]) > 0)
 
     i_row <- as.numeric(info[["row"]])
 
