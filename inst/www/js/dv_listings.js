@@ -223,7 +223,7 @@ const dv_listings = (function () {
     </button>
     <ul class="dropdown-menu" role="menu">
       <li>
-        <a href="#" onclick="dv_listings.apply_bulk_full('${id}', '${input_id}'); return false;">
+        <a href="#" onclick="dv_listings.apply_bulk_filtered('${id}', '${input_id}'); return false;">
           Apply full table
         </a>
       </li>
@@ -238,9 +238,6 @@ const dv_listings = (function () {
         ${apply_bulk_split}
         
       </div>`;
-      // ${apply_bulk_full}
-      //   ${apply_bulk_visible}
-
     container.prepend(html);
   }
 
@@ -319,7 +316,7 @@ const dv_listings = (function () {
     Shiny.setInputValue(input_id, {row:selected_row_ids, option:choice_value, bulk:'false'}, {priority: 'event'})
   };
 
-  const apply_bulk_full = function(container_id, input_id) {        
+  const apply_bulk_filtered = function(container_id, input_id) {        
     const choice_value = $("#" + container_id + " .top select").val();    
     Shiny.setInputValue(input_id, {row:null, option:choice_value, bulk:'filtered'}, {priority: 'event'})
   };
@@ -334,7 +331,7 @@ const dv_listings = (function () {
     on_change_select_all_checkbox: on_change_select_all_checkbox,
     on_change_table_checkbox: on_change_table_checkbox,
     apply_bulk_visible: apply_bulk_visible,
-    apply_bulk_full: apply_bulk_full,
+    apply_bulk_filtered: apply_bulk_filtered,
     show_child: show_child
   }
   return (res)
