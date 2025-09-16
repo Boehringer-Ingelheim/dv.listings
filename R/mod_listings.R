@@ -439,12 +439,16 @@ listings_server <- function(module_id,
       # TODO: Consider adapting https://github.com/r-lib/fs/blob/main/R/sanitize.R instead to allow alternative charsets
       review[["roles"]] <- gsub("[^a-zA-Z0-9 _.-]", "", review[["roles"]]) # Accepts alpha+num+space+'.'+'_'+'-'
 
-      output[[TBL$REVIEW_UI_ID]] <- shiny::renderUI(
-        shinyWidgets::dropdownButton(
+      output[[TBL$REVIEW_UI_ID]] <- shiny::renderUI({
+
+        review_ui <- shinyWidgets::dropdownButton(
           inputId = ns(TBL$REVIEW_DROPDOWN_ID), label = shiny::textOutput(ns("review_label"), inline = TRUE), circle = FALSE,
           REV_UI(ns = ns, roles = review[["roles"]])[["ui"]]
         )
-      )
+
+        review_ui
+
+      })
 
       review_button_label <- shiny::reactive({
         role <- input[[REV$ID$ROLE]]
@@ -604,9 +608,24 @@ listings_server <- function(module_id,
                  targets = review_column_indices[[4]])            
           )
         )
+
+        # TODO: find a place for this if
+        if (checkmate::test_string(input[[REV$ID$ROLE]], min.chars = 1)) {
+          bulk_render <-  sprintf(
+            "function(settings, json) {
+              dv_listings.render_bulk_menu(settings.sTableId + \"_wrapper\", [%s], '%s');
+            }", paste(paste0("'", review[["choices"]], "'"), collapse = ", "),
+            ns(REV$ID$REVIEW_SELECT)
+            )
+        } else {
+          bulk_render <- ""
+        }
       } else {
+        bulk_render <- ""
         review_col_count <- 0        
       }
+
+     
 
       DT::datatable(
         data = table_data[["data"]],
@@ -623,11 +642,13 @@ listings_server <- function(module_id,
           ordering = TRUE,
           columnDefs = column_defs,
           # FIXME: Update to use https://datatables.net/reference/option/layout
-          dom = "frtilp", # Buttons, filtering, processing display element, table, information summary, length, pagination
+          dom = "<'top'>rtilp", # Buttons, filtering, processing display element, table, information summary, length, pagination
           fixedColumns = list(left = review_col_count),
+          initComplete = htmlwidgets::JS(bulk_render),
           drawCallback = htmlwidgets::JS("
-            function(settings) {
-              $('.dataTables_wrapper thead input[type=\"search\"]').removeAttr('disabled');
+            function (settings) {  
+              $(settings.nTableWrapper).find('thead input[type=\"search\"]').removeAttr('disabled');
+              dv_listings.refresh_bulk_select_all_checkbox(settings.sTableId + \"_wrapper\");              
             }
           ") # Keep filtering enabled even for columns that have a unique value
         ),
