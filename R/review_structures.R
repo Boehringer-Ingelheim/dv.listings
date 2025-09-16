@@ -319,8 +319,6 @@ RS_compute_delta_memory <- function(state, df) {
   id_hashes <- id_hashes[, mapping, drop = FALSE]
   tracked_hashes <- tracked_hashes[, mapping, drop = FALSE]
 
-  # TODO: Assert against removal of rows
-
   merged <- cbind(state$tracked_hashes, tracked_hashes, deparse.level = 0)
 
   modified_row_mask <- !duplicated(merged, MARGIN = 2) |> c() |> tail(n = nrow(df) - length(new_row_indices))

@@ -36,6 +36,7 @@ REV_time_from_timestamp <- function(v) {
 }
 
 REV_include_review_info <- function(annotation_info, data, col_names, extra_col_names) {
+  # FIXME? `extra_col_names` goes unused
   if (nrow(data) < nrow(annotation_info)) {
     filter_mask <- attr(data, "filter_mask")
     annotation_info <- annotation_info[filter_mask, ]
@@ -64,6 +65,9 @@ REV_include_review_info <- function(annotation_info, data, col_names, extra_col_
   # add actual data
   res <- cbind(res, data)
   res_col_names <- c(res_col_names, col_names)
+ 
+  attributes_to_restore <- setdiff(ls(attributes(data)), c("class", "names"))
+  for (e in attributes_to_restore) attr(res, e) <- attr(data, e)
 
   return(list(data = res, col_names = res_col_names))
 }
@@ -308,7 +312,7 @@ REV_load_annotation_info <- function(folder_contents, review, dataset_lists) {
         }
       } else {
         contents <- RS_compute_base_memory(dataset_review_name, dataset, id_vars, tracked_vars)
-        base_info <- RS_parse_base(contents)
+        base_info <- RS_load(base = contents, deltas = list())
         append_IO_action(
             list(
               type = "write_file",
@@ -318,8 +322,6 @@ REV_load_annotation_info <- function(folder_contents, review, dataset_lists) {
               contents = contents
             )
           )  
-        base_timestamp <- base_info[["timestamp"]] # TODO: Consider providing timestamp to RS_compute_base_memory instead?
-        data_timestamps <- base_info[["row_timestamps"]]
       }
       
       base_timestamp <- base_info[["timestamp"]]
@@ -650,9 +652,9 @@ REV_review_var_to_json <- function(col) {
 
 REV_compute_status <- function(dataset_review, role) {
 
-  # Does this function make sense with no role? Yes it does because the latest review is the one that maybe outdated,
+  # Does this function make sense with no role? Yes it does because the latest review is the one that may be outdated,
   # conflicting, unreviewed, etc.
-  # Optionally we could indicate if the current role does have a conflict or is it someone else?
+  # Optionally, we could indicate if the current role does have a conflict or is it someone else?
   # We can indicate who conflicts with the latest review
   # Include the button if the selected role has this problem, basically we have a different review and we want to 
   # change to the currently selected.
