@@ -47,7 +47,14 @@ test_that("SH$hash_tracked exhibits almost no false negatives and few false posi
       
       h1 <- SH$hash_tracked(dfp[colnames(dfp)])
    
-      reported_changes <- REV_report_changes(h0, h1)
+      reported_changes_row_cols <- REV_report_changes(h0, h1)
+      
+      # Flatten changes for simpler downstream comparison
+      reported_changes <- list()
+      for(row_cols in reported_changes_row_cols){
+        row <- row_cols[["row"]]
+        for(col in row_cols[["cols"]]) reported_changes[[length(reported_changes) + 1]] <- c(row, col)
+      }
       
       if(!identical(expected_changes, reported_changes)) {
         i_exp <- 1
@@ -207,14 +214,11 @@ test_that("Row changes can be attributed to specific modified columns", {
    
   expected_changes <- list(
     # Row 1 is not listed here because we've specified that #first_change preceeds the review time of this row
-    
     # AESEV of second row, modified here #second_change
-    c(2L, 9L),
+    list(row = 2L, cols = 9L),
     # All columns for the third and fourth rows (added on #second_change) are notified
-    c(3L, 1L), c(3L, 2L), c(3L, 3L), c(3L, 4L), c(3L, 5L), c(3L, 6L), c(3L, 7L), c(3L, 8L), 
-    c(3L, 9L), c(3L, 10L), c(3L, 11L), c(3L, 12L), c(3L, 13L), 
-    c(4L, 1L), c(4L, 2L), c(4L, 3L), c(4L, 4L), c(4L, 5L), c(4L, 6L), c(4L, 7L), c(4L, 8L), 
-    c(4L, 9L), c(4L, 10L), c(4L, 11L), c(4L, 12L), c(4L, 13L)
+    list(row = 3L, cols = 1:13), 
+    list(row = 4L, cols = 1:13)
   )
   
   expect_equal(changes, expected_changes)

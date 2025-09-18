@@ -24,7 +24,8 @@ REV <- pack_of_constants(
     CONFLICT = "Conflict",
     CONFLICT_ROLE = "Conflict I can fix",
     OK = "OK"
-  )
+  ),
+  HIGHLIGHT_ALL_TRACKED_COLUMNS_IF_MORE_THAN_N_COLUMNS_HAVE_CHANGED = 4
 )
 
 REV_time_from_timestamp <- function(v) {  
@@ -82,26 +83,24 @@ REV_include_outdated_info <- function(table_data, annotation_info, tracked_vars)
       review_timestamps = annotation_info[["timestamp"]]
     )
     h1 <- revisions$tracked_hashes[[length(revisions$tracked_hashes)]]
-    # FIXME: Clumsy representation that leads to slow code. Return by column? Filter out not "latest outdated"?
     res <- REV_report_changes(h0, h1)
-    # FIXME: Should extend rows with more than four changes to highlight the whole row
+    for (i_row in seq_along(res)){
+      cols <- res[[i_row]][["cols"]]
+      if (length(cols) > REV$HIGHLIGHT_ALL_TRACKED_COLUMNS_IF_MORE_THAN_N_COLUMNS_HAVE_CHANGED)
+        res[[i_row]][["cols"]] <- seq_len(length(tracked_vars)) # consider all tracked_vars as modified
+    }
     return(res)
   })
-
-  sorted_tracked_vars <- sort(tracked_vars)
-  for (i_var in seq_along(sorted_tracked_vars)) {
-    tracked_var_name <- sorted_tracked_vars[[i_var]]
-    format_col_name <- paste0("__", tracked_var_name, REV$ID$HIGHLIGHT_SUFFIX)
-    table_data[["col_names"]] <- c(table_data[["col_names"]], format_col_name)
-    table_data[["data"]][[format_col_name]] <- FALSE
-    
-    for (pair in row_col_changes){
-      if (pair[[2]] == i_var) {
-        i_row <- pair[[1]]
-        if (table_data[["data"]][[REV$ID$STATUS_COL]][[i_row]] == REV$STATUS_LEVELS$LATEST_OUTDATED) {
-          table_data[["data"]][[format_col_name]][[i_row]] <- TRUE
-        }
-      }
+  
+  highlight_col_names <- paste0("__", sort(tracked_vars), REV$ID$HIGHLIGHT_SUFFIX)
+  table_data[["col_names"]] <- c(table_data[["col_names"]], highlight_col_names)
+  for (col_name in highlight_col_names) table_data[["data"]][[col_name]] <- FALSE
+ 
+  for (row_cols in row_col_changes){
+    i_row <- row_cols[["row"]]
+    if (table_data[["data"]][[REV$ID$STATUS_COL]][[i_row]] == REV$STATUS_LEVELS$LATEST_OUTDATED) {
+      col_names <- highlight_col_names[row_cols[["cols"]]]
+      table_data[["data"]][i_row, col_names] <- TRUE
     }
   }
   
@@ -807,9 +806,7 @@ REV_report_changes <- function(h0, h1, verbose = FALSE) {
     threshold <- min(head(sort(evidence, decreasing = TRUE), inferred_change_count))
     col_indices <- which(evidence >= threshold)
     
-    for (i_col in col_indices){
-      res[[length(res) + 1]] <- c(i_row, i_col)
-    }
+    res[[length(res) + 1]] <- list(row = i_row, cols = col_indices)
   }
   return(res)
 }
