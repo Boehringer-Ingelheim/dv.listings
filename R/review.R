@@ -11,7 +11,8 @@ REV <- pack_of_constants(
     REVIEW_SELECT = "rev_id",
     ROLE = "rev_role",
     DEV_EXTRA_COLS_SELECT = "dev_extra_cols_select",
-    CONNECT_STORAGE = "connect_storage"
+    CONNECT_STORAGE = "connect_storage",
+    HIGHLIGHT_SUFFIX = "_highlight__"
   ),
   LABEL = pack_of_constants(
     DROPDOWN = "Annotation",
@@ -35,7 +36,7 @@ REV_time_from_timestamp <- function(v) {
   return(res)
 }
 
-REV_include_review_info <- function(annotation_info, data, col_names, extra_col_names) {
+REV_include_review_info <- function(annotation_info, data, col_names, extra_col_names, tracked_vars) {
   # FIXME? `extra_col_names` goes unused
   if (nrow(data) < nrow(annotation_info)) {
     filter_mask <- attr(data, "filter_mask")
@@ -70,6 +71,41 @@ REV_include_review_info <- function(annotation_info, data, col_names, extra_col_
   for (e in attributes_to_restore) attr(res, e) <- attr(data, e)
 
   return(list(data = res, col_names = res_col_names))
+}
+
+REV_include_outdated_info <- function(table_data, annotation_info, tracked_vars) {
+  # Compute dataset changes that make current reviews obsolete
+  row_col_changes <- local({
+    revisions <- attr(annotation_info, "revisions")
+    h0 <- REV_collect_latest_review_hashes(
+      revisions = revisions, 
+      review_timestamps = annotation_info[["timestamp"]]
+    )
+    h1 <- revisions$tracked_hashes[[length(revisions$tracked_hashes)]]
+    # FIXME: Clumsy representation that leads to slow code. Return by column? Filter out not "latest outdated"?
+    res <- REV_report_changes(h0, h1)
+    # FIXME: Should extend rows with more than four changes to highlight the whole row
+    return(res)
+  })
+
+  sorted_tracked_vars <- sort(tracked_vars)
+  for (i_var in seq_along(sorted_tracked_vars)) {
+    tracked_var_name <- sorted_tracked_vars[[i_var]]
+    format_col_name <- paste0("__", tracked_var_name, REV$ID$HIGHLIGHT_SUFFIX)
+    table_data[["col_names"]] <- c(table_data[["col_names"]], format_col_name)
+    table_data[["data"]][[format_col_name]] <- FALSE
+    
+    for (pair in row_col_changes){
+      if (pair[[2]] == i_var) {
+        i_row <- pair[[1]]
+        if (table_data[["data"]][[REV$ID$STATUS_COL]][[i_row]] == REV$STATUS_LEVELS$LATEST_OUTDATED) {
+          table_data[["data"]][[format_col_name]][[i_row]] <- TRUE
+        }
+      }
+    }
+  }
+  
+  return(table_data)
 }
 
 REV_UI <- function(ns, roles) {
@@ -510,8 +546,8 @@ REV_logic_1 <- function(state, input, review, datasets, fs_client, fs_callbacks)
   )
 }
 
-REV_logic_2 <- function(ns, state, input, review, datasets, selected_dataset_list_name, selected_dataset_name, data,
-                        dt_proxy, fs_execute_IO_plan) { # TODO: Rename
+REV_respond_to_user_review <- function(ns, state, input, review, selected_dataset_list_name, selected_dataset_name, data,
+                                       dt_proxy, fs_execute_IO_plan, table_data_rw) {
   shiny::observeEvent(input[[REV$ID$REVIEW_SELECT]], {
     role <- input[[REV$ID$ROLE]]
 
@@ -560,8 +596,9 @@ REV_logic_2 <- function(ns, state, input, review, datasets, selected_dataset_lis
     # NOTE: Partially repeats #weilae 
     # NOTE: We could cache the modified table and avoid repeating this operation 
     #       if it turns out to be a performance bottleneck
+    annotation_info <- state[["annotation_info"]][[dataset_list_name]][[dataset_name]]
     changes <- REV_include_review_info(
-      annotation_info = state[["annotation_info"]][[dataset_list_name]][[dataset_name]],
+      annotation_info = annotation_info,
       data = data(), col_names = list(), extra_col_names = extra_col_names
     )
     new_data <- changes[["data"]]
@@ -611,6 +648,16 @@ REV_logic_2 <- function(ns, state, input, review, datasets, selected_dataset_lis
     # TODO: Benchmark to decide if this is a bottleneck for bigger datasets
     new_data[[REV$ID$STATUS_COL]] <- REV_compute_status(new_data, role)
     new_data[[REV$ID$LATEST_REVIEW_COL]] <- REV_review_var_to_json(new_data[[REV$ID$LATEST_REVIEW_COL]])
+
+    new_data <- local({
+      # FIXME: clumsy wrapper to avoid rewriting REV_include_outdated_info for the moment
+      table_data <- list(data = new_data, col_names = character(0))
+      table_data <- REV_include_outdated_info(
+        table_data, annotation_info, 
+        tracked_vars = review[["datasets"]][[dataset_name]][["tracked_vars"]]
+      )
+      return(table_data[["data"]])
+    })
 
    
     # If we were doing pure client-side rendering of DT, maybe we could do a lighter upgrade with javascript:
