@@ -55,7 +55,7 @@ SH <- local({ # _S_erialization _H_elpers
     hashed_col <- vectorized_hash_id(single_col)
     n_col <- length(hashed_col)
     n_row <- if (length(hashed_col) > 0) length(hashed_col[[1]]) else 0
-    res <- matrix(unlist(vectorized_hash_id(single_col)), nrow = n_row, ncol = n_col)  
+    res <- matrix(unlist(vectorized_hash_id(single_col)) %||% raw(0), nrow = n_row, ncol = n_col)  
     res
   }
 
@@ -66,7 +66,7 @@ SH <- local({ # _S_erialization _H_elpers
     res <- list()   
     for (i_col in seq_len(n_col)) {
       col_indices <- (((i_col - 1) + hash_tracked_offsets) %% n_col) + 1
-      res[[i_col]] <- vectorized_hash_row(df[col_indices], algo = "xxh32")[1:BYTES_PER_TRACKED_HASH, ] # MSBs
+      res[[i_col]] <- vectorized_hash_row(df[col_indices], algo = "xxh32")[1:BYTES_PER_TRACKED_HASH, , drop = FALSE] # MSBs
     }
     res <- do.call(rbind, res)
     return(res)
@@ -186,6 +186,8 @@ RS_compute_base_memory <- function(df_id, df, id_vars, tracked_vars) {
   checkmate::assert_string(df_id, min.chars = 1, max.chars = 65535)
   checkmate::assert_data_frame(df)
   # TODO: assert *_vars char unique col names of df
+
+  ; if (nrow(df) == 0) return(simpleCondition("Refusing to review 0-row dataset"))
  
   id_vars <- sort(id_vars)
   tracked_vars <- sort(tracked_vars)

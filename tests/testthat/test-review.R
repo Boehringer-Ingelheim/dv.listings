@@ -54,4 +54,26 @@ local({
     
     expect_equal(delta[["modified_row_indices"]], c(1L))
   })
+  
+  test_that("Review routines produce a descriptive error when asked to review an empty dataset", {
+    folder_contents <- NULL
+    dataset_lists <- list(
+      dataset_list = list(
+        ae = head(safetyData::sdtm_ae, 0)
+      )
+    )
+    info <- REV_load_annotation_info(folder_contents, review, dataset_lists)
+    expect_equal(info[["error"]], "Refusing to review 0-row dataset")
+  })
+  
+  test_that("Review routines cope with 1-row datasets", {
+    folder_contents <- NULL
+    dataset_lists <- list(
+      dataset_list = list(
+        ae = head(safetyData::sdtm_ae, 1)
+      )
+    )
+    info <- REV_load_annotation_info(folder_contents, review, dataset_lists)
+    expect_length(info[["error"]], 0)
+  })
 })

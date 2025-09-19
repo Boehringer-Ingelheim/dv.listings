@@ -357,8 +357,12 @@ REV_load_annotation_info <- function(folder_contents, review, dataset_lists) {
         }
       } else {
         contents <- RS_compute_base_memory(dataset_review_name, dataset, id_vars, tracked_vars)
-        base_info <- RS_load(base = contents, deltas = list())
-        append_IO_action(
+        if (inherits(contents, "simpleCondition")) {
+          # IMPORTANT: Not being able to compute the base info is too severe an error to recover from, so we error out
+          return(list(error = c(error, contents[["message"]])))
+        } else {
+          base_info <- RS_load(base = contents, deltas = list())
+          append_IO_action(
             list(
               type = "write_file",
               mode = "bin",
@@ -367,6 +371,7 @@ REV_load_annotation_info <- function(folder_contents, review, dataset_lists) {
               contents = contents
             )
           )  
+        }
       }
       
       base_timestamp <- base_info[["timestamp"]]
