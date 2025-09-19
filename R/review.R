@@ -56,7 +56,7 @@ REV_include_review_info <- function(annotation_info, data, col_names, extra_col_
  
   # include review-related columns
   res <- data.frame(reviews, roles) # FIXME: (maybe) Can't pass latest review as argument. List confuses data.frame
-  res[["status"]] <- status
+  res[["status"]] <- rep(status, nrow(res))
   res[["latest_reviews"]] <- latest_reviews
   names(res)[[1]] <- REV$ID$REVIEW_COL
   names(res)[[2]] <- REV$ID$ROLE_COL
@@ -75,6 +75,7 @@ REV_include_review_info <- function(annotation_info, data, col_names, extra_col_
 }
 
 REV_include_outdated_info <- function(table_data, annotation_info, tracked_vars) {
+  data <- table_data[["data"]]
   # Compute dataset changes that make current reviews obsolete
   row_col_changes <- local({
     revisions <- attr(annotation_info, "revisions")
@@ -83,6 +84,13 @@ REV_include_outdated_info <- function(table_data, annotation_info, tracked_vars)
       review_timestamps = annotation_info[["timestamp"]]
     )
     h1 <- revisions$tracked_hashes[[length(revisions$tracked_hashes)]]
+    
+    if (nrow(data) < nrow(annotation_info)) {
+      filter_mask <- attr(data, "filter_mask")
+      h0 <- h0[, filter_mask]
+      h1 <- h1[, filter_mask]
+    }
+    
     res <- REV_report_changes(h0, h1)
     for (i_row in seq_along(res)){
       cols <- res[[i_row]][["cols"]]
@@ -94,15 +102,17 @@ REV_include_outdated_info <- function(table_data, annotation_info, tracked_vars)
   
   highlight_col_names <- paste0("__", sort(tracked_vars), REV$ID$HIGHLIGHT_SUFFIX)
   table_data[["col_names"]] <- c(table_data[["col_names"]], highlight_col_names)
-  for (col_name in highlight_col_names) table_data[["data"]][[col_name]] <- FALSE
+  row_count <- nrow(data)
+  for (col_name in highlight_col_names) data[[col_name]] <- rep(FALSE, row_count)
  
   for (row_cols in row_col_changes){
     i_row <- row_cols[["row"]]
-    if (table_data[["data"]][[REV$ID$STATUS_COL]][[i_row]] == REV$STATUS_LEVELS$LATEST_OUTDATED) {
+    if (data[[REV$ID$STATUS_COL]][[i_row]] == REV$STATUS_LEVELS$LATEST_OUTDATED) {
       col_names <- highlight_col_names[row_cols[["cols"]]]
-      table_data[["data"]][i_row, col_names] <- TRUE
+      data[i_row, col_names] <- TRUE
     }
   }
+  table_data[["data"]] <- data
   
   return(table_data)
 }

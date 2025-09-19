@@ -569,8 +569,7 @@ listings_server <- function(module_id,
       
       column_defs <- list(list(className = "dt-center", targets = "_all"))
       selected_dataset_name <- shiny::isolate(input[[TBL$DATASET_ID]])
-      if (show_review_columns() && selected_dataset_name %in% names(review$datasets) && nrow(output_table_data()[["data"]]) > 0) {
-
+      if (show_review_columns() && selected_dataset_name %in% names(review$datasets)) {
         js_render_call <- js_generate_review_column_contents()[["js_render_call"]]
         render_status_js_call <- js_generate_review_column_contents()[["render_status_js_call"]]
         role <- js_generate_review_column_contents()[["role"]]
