@@ -177,7 +177,7 @@ listings_UI <- function(module_id) { # nolint
       for(let i = 0; i < tds.length; i += 1){
         let td = tds[i];
         let dropdown_content = td.querySelector('div.selectize-dropdown-content');
-        dropdown_content.setAttribute('style','width:max-content; background-color:white; border:1px solid rgba(0, 0, 0, 0.15); border-radius:4px; box-shadow:0 6px 12px rgba(0, 0, 0, 0.175);');
+        dropdown_content.setAttribute('style','min-width:100%%; width:max-content; background-color:white; border:1px solid rgba(0, 0, 0, 0.15); border-radius:4px; box-shadow:0 6px 12px rgba(0, 0, 0, 0.175);');
       }
   });", ns(TBL$TABLE_ID), ns(TBL$TABLE_ID))))
   )
@@ -540,7 +540,7 @@ listings_server <- function(module_id,
         })
       }
       
-      return( # FIXME: returns in a reactive seems strange
+      return(
         list(
           data = data, 
           row_names = set_up[["row_names"]], 
@@ -552,8 +552,8 @@ listings_server <- function(module_id,
     })
   
     if (enable_review) {
-      REV_logic_2(
-        ns = ns, state = REV_state, input = input, review = review, datasets = review[["data"]],
+      REV_respond_to_user_review(
+        ns = ns, state = REV_state, input = input, review = review,
         selected_dataset_list_name = review[["selected_dataset"]],
         selected_dataset_name = shiny::reactive(input[[TBL$DATASET_ID]]),
         data = shiny::reactive(output_table_data()[["data"]]),
@@ -569,8 +569,7 @@ listings_server <- function(module_id,
       
       column_defs <- list(list(className = "dt-center", targets = "_all"))
       selected_dataset_name <- shiny::isolate(input[[TBL$DATASET_ID]])
-      if (show_review_columns() && selected_dataset_name %in% names(review$datasets) && nrow(output_table_data()[["data"]]) > 0) {
-
+      if (show_review_columns() && selected_dataset_name %in% names(review$datasets)) {
         js_render_call <- js_generate_review_column_contents()[["js_render_call"]]
         render_status_js_call <- js_generate_review_column_contents()[["render_status_js_call"]]
         role <- js_generate_review_column_contents()[["role"]]
@@ -578,12 +577,12 @@ listings_server <- function(module_id,
         # patch table data
         selected_dataset_list_name <- shiny::isolate(review[["selected_dataset"]]())
 
-        extra_col_names <- input[[REV$ID$DEV_EXTRA_COLS_SELECT]]
+        # NOTE: Partially repeats #weilae 
+        annotation_info <- REV_state[["annotation_info"]][[selected_dataset_list_name]][[selected_dataset_name]]
         changes <- REV_include_review_info(
-          annotation_info = REV_state[["annotation_info"]][[selected_dataset_list_name]][[selected_dataset_name]],
+          annotation_info = annotation_info,
           data = table_data[["data"]],
-          col_names = table_data[["col_names"]],
-          extra_col_names = extra_col_names
+          col_names = table_data[["col_names"]]
         )
 
         changes[["data"]][[REV$ID$STATUS_COL]] <- REV_compute_status(changes[["data"]], role)
@@ -593,8 +592,14 @@ listings_server <- function(module_id,
         table_data[["data"]] <- changes[["data"]]
         table_data[["col_names"]] <- changes[["col_names"]]
         
+        table_data <- REV_include_outdated_info(
+          table_data, annotation_info, 
+          tracked_vars = review[["datasets"]][[selected_dataset_name]][["tracked_vars"]]
+        )
+        
         # patch table style
-        review_column_indices <- seq_len(review_col_count)        
+        review_column_indices <- seq_len(review_col_count)
+        highlight_column_indices <- which(endsWith(table_data[["col_names"]], REV$ID$HIGHLIGHT_SUFFIX))
         
         column_defs <- append(
           column_defs,
@@ -605,7 +610,7 @@ listings_server <- function(module_id,
             list(render = htmlwidgets::JS(render_status_js_call), data = 3,
                  targets = review_column_indices[[3]]),
             list(visible = FALSE,
-                 targets = review_column_indices[[4]])            
+                 targets = c(review_column_indices[[4]], highlight_column_indices))
           )
         )
 
@@ -625,9 +630,7 @@ listings_server <- function(module_id,
         review_col_count <- 0        
       }
 
-     
-
-      DT::datatable(
+      res <- DT::datatable(
         data = table_data[["data"]],
         colnames = table_data[["col_names"]],
         rownames = table_data[["row_names"]],
@@ -654,6 +657,22 @@ listings_server <- function(module_id,
         ),
         selection = "none"
       )
+      
+      if (show_review_columns()) {
+        tracked_vars <- sort(review[["datasets"]][[selected_dataset_name]][["tracked_vars"]])
+        present_vars <- names(table_data[["data"]])
+        sorted_present_tracked_vars <- sort(intersect(tracked_vars, present_vars))
+        
+        res <- DT::formatStyle(
+          table = res, 
+          columns = sorted_present_tracked_vars,
+          valueColumns = paste0("__", sorted_present_tracked_vars, REV$ID$HIGHLIGHT_SUFFIX),
+          target = "cell",
+          backgroundColor = DT::styleEqual(c(FALSE, TRUE), c("#00000000", "#f0ad4ecc"))
+        )
+      }
+      
+      return(res)
     })
     
     shiny::exportTestValues(

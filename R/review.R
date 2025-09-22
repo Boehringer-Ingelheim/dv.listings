@@ -10,8 +10,8 @@ REV <- pack_of_constants(
     LATEST_REVIEW_COL = "__latest_review__",
     REVIEW_SELECT = "rev_id",
     ROLE = "rev_role",
-    DEV_EXTRA_COLS_SELECT = "dev_extra_cols_select",
-    CONNECT_STORAGE = "connect_storage"
+    CONNECT_STORAGE = "connect_storage",
+    HIGHLIGHT_SUFFIX = "_highlight__"
   ),
   LABEL = pack_of_constants(
     DROPDOWN = "Annotation",
@@ -23,7 +23,8 @@ REV <- pack_of_constants(
     CONFLICT = "Conflict",
     CONFLICT_ROLE = "Conflict I can fix",
     OK = "OK"
-  )
+  ),
+  HIGHLIGHT_ALL_TRACKED_COLUMNS_IF_MORE_THAN_N_COLUMNS_HAVE_CHANGED = 4
 )
 
 REV_time_from_timestamp <- function(v) {  
@@ -35,7 +36,8 @@ REV_time_from_timestamp <- function(v) {
   return(res)
 }
 
-REV_include_review_info <- function(annotation_info, data, col_names, extra_col_names) {
+REV_include_review_info <- function(annotation_info, data, col_names) {
+  # FIXME? `extra_col_names` goes unused
   if (nrow(data) < nrow(annotation_info)) {
     filter_mask <- attr(data, "filter_mask")
     annotation_info <- annotation_info[filter_mask, ]
@@ -53,7 +55,7 @@ REV_include_review_info <- function(annotation_info, data, col_names, extra_col_
  
   # include review-related columns
   res <- data.frame(reviews, roles) # FIXME: (maybe) Can't pass latest review as argument. List confuses data.frame
-  res[["status"]] <- status
+  res[["status"]] <- rep(status, nrow(res)) # Explicit `rep` avoids assignment error when `nrow(res) == 0`
   res[["latest_reviews"]] <- latest_reviews
   names(res)[[1]] <- REV$ID$REVIEW_COL
   names(res)[[2]] <- REV$ID$ROLE_COL
@@ -64,8 +66,55 @@ REV_include_review_info <- function(annotation_info, data, col_names, extra_col_
   # add actual data
   res <- cbind(res, data)
   res_col_names <- c(res_col_names, col_names)
+ 
+  attributes_to_restore <- setdiff(ls(attributes(data)), c("class", "names"))
+  for (e in attributes_to_restore) attr(res, e) <- attr(data, e)
 
   return(list(data = res, col_names = res_col_names))
+}
+
+REV_include_outdated_info <- function(table_data, annotation_info, tracked_vars) {
+  data <- table_data[["data"]]
+  # Compute dataset changes that make current reviews obsolete
+  row_col_changes <- local({
+    revisions <- attr(annotation_info, "revisions")
+    h0 <- REV_collect_latest_review_hashes(
+      revisions = revisions, 
+      review_timestamps = annotation_info[["timestamp"]]
+    )
+    h1 <- revisions$tracked_hashes[[length(revisions$tracked_hashes)]]
+    
+    if (nrow(data) < nrow(annotation_info)) {
+      filter_mask <- attr(data, "filter_mask")
+      h0 <- h0[, filter_mask]
+      h1 <- h1[, filter_mask]
+    }
+    
+    res <- REV_report_changes(h0, h1)
+    for (i_row in seq_along(res)){
+      cols <- res[[i_row]][["cols"]]
+      if (length(cols) > REV$HIGHLIGHT_ALL_TRACKED_COLUMNS_IF_MORE_THAN_N_COLUMNS_HAVE_CHANGED)
+        res[[i_row]][["cols"]] <- seq_len(length(tracked_vars)) # consider all tracked_vars as modified
+    }
+    return(res)
+  })
+  
+  highlight_col_names <- paste0("__", sort(tracked_vars), REV$ID$HIGHLIGHT_SUFFIX)
+  table_data[["col_names"]] <- c(table_data[["col_names"]], highlight_col_names)
+  row_count <- nrow(data)
+  for (col_name in highlight_col_names) 
+    data[[col_name]] <- rep(FALSE, row_count) # Explicit `rep` avoids assignment error when `nrow(data) == 0`
+ 
+  for (row_cols in row_col_changes){
+    i_row <- row_cols[["row"]]
+    if (data[[REV$ID$STATUS_COL]][[i_row]] == REV$STATUS_LEVELS$LATEST_OUTDATED) {
+      col_names <- highlight_col_names[row_cols[["cols"]]]
+      data[i_row, col_names] <- TRUE
+    }
+  }
+  table_data[["data"]] <- data
+  
+  return(table_data)
 }
 
 REV_UI <- function(ns, roles) {
@@ -80,8 +129,7 @@ REV_UI <- function(ns, roles) {
       inputId = ns(REV$ID$ROLE), label = "Role:", choices = choices
     )
   )
-  res[["input_ids_to_exclude_from_bookmarking"]] <- c(ns(REV$ID$CONNECT_STORAGE), ns(REV$ID$ROLE), 
-                                                      ns(REV$ID$DEV_EXTRA_COLS_SELECT))
+  res[["input_ids_to_exclude_from_bookmarking"]] <- c(ns(REV$ID$CONNECT_STORAGE), ns(REV$ID$ROLE))
 
   return(res)
 }
@@ -308,8 +356,12 @@ REV_load_annotation_info <- function(folder_contents, review, dataset_lists) {
         }
       } else {
         contents <- RS_compute_base_memory(dataset_review_name, dataset, id_vars, tracked_vars)
-        base_info <- RS_parse_base(contents)
-        append_IO_action(
+        if (inherits(contents, "simpleCondition")) {
+          # IMPORTANT: Not being able to compute the base info is too severe an error to recover from, so we error out
+          return(list(error = c(error, contents[["message"]])))
+        } else {
+          base_info <- RS_load(base = contents, deltas = list())
+          append_IO_action(
             list(
               type = "write_file",
               mode = "bin",
@@ -318,8 +370,7 @@ REV_load_annotation_info <- function(folder_contents, review, dataset_lists) {
               contents = contents
             )
           )  
-        base_timestamp <- base_info[["timestamp"]] # TODO: Consider providing timestamp to RS_compute_base_memory instead?
-        data_timestamps <- base_info[["row_timestamps"]]
+        }
       }
       
       base_timestamp <- base_info[["timestamp"]]
@@ -416,6 +467,8 @@ REV_load_annotation_info <- function(folder_contents, review, dataset_lists) {
       attr(sub_res[[dataset_review_name]], "state_to_dataset_row_mapping") <- state_to_dataset_row_mapping
       # FIXME? Base timestamp attached as attribute to avoid rewriting prototype-level code
       attr(sub_res[[dataset_review_name]], "base_timestamp") <- base_timestamp
+      # Add tracked_hashes for each revision of the dataset to be able to attribute row changes to specific columns
+      attr(sub_res[[dataset_review_name]], "revisions") <- base_info[["revisions"]]
     }
     loaded_annotation_info[[dataset_lists_name]] <- sub_res
   }
@@ -506,8 +559,8 @@ REV_logic_1 <- function(state, input, review, datasets, fs_client, fs_callbacks)
   )
 }
 
-REV_logic_2 <- function(ns, state, input, review, datasets, selected_dataset_list_name, selected_dataset_name, data,
-                        dt_proxy, fs_execute_IO_plan) { # TODO: Rename
+REV_respond_to_user_review <- function(ns, state, input, review, selected_dataset_list_name, selected_dataset_name, data,
+                                       dt_proxy, fs_execute_IO_plan, table_data_rw) {
   shiny::observeEvent(input[[REV$ID$REVIEW_SELECT]], {
     role <- input[[REV$ID$ROLE]]
 
@@ -530,6 +583,7 @@ REV_logic_2 <- function(ns, state, input, review, datasets, selected_dataset_lis
     if ("bulk" %in% names(info) && identical(info[["bulk"]], "filtered")) {
       info[["row"]] <- input[[paste0(TBL$TABLE_ID, "_rows_all")]]
     }
+    shiny::req(length(info[["row"]]) > 0)
 
     i_row <- as.numeric(info[["row"]])
 
@@ -550,15 +604,11 @@ REV_logic_2 <- function(ns, state, input, review, datasets, selected_dataset_lis
    
     timestamp <- SH$get_UTC_time_in_seconds()
         
-    extra_col_names <- input[[REV$ID$DEV_EXTRA_COLS_SELECT]]
-    
     # NOTE: Partially repeats #weilae 
     # NOTE: We could cache the modified table and avoid repeating this operation 
     #       if it turns out to be a performance bottleneck
-    changes <- REV_include_review_info(
-      annotation_info = state[["annotation_info"]][[dataset_list_name]][[dataset_name]],
-      data = data(), col_names = list(), extra_col_names = extra_col_names
-    )
+    annotation_info <- state[["annotation_info"]][[dataset_list_name]][[dataset_name]]
+    changes <- REV_include_review_info(annotation_info = annotation_info, data = data(), col_names = list())
     new_data <- changes[["data"]]
 
     contents <- c()
@@ -607,6 +657,16 @@ REV_logic_2 <- function(ns, state, input, review, datasets, selected_dataset_lis
     new_data[[REV$ID$STATUS_COL]] <- REV_compute_status(new_data, role)
     new_data[[REV$ID$LATEST_REVIEW_COL]] <- REV_review_var_to_json(new_data[[REV$ID$LATEST_REVIEW_COL]])
 
+    new_data <- local({
+      # FIXME: clumsy wrapper to avoid rewriting REV_include_outdated_info for the moment
+      table_data <- list(data = new_data, col_names = character(0))
+      table_data <- REV_include_outdated_info(
+        table_data, annotation_info, 
+        tracked_vars = review[["datasets"]][[dataset_name]][["tracked_vars"]]
+      )
+      return(table_data[["data"]])
+    })
+
    
     # If we were doing pure client-side rendering of DT, maybe we could do a lighter upgrade with javascript:
     # > var table = $('#DataTables_Table_0').DataTable();
@@ -647,9 +707,9 @@ REV_review_var_to_json <- function(col) {
 
 REV_compute_status <- function(dataset_review, role) {
 
-  # Does this function make sense with no role? Yes it does because the latest review is the one that maybe outdated,
+  # Does this function make sense with no role? Yes it does because the latest review is the one that may be outdated,
   # conflicting, unreviewed, etc.
-  # Optionally we could indicate if the current role does have a conflict or is it someone else?
+  # Optionally, we could indicate if the current role does have a conflict or is it someone else?
   # We can indicate who conflicts with the latest review
   # Include the button if the selected role has this problem, basically we have a different review and we want to 
   # change to the currently selected.
@@ -701,4 +761,61 @@ REV_compute_status <- function(dataset_review, role) {
   res[[REV$ID$STATUS_COL]][conflict_with_role_mask & !outdated_latest_mask] <- REV$STATUS_LEVELS$CONFLICT_ROLE
     
   return(res[[REV$ID$STATUS_COL]])
+}
+
+# Collect hashes that were known prior to the times indicated by `review_timestamps` 
+REV_collect_latest_review_hashes <- function(revisions, review_timestamps) {
+  res <- revisions$tracked_hashes[[1]]
+  
+  revision_count <- length(revisions$tracked_hashes)
+  i_revision <- 2
+  while (i_revision <= revision_count) {
+    ts <- revisions$timestamps[[i_revision]]
+    hashes <- revisions$tracked_hashes[[i_revision]]
+    update_mask <- (ts < review_timestamps)
+    res[, update_mask] <- hashes[, update_mask]
+    i_revision <- i_revision + 1
+  }
+  return(res)
+}
+
+# Infer which cells changed based of two matrices of old (`h0`) and new (`h1`) hashes
+# Returns pairs of (row, col) based on the ordering of h0
+# The hashes are kept in canonical order, so that's the order this function outputs
+REV_report_changes <- function(h0, h1, verbose = FALSE) {
+  res <- list()
+  if (nrow(h0) != nrow(h1) || nrow(h0) %% 2 != 0) {
+    stop(paste("Hashes of tracked columns are expected to be multiples of 16 bits",
+               "and the count of tracked columns should remain the same across the",
+               "lifetime of the stury"))
+  }
+  
+  offsets <- c(0, 2, 3)
+  
+  n_col <- nrow(h1) %/% 2L
+  
+  row_diff_indices <- which(apply(h0 != h1, 2, any))
+  for (i_row in row_diff_indices) {
+    prev <- as.integer(h0[, i_row])
+    cur <- as.integer(h1[, i_row])
+    diff <- (prev != cur)
+    diff <- apply(matrix(diff, ncol = BYTES_PER_TRACKED_HASH, byrow = TRUE), 1, any)
+    evidence <- integer(n_col)
+    for (i in seq_len(n_col)){
+      v <- diff[[i]]
+      affected_indices <- (((i - 1) + offsets) %% n_col) + 1
+      delta <- isTRUE(v)
+      evidence[affected_indices] <- evidence[affected_indices] + delta
+      
+      if (verbose) print(evidence)
+    }
+    inferred_change_count <- ceiling(sum(diff) / length(offsets))
+    
+    # removes false negatives at the cost of false positives
+    threshold <- min(head(sort(evidence, decreasing = TRUE), inferred_change_count))
+    col_indices <- which(evidence >= threshold)
+    
+    res[[length(res) + 1]] <- list(row = i_row, cols = col_indices)
+  }
+  return(res)
 }

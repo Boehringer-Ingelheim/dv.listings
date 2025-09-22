@@ -1,3 +1,7 @@
+# dv.listings 4.2.0-9000
+- Bulk editing of reviews
+- Highlighting of modified columns for outdated reviews
+
 # dv.listings 4.2.0
 
 - Includes the experimental review functionality
