@@ -579,12 +579,10 @@ listings_server <- function(module_id,
 
         # NOTE: Partially repeats #weilae 
         annotation_info <- REV_state[["annotation_info"]][[selected_dataset_list_name]][[selected_dataset_name]]
-        extra_col_names <- input[[REV$ID$DEV_EXTRA_COLS_SELECT]]
         changes <- REV_include_review_info(
           annotation_info = annotation_info,
           data = table_data[["data"]],
-          col_names = table_data[["col_names"]],
-          extra_col_names = extra_col_names
+          col_names = table_data[["col_names"]]
         )
 
         changes[["data"]][[REV$ID$STATUS_COL]] <- REV_compute_status(changes[["data"]], role)
