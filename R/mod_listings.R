@@ -540,7 +540,7 @@ listings_server <- function(module_id,
         })
       }
       
-      return( # FIXME: returns in a reactive seems strange # NOTE(miguel): Personal style. Remove it if it bothers you!
+      return(
         list(
           data = data, 
           row_names = set_up[["row_names"]], 

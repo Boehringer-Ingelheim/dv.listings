@@ -10,7 +10,6 @@ REV <- pack_of_constants(
     LATEST_REVIEW_COL = "__latest_review__",
     REVIEW_SELECT = "rev_id",
     ROLE = "rev_role",
-    DEV_EXTRA_COLS_SELECT = "dev_extra_cols_select",
     CONNECT_STORAGE = "connect_storage",
     HIGHLIGHT_SUFFIX = "_highlight__"
   ),
@@ -37,7 +36,7 @@ REV_time_from_timestamp <- function(v) {
   return(res)
 }
 
-REV_include_review_info <- function(annotation_info, data, col_names, extra_col_names, tracked_vars) {
+REV_include_review_info <- function(annotation_info, data, col_names) {
   # FIXME? `extra_col_names` goes unused
   if (nrow(data) < nrow(annotation_info)) {
     filter_mask <- attr(data, "filter_mask")
@@ -56,7 +55,7 @@ REV_include_review_info <- function(annotation_info, data, col_names, extra_col_
  
   # include review-related columns
   res <- data.frame(reviews, roles) # FIXME: (maybe) Can't pass latest review as argument. List confuses data.frame
-  res[["status"]] <- rep(status, nrow(res))
+  res[["status"]] <- rep(status, nrow(res)) # Explicit `rep` avoids assignment error when `nrow(res) == 0`
   res[["latest_reviews"]] <- latest_reviews
   names(res)[[1]] <- REV$ID$REVIEW_COL
   names(res)[[2]] <- REV$ID$ROLE_COL
@@ -103,7 +102,8 @@ REV_include_outdated_info <- function(table_data, annotation_info, tracked_vars)
   highlight_col_names <- paste0("__", sort(tracked_vars), REV$ID$HIGHLIGHT_SUFFIX)
   table_data[["col_names"]] <- c(table_data[["col_names"]], highlight_col_names)
   row_count <- nrow(data)
-  for (col_name in highlight_col_names) data[[col_name]] <- rep(FALSE, row_count)
+  for (col_name in highlight_col_names) 
+    data[[col_name]] <- rep(FALSE, row_count) # Explicit `rep` avoids assignment error when `nrow(data) == 0`
  
   for (row_cols in row_col_changes){
     i_row <- row_cols[["row"]]
@@ -129,8 +129,7 @@ REV_UI <- function(ns, roles) {
       inputId = ns(REV$ID$ROLE), label = "Role:", choices = choices
     )
   )
-  res[["input_ids_to_exclude_from_bookmarking"]] <- c(ns(REV$ID$CONNECT_STORAGE), ns(REV$ID$ROLE), 
-                                                      ns(REV$ID$DEV_EXTRA_COLS_SELECT))
+  res[["input_ids_to_exclude_from_bookmarking"]] <- c(ns(REV$ID$CONNECT_STORAGE), ns(REV$ID$ROLE))
 
   return(res)
 }
@@ -605,16 +604,11 @@ REV_respond_to_user_review <- function(ns, state, input, review, selected_datase
    
     timestamp <- SH$get_UTC_time_in_seconds()
         
-    extra_col_names <- input[[REV$ID$DEV_EXTRA_COLS_SELECT]]
-    
     # NOTE: Partially repeats #weilae 
     # NOTE: We could cache the modified table and avoid repeating this operation 
     #       if it turns out to be a performance bottleneck
     annotation_info <- state[["annotation_info"]][[dataset_list_name]][[dataset_name]]
-    changes <- REV_include_review_info(
-      annotation_info = annotation_info,
-      data = data(), col_names = list(), extra_col_names = extra_col_names
-    )
+    changes <- REV_include_review_info(annotation_info = annotation_info, data = data(), col_names = list())
     new_data <- changes[["data"]]
 
     contents <- c()
