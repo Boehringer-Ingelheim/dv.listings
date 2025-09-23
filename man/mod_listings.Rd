@@ -47,6 +47,7 @@ module must exist in the module list. The default is NULL which disables communi
 \item{review}{\verb{[list()]}
 
 Configuration of the experimental data review feature.
+Only one instance of the listings module can use this feature on any given app.
 For more details, please refer to \code{vignette("data_review")}.}
 }
 \description{

@@ -221,6 +221,7 @@ listings_UI <- function(module_id) { # nolint
 #' @param review `[list()]`
 #'
 #' Configuration of the experimental data review feature. 
+#' Only one instance of the listings module can use this feature on any given app.
 #' For more details, please refer to `vignette("data_review")`.
 #'
 #' @export
@@ -679,14 +680,16 @@ listings_server <- function(module_id,
       selected_columns_in_dataset = r_selected_columns_in_dataset()
     )
     
+    # Tell other modules we are a listing that offers the review function
+    mod_return_value <- list(enabled_review = !is.null(review))
+
     ## Jump to subject ----
-    mod_return_value <- NULL
     if (!is.null(on_sbj_click)) {
       shiny::observe({
         shiny::req(!is.null(input[[TBL$SEL_SUB_ID]]))
         on_sbj_click()
       })
-      mod_return_value <- list(subj_id = shiny::reactive(input[[TBL$SEL_SUB_ID]]))
+      mod_return_value[["subj_id"]] <- shiny::reactive(input[[TBL$SEL_SUB_ID]])
     }
     
     return(mod_return_value)
@@ -781,6 +784,32 @@ mod_listings <- function(
         # These afmm fields are only required for the review functionality, so we bundle them in the `review` list
         review[["data"]] <- afmm[["data"]]
         review[["selected_dataset"]] <- afmm[["dataset_metadata"]][["name"]]
+        
+        # Prevent and warn against multiple `dv.listings` instances with active review functionality.
+        #
+        # This block of code takes advantage of the way `dv.manager` incrementally populates afmm[["module_output"]].
+        # At this point in (non-reactive) time, `dv.manager` has run the server functions of only the modules that
+        # precede this one in the `module_list` declaration of the DaVinci app. As long as one of them has declared 
+        # that it offers the review interface, we will refuse to start our own.
+        for (mod_output in afmm[["module_output"]]()){
+          if (is.list(mod_output) && isTRUE(mod_output[["enabled_review"]])) {
+            this_tab_name <- afmm[["module_names"]][[module_id]]
+            
+            shiny::showNotification({
+              paste(
+                "This app is configured to review listings in more than one tab. However,",
+                "only one instance of the `dv.listings` module can offer review functionality on any given app.<br>",
+                sprintf(
+                  'We have <b>disabled the review interface on the tab labeled "%s" (with module ID "%s")</b>',
+                  this_tab_name, module_id
+                ), "to sidestep this issue. Sorry for the inconvenience."
+              ) |> htmltools::HTML()
+            }, duration = NULL, type = "error")
+            
+            review <- NULL
+            break
+          }
+        }
       }
       
       listings_server(
