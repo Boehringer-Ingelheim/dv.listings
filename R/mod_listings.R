@@ -970,7 +970,7 @@ check_mod_listings <- function(afmm, datasets, module_id, dataset_names,
         
         dataset <- datasets[[domain]]
         
-        CM$assert(
+        vars_OK <- CM$assert(
           container = err,
           cond = (checkmate::test_list(review, names = "unique") &&
                     checkmate::test_subset(c("id_vars", "tracked_vars"), names(info))),
@@ -1005,6 +1005,24 @@ check_mod_listings <- function(afmm, datasets, module_id, dataset_names,
               ), domain, domain
             )
           )
+        
+        if (vars_OK) {
+          common_vars <- intersect(info[["id_vars"]], info[["tracked_vars"]])
+          
+          CM$assert(
+            container = err,
+            cond = length(common_vars) == 0,
+            msg = sprintf(
+              paste(
+                "Variables should be assigned <b>exclusively</b> to either <tt>review$datasets$%s$id_vars</tt> or",
+                "<tt>review$datasets$%s$tracked_vars</tt>. However both of those parameters include the following variables:",
+                "%s.<br>If those are indeed variables that uniquely identify dataset rows and are not subject to", 
+                "change, our recommendation is that they are preserved as <tt>id_vars</tt> and excluded from <tt>tracked_vars</tt>."
+              ), domain, domain, paste(sprintf("`%s`", common_vars), collapse = ", ")
+            )
+          )
+          
+        }
       
     }
   })
