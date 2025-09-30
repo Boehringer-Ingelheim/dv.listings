@@ -98,7 +98,7 @@ listings_UI <- function(module_id) { # nolint
       shiny::tags[["button"]](
         id = ns(TBL$RESET_ROWS_ORDER_BUTTON_ID),
         class = "btn btn-default action-button",
-        "Reset Row Order"
+        TBL$RESET_ROWS_ORDER_BUTTON_LABEL
       ),
       shiny::tags[["script"]](shiny::HTML(sprintf("
   $(document).on('click', '#%s', function() {
