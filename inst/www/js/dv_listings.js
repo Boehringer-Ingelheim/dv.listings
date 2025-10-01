@@ -102,13 +102,40 @@ const dv_listings = (function () {
     return (data);
   }
 
+  /* #why_prevent_default
+  There are a few `event.preventDefault()` calls in the inline handlers of interactive elements embedded in the table.
+
+  The problem they solve is that after reviewing data with those controls, the table scrolls back to the beginning.
+  That is a big ergonomic failure.
+
+  Now, _crucially_, this **doesn't happen when using the bulk review controls**, even if only for a single row. It 
+  doesn't happen either when the code in the `onclick` handler of either the single-row or bulk review controls is 
+  executed in the browser's javascript console.
+
+  And, to makes matters more confusing, if the user:
+  - clicks on one of the embedded selector dropdowns
+  - clicks away _without changing the selection_
+  - and then triggers the `onclick` handler from the javascript console
+  the table _DOES_ scroll back to the top.
+
+  So, there is _something_ in the table that remembers that there was a click. After that, when there is a 
+  `DT::replaceData` that in turn calls an `ajax.reload()` in the client, the scroll position resets to the top.
+
+  The approach we take here is to **silence the default actions of the embedded input elements** that we place on the
+  table. The default action for the select dropdown is to... well... drop down, so we restore that one manually through
+  a call to showPicker. That API works with firefox and chrome. Support for safari on OSX is coming.
+
+  An alternative way of patching over this issue would be saving and restoring the `scrollTop` position after the ajax
+  data reload.
+  */
+
   const render_selection = function (id, role, choices) {
     let in_f = function (data, type, row, meta) {
       if (type === 'display') {
         let result = '<div style="display: flex; align-items: baseline; gap: 0.5rem;">';
         result += `<input type="checkbox" data-for-row="${row[row_number_idx]}" data-input-type="bulk-control" onchange = "dv_listings.on_change_table_checkbox(event)">`;
         let options = choices;
-        result += `<select onmousedown=\"event.preventDefault(); event.srcElement.showPicker();\" onchange=\"Shiny.setInputValue('${id}', {row:${row[row_number_idx]}, option:this.value, bulk:'false'}, {priority: 'event'});\">`;
+        result += `<select onmousedown=\"event.preventDefault(); event.srcElement.showPicker();\" onchange=\"Shiny.setInputValue('${id}', {row:${row[row_number_idx]}, option:this.value, bulk:'false'}, {priority: 'event'});\">`; // see comment tagged as #why_prevent_default for explanation
         for (let i = 0; i < options.length; i += 1) {
           result += `<option value=${i + 1}${options[i] == data ? ' selected' : ''}>${options[i]}</option>`;
         }
@@ -145,12 +172,12 @@ const dv_listings = (function () {
         <div class = "label ${label_class}"> ${data} </div>
         <div>
         <button class = "btn btn-primary btn-xs" style=\"width:100%%\" onmousedown=\"event.preventDefault();\" onclick=\"dv_listings.show_child(event, this, '${meta.settings}')\" title="Show detailed review info">\u{1F4CB}</button>
-        `;
+        `; // see comment tagged as #why_prevent_default for explanation
 
         if (add_confirm_button) {
           result += `
           <button class = "btn btn-primary btn-xs" style=\"width:100%%\" onmousedown=\"event.preventDefault();\" onclick=\"Shiny.setInputValue('${id}', {row:${row[row_number_idx]}, option:'${options.indexOf(row[latest_review_idx]) + 1}', bulk:'false'}, {priority: 'event'})\" title="Agree with latest review">\u2714</button>          
-          `
+          ` // see comment tagged as #why_prevent_default for explanation
         }
         result += `</div></div>`
 
