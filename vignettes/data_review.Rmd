@@ -253,7 +253,7 @@ So, for a input dataset with seven tracked variables (zero through six), this wo
   - Byte pair 5: Variables 5, 0 and 1
   - Byte pair 6: Variables 6, 1 and 2
 
-This scheme creates a unique mixtures of variables. Take, for instance, variable 0. It is combined with variables 2 and 3 on the zeroth byte pair, with variables 4 and 6 on the fourth byte pair and with 1 and 5 for the fifth byte pair.
+This scheme creates unique mixtures of variables. Take, for instance, variable 0. It is combined with variables 2 and 3 on the zeroth byte pair, with variables 4 and 6 on the fourth byte pair and with 1 and 5 for the fifth byte pair.
 
 Each of these byte pairs is computed by:
 
