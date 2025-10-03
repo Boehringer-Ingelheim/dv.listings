@@ -86,8 +86,8 @@ REV_include_outdated_info <- function(table_data, annotation_info, tracked_vars)
     
     if (nrow(data) < nrow(annotation_info)) {
       filter_mask <- attr(data, "filter_mask")
-      h0 <- h0[, filter_mask]
-      h1 <- h1[, filter_mask]
+      h0 <- h0[, filter_mask, drop = FALSE]
+      h1 <- h1[, filter_mask, drop = FALSE]
     }
     
     res <- REV_report_changes(h0, h1)
