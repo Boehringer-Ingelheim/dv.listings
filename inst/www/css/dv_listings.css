@@ -1,3 +1,8 @@
+.top {
+  display: flex;
+  align-items: center;
+  margin-top: 8px; /* separate from controls above; table heading takes care of separation from controls below */ 
+}
 .bulk-menu-wrapper {
   display: flex;
   width: fit-content;
@@ -7,8 +12,11 @@
   padding: 10px 15px;
   border: 1px solid #dee2e6;
   border-radius: 6px;
-  margin-bottom: 8px;
   box-shadow: 1px 1px 3px rgba(0, 0, 0, 0.05);
+}
+.top-title {
+  flex: 1;
+  text-align: center;
 }
 
 
