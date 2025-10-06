@@ -86,8 +86,8 @@ REV_include_outdated_info <- function(table_data, annotation_info, tracked_vars)
     
     if (nrow(data) < nrow(annotation_info)) {
       filter_mask <- attr(data, "filter_mask")
-      h0 <- h0[, filter_mask]
-      h1 <- h1[, filter_mask]
+      h0 <- h0[, filter_mask, drop = FALSE]
+      h1 <- h1[, filter_mask, drop = FALSE]
     }
     
     res <- REV_report_changes(h0, h1)
@@ -561,6 +561,14 @@ REV_logic_1 <- function(state, input, review, datasets, fs_client, fs_callbacks)
 
 REV_respond_to_user_review <- function(ns, state, input, review, selected_dataset_list_name, selected_dataset_name, data,
                                        dt_proxy, fs_execute_IO_plan, table_data_rw) {
+  # TODO: Much of the review functionality lives inside this observeEvent. We've caught a few of bugs in functions
+  #       that it calls. There are reasons to refactor the observeEvent so that it:
+  #       - Resolves the reactives it depends on.
+  #       - Passes them down, along with the rest of non-reactive parameters, into a plain R function.
+  #       - Receives the function output (new_data, IO_plan) and updates the DT proxy and writes the new data to disk.
+  #
+  #       The resulting function would be a nice entry point for a mid-level integration test.
+  #       Testing on 0-row, 1-row and multi-row inputs would have uncovered the bugs mentioned above.
   shiny::observeEvent(input[[REV$ID$REVIEW_SELECT]], {
     role <- input[[REV$ID$ROLE]]
 

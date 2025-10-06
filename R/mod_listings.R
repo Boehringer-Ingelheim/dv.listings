@@ -664,13 +664,15 @@ listings_server <- function(module_id,
         present_vars <- names(table_data[["data"]])
         sorted_present_tracked_vars <- sort(intersect(tracked_vars, present_vars))
         
-        res <- DT::formatStyle(
-          table = res, 
-          columns = sorted_present_tracked_vars,
-          valueColumns = paste0("__", sorted_present_tracked_vars, REV$ID$HIGHLIGHT_SUFFIX),
-          target = "cell",
-          backgroundColor = DT::styleEqual(c(FALSE, TRUE), c("#00000000", "#f0ad4ecc"))
-        )
+        if (length(sorted_present_tracked_vars)) {
+          res <- DT::formatStyle(
+            table = res,
+            columns = sorted_present_tracked_vars,
+            valueColumns = paste0("__", sorted_present_tracked_vars, REV$ID$HIGHLIGHT_SUFFIX),
+            target = "cell",
+            backgroundColor = DT::styleEqual(c(FALSE, TRUE), c("#00000000", "#f0ad4ecc"))
+          )
+        }
       }
       
       return(res)
