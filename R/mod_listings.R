@@ -570,6 +570,16 @@ listings_server <- function(module_id,
       
       column_defs <- list(list(className = "dt-center", targets = "_all"))
       selected_dataset_name <- shiny::isolate(input[[TBL$DATASET_ID]])
+      
+      selected_dataset_label <- attr(shiny::isolate(dataset_list())[[selected_dataset_name]], "label")
+      if (length(selected_dataset_label) == 0 || nchar(selected_dataset_label) == 0) 
+        selected_dataset_label <- selected_dataset_name
+      
+      init_complete_payloads <- sprintf(
+        "$('#' + settings.sTableId + '_wrapper').find('.top-title').append('<h4>%s</h4>');", selected_dataset_label 
+      )
+      
+      review_col_count <- 0L
       if (show_review_columns() && selected_dataset_name %in% names(review$datasets)) {
         js_render_call <- js_generate_review_column_contents()[["js_render_call"]]
         render_status_js_call <- js_generate_review_column_contents()[["render_status_js_call"]]
@@ -617,19 +627,15 @@ listings_server <- function(module_id,
 
         # TODO: find a place for this if
         if (checkmate::test_string(input[[REV$ID$ROLE]], min.chars = 1)) {
-          bulk_render <-  sprintf(
-            "function(settings, json) {
-              dv_listings.render_bulk_menu(settings.sTableId + \"_wrapper\", [%s], '%s');
-            }", paste(paste0("'", review[["choices"]], "'"), collapse = ", "),
-            ns(REV$ID$REVIEW_SELECT)
-            )
-        } else {
-          bulk_render <- ""
+          bulk_render <- sprintf(
+            "dv_listings.render_bulk_menu(settings.sTableId + \"_wrapper\", [%s], '%s');",
+            paste(paste0("'", review[["choices"]], "'"), collapse = ", "), ns(REV$ID$REVIEW_SELECT)
+          )
+          init_complete_payloads <- c(init_complete_payloads, bulk_render)
         }
-      } else {
-        bulk_render <- ""
-        review_col_count <- 0        
       }
+      
+      init_complete_js <- paste0("function(settings, json) {", paste(init_complete_payloads, collapse = "\n"), "}")
 
       res <- DT::datatable(
         data = table_data[["data"]],
@@ -646,9 +652,9 @@ listings_server <- function(module_id,
           ordering = TRUE,
           columnDefs = column_defs,
           # FIXME: Update to use https://datatables.net/reference/option/layout
-          dom = "<'top'>rtilp", # Buttons, filtering, processing display element, table, information summary, length, pagination
+          dom = "<'top'<'top-title'>>rtilp", # Buttons, filtering, processing display element, table, information summary, length, pagination
           fixedColumns = list(left = review_col_count),
-          initComplete = htmlwidgets::JS(bulk_render),
+          initComplete = htmlwidgets::JS(init_complete_js),
           drawCallback = htmlwidgets::JS("
             function (settings) {  
               $(settings.nTableWrapper).find('thead input[type=\"search\"]').removeAttr('disabled');
