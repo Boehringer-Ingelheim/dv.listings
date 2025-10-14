@@ -38,7 +38,7 @@ const dv_listings = (function () {
       if (!is_empty_object(r.timestamp) && !isNaN(r.timestamp) && r.timestamp > latest_timestamp) {
         latest_timestamp = r.timestamp;
       }
-    });
+    }); 
 
     let html_inner = '';
     let conflict = 'false';
@@ -49,12 +49,12 @@ const dv_listings = (function () {
 
       let latest_label = '';
       if (r.timestamp === latest_timestamp) {
-        latest_label = '<span class="label label-primary" style="font-size: 0.75em;">Latest</span>';
+        latest_label = '<span class="dv-listings-label dv-listings-label-primary" style="font-size: 0.75em;">Latest</span>';
       }
 
       let outdated_label = '';
       if (!is_empty_object(r.timestamp) && r.timestamp < data_timestamp) {
-        outdated_label = '<span class="label label-default" style="font-size: 0.75em;">Outdated</span>';
+        outdated_label = '<span class="dv-listings-label dv-listings-label-default" style="font-size: 0.75em;">Outdated</span>';
       }
 
       let timestamp;
@@ -64,20 +64,21 @@ const dv_listings = (function () {
         timestamp = '';
       }
 
+      // FIXME: [BS5] Label classes can be removed once we move to bs5 definitely
       let review_text;
       let label_class;
       if (r.review) {
         review_text = r.review;
-        label_class = "label-info";
+        label_class = "dv-listings-label-info";
       } else {
         review_text = 'Not reviewed';
-        label_class = "label-default";
+        label_class = "dv-listings-label-default";
       }
 
       html_inner += `
         <div><strong>${role}</strong></div>
         <div>
-          <span class="label ${label_class}" style="display: block; font-size: 1em; padding: 2px 5px;">
+          <span class="dv-listings-label ${label_class}" style="display: block; font-size: 1em; padding: 2px 5px;">
             ${review_text}<br>
             <span class="text-muted" style="font-size: 0.75em;">${timestamp}</span>
           </span>
@@ -160,23 +161,23 @@ const dv_listings = (function () {
         let label_class = '';
 
         if(data === "OK") {
-          label_class = "label-success"
+          label_class = "dv-listings-label-success"
         } else if (data === "Conflict" || data === "Conflict I can fix" || data === "Latest Outdated") {
-          label_class = "label-warning";
+          label_class = "dv-listings-label-warning";
         } else {
-          label_class = "label-default";        
+          label_class = "dv-listings-label-default";        
         }
 
         let result = `
         <div style="width: 100px">
-        <div class = "label ${label_class}"> ${data} </div>
+        <div class = "dv-listings-label ${label_class}"> ${data} </div>
         <div>
-        <button class = "btn btn-primary btn-xs" style=\"width:100%%\" onmousedown=\"event.preventDefault();\" onclick=\"dv_listings.show_child(event, this, '${meta.settings}')\" title="Show detailed review info">\u{1F4CB}</button>
+        <button class = "btn btn-primary dv-listings-btn-xs" style=\"width:100%%\" onmousedown=\"event.preventDefault();\" onclick=\"dv_listings.show_child(event, this, '${meta.settings}')\" title="Show detailed review info">\u{1F4CB}</button>
         `; // see comment tagged as #why_prevent_default for explanation
 
         if (add_confirm_button) {
           result += `
-          <button class = "btn btn-primary btn-xs" style=\"width:100%%\" onmousedown=\"event.preventDefault();\" onclick=\"Shiny.setInputValue('${id}', {row:${row[row_number_idx]}, option:'${options.indexOf(row[latest_review_idx]) + 1}', bulk:'false'}, {priority: 'event'})\" title="Agree with latest review">\u2714</button>          
+          <button class = "btn btn-primary dv-listings-btn-xs" style=\"width:100%%\" onmousedown=\"event.preventDefault();\" onclick=\"Shiny.setInputValue('${id}', {row:${row[row_number_idx]}, option:'${options.indexOf(row[latest_review_idx]) + 1}', bulk:'false'}, {priority: 'event'})\" title="Agree with latest review">\u2714</button>          
           ` // see comment tagged as #why_prevent_default for explanation
         }
         result += `</div></div>`
@@ -207,10 +208,11 @@ const dv_listings = (function () {
       tr.removeClass('shown');
     } else {
       const json = row.data()[4];
+      // FIXME:[BS5] Panel classes will be removed once we move definitely to bs5
       row.child(`
         <div class="child-wrapper" style="display: none;">
-          <div class="panel panel-default" style="margin: 0; margin-left: 20px; display: inline-block">
-            <div class="panel-body">
+          <div class="panel panel-default card card-default" style="margin: 0; margin-left: 20px; display: inline-block">
+            <div class="panel-body card-body">
               ${render_HTML_review(json)}
             </div>
           </div>
@@ -239,11 +241,11 @@ const dv_listings = (function () {
 
     const apply_bulk_split = `
     <div class="btn-group" style = "display:inline-flex">
-    <button type="button" class="btn" 
+    <button type="button" class="btn btn-outline-primary" 
             onclick="dv_listings.apply_bulk_visible('${id}', '${input_id}')">
       Apply selected
     </button>
-    <button type="button" class="btn btn-primary dropdown-toggle" data-toggle="dropdown" aria-expanded="false">
+    <button type="button" class="btn btn-primary dropdown-toggle dropdown-toggle-split" data-bs-toggle="dropdown" data-toggle="dropdown" aria-expanded="false">
       <span class="caret"></span>
       <span class="sr-only">Toggle Dropdown</span>
     </button>
