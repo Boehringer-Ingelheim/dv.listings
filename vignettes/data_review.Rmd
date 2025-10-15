@@ -33,19 +33,35 @@ Here's a more detailed description of the review function:
 - All datasets share the same decision dropdown choices.
 
 ## User interface
+### Structure
+When properly configured, the interface of the module expands to show three extra components, as pictured below:
 
-When properly configured, the interface of the module expands with two extra components, as pictured below:
-
-- A drop-down menu (top-right corner), that allows users to select:
+- A drop-down menu (top-right corner) that allows users to select:
   1. A location to store information derived from the review process.
   2. A reviewer role under which actions will be registered.
 - Additional columns to the left of the listing (bottom-left corner) to perform point-and-click reviews:
   3. The "latest review" column shows the most recent review provided by a member of the team and allows to change it.
   4. The "status" column displays possible review disagreements among the team and allows to investigate and resolve them.
+- A "bulk review" menu (top-left) that allows users to:
+  5. Select a new review decision.
+  6. Apply it to:
+     - Rows individually selected through the left-most per-row checkboxes (through the "Apply selected" button).
+     - All rows in the output, including on subsequent pages (through the "Apply full table"). This selection is affected by the column filters.
 
 ![](images/review00.jpg)
 
 These three review columns behave similarly to the regular listing columns, as they allow filtering and sorting. Thus, they make it easy to find which reviews are pending or to list reviews that conflict across reviewers.
+
+### Highlighting of potentially outdated reviews
+As a study progresses, it is possible for data that has already been reviewed to change. In order to bring those changes to the attention of reviewers, `dv.listings` automatically highlights altered data cells (on columns specified as `tracked`) that may make previous reviews outdated.
+
+In case there are more than four altered cells on a given row, the whole row is highlighted as outdated.
+
+In the picture below, you can see that the "Severity" of the first adverse event has changed. 
+
+![](images/review01.jpg)
+
+The user can isolate all reviewed, and later altered, rows by selecting "Latest Outdated" on the "Status" column. These rows will be cleared of the orange highlighting once a reviewer confirms them as still correct or re-reviews them otherwise.
 
 ## Module configuration
 
@@ -95,11 +111,13 @@ The natural location for this storage would be on a folder of the server that ho
 
 #### Client side storage
 
-Recent versions of Google Chrome and browsers derived from it (Edge, etc.) offer experimental support for javascript code to read and write to the client file system as native apps do. This module takes advantage of this [File System Access API](https://wicg.github.io/file-system-access/) to compensate for the lack of server storage.
+Recent versions of Google Chrome and browsers derived from it (Edge, etc.) offer experimental support for javascript code to read and write to the client file system as native apps do. This module takes advantage of this [File System Access API](https://wicg.github.io/file-system-access/) to compensate for the potential lack of server storage.
 
 In practical terms, relying on this feature means that every time users access a review app, their browser will prompt them to ask for permission to read and write to a folder allocated specifically for review purposes.
 
-In the case of reviews conducted by a team of reviewers, the team as a whole will have to decide beforehand on which networked folder (shared through NFS, Google Drive, Microsoft OneDrive, Dropbox, ...) to use in order to collaborate for the duration of the study.
+In the case of reviews conducted by a team of reviewers, the team as a whole will have to decide beforehand which networked folder (shared through NFS, Google Drive, Microsoft OneDrive, Dropbox, ...) to use in order to collaborate for the duration of the study.
+
+We recommend that users participating in multiple studies set up an independent folder for each of them.
 
 ## Data Stability Requirements
 The module only has access to the latest version of any given dataset. In order to inform users about modified and newly added records, it relies on stored summary hashes of previously seen data. Thus, it's necessary that some aspects of the representation of data are kept constant over the life of a study. These are:
@@ -107,7 +125,6 @@ The module only has access to the latest version of any given dataset. In order 
 - All rows of each provided dataset are identified uniquely by the combination of `id_vars` configured at the beginning of the study.
 - Identifying variables (defined through `id_vars`) and tracked variables (defined through `tracked_vars`) have to remain the same for the duration of the study.
 - Identifying and tracked variables retain their types (factor, numeric, ...) and are available on each revision of each dataset.
-- No data rows are dropped during the study. In other words, if a row identified by a combination of `id_vars` is present on revision `n` of a dataset, it will be available on revision `n+1`.
 
 ## Implementation details
 
@@ -122,7 +139,7 @@ The file formats used for the review portion of `dv.listings` are still a work i
 <details><summary>**Storage design considerations**</summary>
 The nature of the review feature requires concurrent multi-user (multi-session, multi-process) write access to a shared resource, which Posit deems incompatible with pins (https://docs.posit.co/connect/user/pins/, see reddish box).
 
-This is the first DaVinci module that will serialize to permanent storage a substantial amount of study decisions taken over an extended period of time. Loss of data in this context is not acceptable. To guarantee data integrity, we propose the use of simple *append-only* data structures. Put simply, they are plain files opened in "append" mode. It's easy to demonstrate that they can't become the source of catastrophic loss of data of past review sessions. The granularity of the `pins` API (which only allows to load and store complete files) is incompatible with this design. 
+This is the first DaVinci module that stores permanently a substantial amount of study decisions taken over an extended period of time. Loss of data in this context is not acceptable. To guarantee data integrity, we propose the use of simple *append-only* data structures. Those are stored as plain files opened in "append" mode. It's easy to demonstrate that they can't become the source of catastrophic loss of data of past review sessions. The granularity of the `pins` API (which only allows to load and store complete files) is incompatible with this design. 
 
 Data appending improves performance, as only new changes need to be serialized. It's also useful for version tracking, as all editing operations can be replayed in the order in which they happened.
 

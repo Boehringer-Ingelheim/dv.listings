@@ -10,6 +10,7 @@ linters <- lintr::modify_defaults(
   , pipe_continuation_linter = NULL           # wickham being overly prescriptive
   , trailing_blank_lines_linter = NULL        # natural extension of trailing_whitespace_linter, present on the template
   , semicolon_linter = NULL                   # used to highlight checks that lead to the early out on a function
+  , return_linter = NULL                      # wickham being overly prescriptive
 )
 
 if(identical(Sys.getenv('CI'), "true")){
