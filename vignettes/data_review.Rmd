@@ -46,20 +46,22 @@ When properly configured, the interface of the module expands to show three extr
   5. Select a new review decision.
   6. Apply it to:
      - Rows individually selected through the left-most per-row checkboxes (through the "Apply selected" button).
-     - All rows currently visible (through the "Apply full table"). This selection is affected by the column filters.
+     - All rows in the output, including on subsequent pages (through the "Apply full table"). This selection is affected by the column filters.
 
 ![](images/review00.jpg)
 
 These three review columns behave similarly to the regular listing columns, as they allow filtering and sorting. Thus, they make it easy to find which reviews are pending or to list reviews that conflict across reviewers.
 
 ### Highlighting of potentially outdated reviews
-As a study progresses, it is possible for data that has already been reviewed to change. In order to bring those changes to the attention of reviewers, `dv.listings` automatically highlights altered data cells that may make previous reviews outdated.
+As a study progresses, it is possible for data that has already been reviewed to change. In order to bring those changes to the attention of reviewers, `dv.listings` automatically highlights altered data cells (on columns specified as `tracked`) that may make previous reviews outdated.
+
+In case there are more than four altered cells on a given row, the whole row is highlighted as outdated.
 
 In the picture below, you can see that the "Severity" of the first adverse event has changed. 
 
 ![](images/review01.jpg)
 
-The user can isolate all reviewed, and later altered, rows altered by selecting "Latest Outdated" on the "Status" column. Those rows will be cleared of the orange highlighting once a reviewer confirms them as still correct or re-reviews them otherwise.
+The user can isolate all reviewed, and later altered, rows by selecting "Latest Outdated" on the "Status" column. These rows will be cleared of the orange highlighting once a reviewer confirms them as still correct or re-reviews them otherwise.
 
 ## Module configuration
 
@@ -115,13 +117,14 @@ In practical terms, relying on this feature means that every time users access a
 
 In the case of reviews conducted by a team of reviewers, the team as a whole will have to decide beforehand which networked folder (shared through NFS, Google Drive, Microsoft OneDrive, Dropbox, ...) to use in order to collaborate for the duration of the study.
 
+We recommend that users participating in multiple studies set up an independent folder for each of them.
+
 ## Data Stability Requirements
 The module only has access to the latest version of any given dataset. In order to inform users about modified and newly added records, it relies on stored summary hashes of previously seen data. Thus, it's necessary that some aspects of the representation of data are kept constant over the life of a study. These are:
 
 - All rows of each provided dataset are identified uniquely by the combination of `id_vars` configured at the beginning of the study.
 - Identifying variables (defined through `id_vars`) and tracked variables (defined through `tracked_vars`) have to remain the same for the duration of the study.
 - Identifying and tracked variables retain their types (factor, numeric, ...) and are available on each revision of each dataset.
-- No data rows are dropped during the study. In other words, if a row identified by a combination of `id_vars` is present on revision `n` of a dataset, it will be available on revision `n+1`.
 
 ## Implementation details
 
