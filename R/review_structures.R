@@ -277,68 +277,64 @@ RS_compute_delta_memory <- function(state, df) {
   checkmate::assert_data_frame(df) # TODO: etc.
 
   error <- character(0)
+  
+  # Glossary of variable suffixes:
+  # =============================
+  # _st: coming from or relative to `state`
+  # _df: coming from or relative to `df` 
+  # _new: new rows (not present in state)
+  # _old: old rows (present in state)
 
   time_delta <- as.integer(ceiling(SH$get_UTC_time_in_seconds() - state$timestamp))
-  df_hash <- RS_hash_data_frame(df)
+  hash_df <- RS_hash_data_frame(df)
 
-  id_vars <- state$id_vars
-  id_hashes <- RS_compute_id_hashes(df, id_vars) |> c() |> array(dim = c(16L, nrow(df)))
-
-  tracked_vars <- state$tracked_vars
-  # FIXME: (LUIS): Ask Miguel about the postlude
-  tracked_hashes <- (SH$hash_tracked(df[tracked_vars]) |> c() |> 
-                       array(dim = c(BYTES_PER_TRACKED_HASH * length(tracked_vars), nrow(df))))
-
-  # Assert against removal of rows
-  local({
-    merged <- cbind(id_hashes, state$id_hashes, deparse.level = 0)
-    dropped_row_mask <- !duplicated(merged, MARGIN = 2) |> c() |> tail(n = ncol(state$id_hashes))
-    dropped_row_count <- sum(dropped_row_mask)
-    if (dropped_row_count > 0) {
-      error <<- c(error, sprintf("Dataset update is missing %s previously known row(s).\n", dropped_row_count))
-    }
+  id_hashes_df <- RS_compute_id_hashes(df, state$id_vars) |> c() |> array(dim = c(16L, nrow(df)))
+  tracked_hashes_df <- (SH$hash_tracked(df[state$tracked_vars]) |> c() |> 
+                           array(dim = c(BYTES_PER_TRACKED_HASH * length(state$tracked_vars), nrow(df))))
+  
+  indices_new_df <- local({
+    merged_id_hashes <- cbind(state$id_hashes, id_hashes_df, deparse.level = 0)
+    mask_new_df <- !duplicated(merged_id_hashes, MARGIN = 2) |> c() |> tail(n = nrow(df))
+    return(which(mask_new_df))
   })
   
-  merged <- cbind(state$id_hashes, id_hashes, deparse.level = 0)
-  new_row_mask <- !duplicated(merged, MARGIN = 2) |> c() |> tail(n = nrow(df))
-  new_row_indices <- which(new_row_mask)
-  
-  new_id_hashes <- id_hashes[, new_row_indices, drop = FALSE]
-  new_tracked_hashes <- tracked_hashes[, new_row_indices, drop = FALSE]
+  id_hashes_df_new <- id_hashes_df[, indices_new_df, drop = FALSE]
+  tracked_hashes_df_new <- tracked_hashes_df[, indices_new_df, drop = FALSE]
 
-  # drop new rows
-  if (length(new_row_indices)) {
-    id_hashes <- id_hashes[, -new_row_indices, drop = FALSE]
-    tracked_hashes <- tracked_hashes[, -new_row_indices, drop = FALSE]
+  id_hashes_df_old <- id_hashes_df
+  tracked_hashes_df_old <- tracked_hashes_df
+  if (length(indices_new_df)) {
+    id_hashes_df_old <- id_hashes_df_old[, -indices_new_df, drop = FALSE]
+    tracked_hashes_df_old <- tracked_hashes_df_old[, -indices_new_df, drop = FALSE]
   }
  
-  # Sort remaining according to state$id_hashes order # TODO: Streamline for performance?
-  mapping <- match(asplit(id_hashes, 2), asplit(state$id_hashes, 2))
-  # FIXME(miguel): Ask Luis for details. Suggest the use of `error` to shortcircuit file actions for the case described.
+  # Build an index that projects repeat IDs from new `_df` into canonical `_st` indices
+  index_map_st_old <- match(asplit(id_hashes_df_old, 2), asplit(state$id_hashes, 2))
+  if (length(index_map_st_old)) browser()
+
+  # FIXME(miguel): Ask Luis for details. His comment (below) predates an extensive rewrite of this function.
+  #                Suggest the use of `error` to shortcircuit file actions for the case described, if still relevant.
   # TODO: This mapping may fail when data updates are messed. Dataset is updated, new deltas are calculated, and the
   # outdated is loaded in the app again. It does not fail gracefully, mapping contains more entries than expected and
   # an out of bounds error is thrown.
-  id_hashes <- id_hashes[, mapping, drop = FALSE]
-  tracked_hashes <- tracked_hashes[, mapping, drop = FALSE]
-
-  merged <- cbind(state$tracked_hashes, tracked_hashes, deparse.level = 0)
-
-  modified_row_mask <- !duplicated(merged, MARGIN = 2) |> c() |> tail(n = nrow(df) - length(new_row_indices))
-  modified_row_indices <- which(modified_row_mask)
+  
+  tracked_hashes_st_old <- state$tracked_hashes[, index_map_st_old, drop = FALSE]
+  modified_mask_df_old  <- (tracked_hashes_df_old != tracked_hashes_st_old) |> apply(any, MARGIN = 2)
+  modified_indices_st_old <- index_map_st_old[modified_mask_df_old]
   
   res <- list(
     contents = c(
-      charToRaw("LISTDELT"),                                # file magic code
-      as.raw(0),                                            # format version number
-      as.raw(state$generation + 1L),                        # generation marker
-      SH$integer_to_raw(time_delta),                        # delta timestamp (seconds since state)
-      df_hash,                                              # complete hash of input data.frame
-      SH$string_to_raw(state$domain),                       # domain string
-      SH$integer_to_raw(length(new_row_indices)),           # count of new rows
-      new_id_hashes,                                        # one hash of id_vars per new row
-      new_tracked_hashes,                                   # one hash of tracked_vars per new row
-      SH$integer_vector_to_raw(modified_row_indices),       # modified row indices
-      tracked_hashes[, modified_row_indices, drop = FALSE]  # one hash of tracked_vars per modified row
+      charToRaw("LISTDELT"),                                       # file magic code
+      as.raw(0),                                                   # format version number
+      as.raw(state$generation + 1L),                               # generation marker
+      SH$integer_to_raw(time_delta),                               # delta timestamp (seconds since state)
+      hash_df,                                                     # complete hash of input data.frame
+      SH$string_to_raw(state$domain),                              # domain string
+      SH$integer_to_raw(length(indices_new_df)),                   # count of new rows
+      id_hashes_df_new,                                            # one hash of id_vars per new row
+      tracked_hashes_df_new,                                       # one hash of tracked_vars per new row
+      SH$integer_vector_to_raw(modified_indices_st_old),           # modified row indices
+      tracked_hashes_df_old[, modified_mask_df_old, drop = FALSE]  # one hash of tracked_vars per modified row
     ),
     error = error
   )
@@ -458,9 +454,11 @@ RS_parse_review_reviews <- function(contents, dataset_to_state_row_mapping, expe
     review <- readBin(con, integer(), 1L, endian = "little")
     timestamp <- readBin(con, numeric(), 1L, endian = "little")
     # NOTE: timestamp increases monotonically with each new row, so not checking it
-    row_index <- dataset_to_state_row_mapping[[row_index]]
-    res[["review"]][[row_index]] <- review
-    res[["timestamp"]][[row_index]] <- timestamp
+    if (row_index <= length(dataset_to_state_row_mapping)) {
+      row_index <- dataset_to_state_row_mapping[[row_index]]
+      res[["review"]][[row_index]] <- review
+      res[["timestamp"]][[row_index]] <- timestamp
+    }
   }
   
   close(con)
