@@ -657,8 +657,27 @@ listings_server <- function(module_id,
           initComplete = htmlwidgets::JS(init_complete_js),
           drawCallback = htmlwidgets::JS("
             function (settings) {  
-              $(settings.nTableWrapper).find('thead input[type=\"search\"]').removeAttr('disabled');
-              dv_listings.refresh_bulk_select_all_checkbox(settings.sTableId + \"_wrapper\");              
+            const table_wrapper = settings.nTableWrapper;
+              const search_inputs = table_wrapper.querySelectorAll('thead input[type=\"search\"]');
+              for(let i = 0; i < search_inputs.length; i++){
+                search_inputs[i].removeAttribute('disabled');
+              }              
+              
+              dv_listings.refresh_bulk_select_all_checkbox(settings.sTableId + \"_wrapper\");
+
+              /*
+              when upgrading to bs5 some filters were duplicated and left as orphans in the table body.
+              The options fillContainer and scrollX seems to be the culprits. Although I could not find specific issues
+              on this there seems to be many threads on the interactions of these two options with other datatable
+              features. The included solution is to remove these elements by hand on each draw.
+              */
+              const scroll_body = table_wrapper.querySelector('.dataTables_scrollBody');
+              if (scroll_body) {
+                const letfover_sliders = scroll_body.querySelectorAll('.noUi-target');
+                for(let i=0;i<letfover_sliders.length;++i){
+                  letfover_sliders[i].parentNode.remove();
+                }                
+              }
             }
           ") # Keep filtering enabled even for columns that have a unique value
         ),
