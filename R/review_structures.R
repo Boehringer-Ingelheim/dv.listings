@@ -310,7 +310,6 @@ RS_compute_delta_memory <- function(state, df) {
  
   # Build an index that projects repeat IDs from new `_df` into canonical `_st` indices
   index_map_st_old <- match(asplit(id_hashes_df_old, 2), asplit(state$id_hashes, 2))
-  if (length(index_map_st_old)) browser()
 
   # FIXME(miguel): Ask Luis for details. His comment (below) predates an extensive rewrite of this function.
   #                Suggest the use of `error` to shortcircuit file actions for the case described, if still relevant.

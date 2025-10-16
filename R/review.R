@@ -333,26 +333,26 @@ REV_load_annotation_info <- function(folder_contents, review, dataset_lists) {
             new_delta_and_errors <- RS_compute_delta_memory(state = base_info, dataset)
            
             error_strings <- new_delta_and_errors[["error"]]
-            if (length(error_strings)) {
+            if (length(error_strings)) { # Error conditions prevent generation of delta files
               error <- c(error, paste0("[", dataset_review_name, "] ", error_strings))
-            }
-            
-            new_delta <- new_delta_and_errors[["contents"]]
-            
-            deltas[[length(deltas) + 1]] <- new_delta
-            base_info <- RS_load(contents, deltas)
-
-            delta_number <- length(delta_fnames) + 1
-            fname <- sprintf("%s_%03d.delta", dataset_review_name, delta_number)
-            append_IO_action(
-              list(
-                type = "write_file",
-                mode = "bin",
-                path = dataset_lists_name,
-                fname = fname,
-                contents = new_delta
+            } else {
+              new_delta <- new_delta_and_errors[["contents"]]
+              
+              deltas[[length(deltas) + 1]] <- new_delta
+              base_info <- RS_load(contents, deltas)
+              
+              delta_number <- length(delta_fnames) + 1
+              fname <- sprintf("%s_%03d.delta", dataset_review_name, delta_number)
+              append_IO_action(
+                list(
+                  type = "write_file",
+                  mode = "bin",
+                  path = dataset_lists_name,
+                  fname = fname,
+                  contents = new_delta
+                )
               )
-            )
+            }
         }
       } else {
         contents <- RS_compute_base_memory(dataset_review_name, dataset, id_vars, tracked_vars)

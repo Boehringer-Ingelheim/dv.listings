@@ -4,7 +4,6 @@ linters <- lintr::modify_defaults(
   , line_length_linter = NULL                 # we see how long lines are when we write them
   , indentation_linter = NULL
   , trailing_whitespace_linter = NULL
-  , cyclocomp_linter = NULL                   # prevents trivial amount of nesting and long but straightforward functions
   , object_name_linter = NULL                 # we have reasons to capitalize. nobody in our team CamelCase. shiny does
   , object_length_linter = NULL               # we don't type long var names just because
   , pipe_continuation_linter = NULL           # wickham being overly prescriptive

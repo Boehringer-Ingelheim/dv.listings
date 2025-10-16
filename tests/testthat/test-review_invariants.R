@@ -116,12 +116,11 @@ local({
     )
   })
   
-  test_that("Review error message when previously known row is dropped", {
+  test_that("No error message when previously known row is dropped", {
     dataset_lists2 <- dataset_lists
     dataset_lists2[["dataset_list"]][["ae"]] <- head(dataset_lists2[["dataset_list"]][["ae"]], 1)
     
     info <- REV_load_annotation_info(folder_contents, review, dataset_lists2)
-    expect_true(length(info[["error"]]) == 1 &&
-                  startsWith(info[["error"]][[1]], "[ae] Dataset update is missing 1 previously known row(s)"))
+    expect_true(length(info[["error"]]) == 0)
   })
 })
