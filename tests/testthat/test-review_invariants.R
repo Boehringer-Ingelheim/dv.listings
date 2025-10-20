@@ -125,7 +125,14 @@ local({
   })
 })
 
-local({
+# NOTE: Simplify RNG so that we can serialize its seed as diagnostics to failing tests
+rng_seed <- local({
+  runif(1)
+  return(.Random.seed)
+})
+rng_kind <- RNGkind("Wichmann-Hill")[[1]]
+
+test_that(sprintf("Running random review tests with seed: %s", paste(.Random.seed, collapse = ' ')), {
   # _R_eview _T_est
   RT <- local({
     folder_contents <- NULL
@@ -306,7 +313,10 @@ local({
   unlink(RT$store_path, recursive = TRUE, force = TRUE)
   
   # TODO: 
-  # Get seed, run torture test, include seed in failing diagnostic
-  
-  
+  # Run torture test, include seed in failing diagnostic
 })
+
+# NOTE: Restore old RNG state
+RNGkind(rng_kind)
+set.seed(rng_seed)
+browser()
