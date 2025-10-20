@@ -425,12 +425,9 @@ REV_load_annotation_info <- function(folder_contents, review, dataset_lists) {
           )
         }
 
-        # NOTE: each role keeps their own decisions...
+        # NOTE: each role keeps their own decisions and we combine them to display the latest one
         role_review <- RS_parse_review_reviews(contents, dataset_to_state_row_mapping = dataset_to_state_row_mapping, 
                                                expected_role = role, expected_domain = dataset_review_name)
-        # NOTE: and we combine them to display the latest one, but we could...
-        # TODO: ...make reviews by all roles available to the user? (could be done through separate columns)
-
 
         # Progressive update of all roles through the mask
         update_mask <- (role_review[["timestamp"]] > dataset_review[["timestamp"]])

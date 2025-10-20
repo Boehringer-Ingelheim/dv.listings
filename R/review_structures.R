@@ -461,6 +461,9 @@ RS_parse_review_reviews <- function(contents, dataset_to_state_row_mapping, expe
   }
   
   close(con)
+  
+  rows_missing_mask <- (dataset_to_state_row_mapping == 0L)
+  res <- res[!rows_missing_mask, , drop = FALSE]
   return(res)
 }
 
