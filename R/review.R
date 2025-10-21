@@ -392,7 +392,8 @@ REV_load_annotation_info <- function(folder_contents, review, dataset_lists) {
       
       # Compute reverse mapping (which is a more useful representation for the running app)
       dataset_to_state_row_mapping <- local({ # TODO: Is this the right name?
-        res <- integer(length(state_to_dataset_row_mapping))
+        row_count <- ncol(base_info[["id_hashes"]])
+        res <- integer(row_count)
         res[state_to_dataset_row_mapping] <- seq_along(state_to_dataset_row_mapping)
         return(res)
       }) 
