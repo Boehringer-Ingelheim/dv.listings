@@ -212,7 +212,7 @@ RS_compute_base_memory <- function(df_id, df, id_vars, tracked_vars) {
   res <- c(
     charToRaw("LISTBASE"),                                          # file magic code
     as.raw(0),                                                      # format version number
-    as.raw(0),                                                      # generation marker
+    as.raw(0),                                                      # generation marker (wraps around after 255)
     SH$double_to_raw(SH$get_UTC_time_in_seconds()),                 # timestamp
     df_hash,                                                        # complete hash of input data.frame
     SH$string_to_raw(df_id),                                        # domain string
@@ -325,7 +325,7 @@ RS_compute_delta_memory <- function(state, df) {
     contents = c(
       charToRaw("LISTDELT"),                                       # file magic code
       as.raw(0),                                                   # format version number
-      as.raw(state$generation + 1L),                               # generation marker
+      as.raw((state$generation + 1L) %% 256L),                     # generation marker (wraps around after 255)
       SH$integer_to_raw(time_delta),                               # delta timestamp (seconds since state)
       hash_df,                                                     # complete hash of input data.frame
       SH$string_to_raw(state$domain),                              # domain string
@@ -475,8 +475,8 @@ RS_load <- function(base, deltas) {
     state_delta <- RS_parse_delta(contents = deltas[[i_delta]], tracked_var_count = length(res[["tracked_vars"]]))
     if (inherits(state_delta, "simpleCondition")) return(state_delta)
     
-    if (!identical(state_delta$generation, res$generation + 1L))
-      return(simpleCondition(paste("Wrong generation marker. Should be", res$generation + 1L)))
+    if (!identical(state_delta$generation, (res$generation + 1L) %% 256L))
+      return(simpleCondition(paste("Wrong generation marker. Should be", (res$generation + 1L) %% 256L)))
     
     if (!identical(state_delta$domain, res$domain))
       return(simpleCondition(paste("Wrong domain. Expected", res$domain, "and got", state_delta$domain)))
