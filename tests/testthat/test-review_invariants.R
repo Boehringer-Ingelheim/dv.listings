@@ -130,9 +130,11 @@ rng_seed <- local({
   runif(1)
   return(.Random.seed)
 })
-rng_kind <- RNGkind("Wichmann-Hill")[[1]]
 
-test_that(sprintf("Running random review tests with seed: %s", paste(.Random.seed, collapse = ' ')), {
+int_seed <- as.integer(Sys.time())
+set.seed(int_seed)
+
+test_that(sprintf("Running random review tests with seed: %dL", int_seed), {
   # _R_eview _T_est
   RT <- local({
     folder_contents <- NULL
@@ -191,7 +193,7 @@ test_that(sprintf("Running random review tests with seed: %s", paste(.Random.see
        
         res <- list(
           added = added_indices,
-          modified = delta_info[["modified_row_indices"]],
+          modified = sort(delta_info[["modified_row_indices"]]),
           missing = missing_indices
         )
       }
@@ -274,49 +276,66 @@ test_that(sprintf("Running random review tests with seed: %s", paste(.Random.see
     ))
   })
   
-  # NOTE: A few manual tests
+  # NOTE: Random testing
   df <- RT$create()
   # TODO: Add `info <- RT$track(df)` if we ever allow to review 0-row data frames
-  
-  df <- RT$append(df, 5)
-  info <- RT$track(df)
-  expect_identical(info, list(added = 1:5, modified = integer(0), missing = integer(0)))
-  
-  df <- RT$shuffle(df)
-  info <- RT$track(df)
-  expect_identical(info, list(added = integer(0), modified = integer(0), missing = integer(0)))
-  
-  df <- RT$append(df, 2)
-  info <- RT$track(df)
-  expect_identical(info, list(added = 6:7, modified = integer(0), missing = integer(0)))
-  
-  df <- RT$remove(df, c(2, 4))
-  info <- RT$track(df)
-  expect_identical(info, list(added = integer(0), modified = integer(0), missing = c(2L, 4L)))
-  
-  df <- RT$remove(df, c(3))
-  info <- RT$track(df)
-  expect_identical(info, list(added = integer(0), modified = integer(0), missing = 2:4))
+  df <- RT$append(df, 20)
+  RT$track(df)
 
-  df <- RT$mutate(df, 5)
-  info <- RT$track(df)
-  expect_identical(info, list(added = integer(0), modified = 5L, missing = 2:4))
   
-  df <- RT$recover(df, 2)
-  info <- RT$track(df)
-  expect_identical(info, list(added = integer(0), modified = integer(0), missing = 3:4))
+  rand_0_to_max <- function(max) sample(0:max, 1)
+ 
+  iteration_count <- 100
   
-  df <- RT$mutate(df, 6)
-  info <- RT$track(df)
-  expect_identical(info, list(added = integer(0), modified = 6L, missing = 3:4))
+  max_delta_count <- 3
+  missing_ids <- integer(0)
+  
+  for(i_iteration in seq_len(iteration_count)){
+    
+    expected <- list(
+      added = integer(0),
+      modified = integer(0),
+      missing = missing_ids
+    )
+    
+    # NOTE: Recover
+    missing_ids <- attr(df, 'missing')[['ID']]
+    row_count <- rand_0_to_max(min(length(missing_ids), max_delta_count))
+    row_ids <- sample(missing_ids, row_count)
+    expected[['missing']] <- setdiff(expected[['missing']], row_ids)
+    df <- RT$recover(df, row_ids)
+    
+    # NOTE: Remove 
+    present_ids <- df[['ID']]
+    row_count <- rand_0_to_max(min(length(present_ids)-1, max_delta_count))  # We don't allow nrow(df) to reach 0
+    row_ids <- sample(present_ids, row_count)
+    expected[['missing']] <- sort(union(expected[['missing']], row_ids))
+    df <- RT$remove(df, row_ids)
+    
+    # NOTE: Mutate
+    present_ids <- df[['ID']]
+    row_count <- rand_0_to_max(min(length(present_ids), max_delta_count))
+    row_ids <- sample(present_ids, row_count)
+    expected[['modified']] <- sort(union(expected[['modified']], row_ids))
+    df <- RT$mutate(df, row_ids)
+    
+    # NOTE: Shuffle (before `append` so that new IDs are introduced in df[['ID']] order)
+    df <- RT$shuffle(df)
+    
+    # NOTE: Append
+    extra_row_count <- rand_0_to_max(max_delta_count)
+    expected[['added']] <- c(expected[['added']], attr(df, 'max_id') + seq_len(extra_row_count))
+    df <- RT$append(df, extra_row_count)
+    
+    # NOTE: Test
+    info <- RT$track(df)
+    expect_identical(info, expected, info = paste('Iteration:', i_iteration))
+    
+    missing_ids <- expected[['missing']]
+  }
   
   unlink(RT$store_path, recursive = TRUE, force = TRUE)
-  
-  # TODO: 
-  # Run torture test, include seed in failing diagnostic
 })
 
 # NOTE: Restore old RNG state
-RNGkind(rng_kind)
 set.seed(rng_seed)
-browser()
