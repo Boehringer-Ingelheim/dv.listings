@@ -459,11 +459,10 @@ REV_load_annotation_info <- function(folder_contents, review, dataset_lists) {
 
       dataset_review[["latest_reviews"]] <- all_latest_reviews
            
-      # FIXME? Mapping attached as attribute to avoid rewriting prototype-level code
       # Add latest roles columns      
       sub_res[[dataset_review_name]] <- dataset_review[c("review", "timestamp", "role", "data_timestamp", "latest_reviews")]
       attr(sub_res[[dataset_review_name]], "state_to_dataset_row_mapping") <- state_to_dataset_row_mapping
-      # FIXME? Base timestamp attached as attribute to avoid rewriting prototype-level code
+      attr(sub_res[[dataset_review_name]], "dataset_to_state_row_mapping") <- dataset_to_state_row_mapping
       attr(sub_res[[dataset_review_name]], "base_timestamp") <- base_timestamp
       # Add tracked_hashes for each revision of the dataset to be able to attribute row changes to specific columns
       attr(sub_res[[dataset_review_name]], "revisions") <- base_info[["revisions"]]
@@ -591,19 +590,19 @@ REV_respond_to_user_review <- function(ns, state, input, review, selected_datase
     }
     shiny::req(length(info[["row"]]) > 0)
 
-    i_row <- as.numeric(info[["row"]])
+    i_rows <- as.numeric(info[["row"]])
 
-    defiltered_i_row <- local({
-      # `i_row` is relative to the filtered data sent to the client ...
+    defiltered_i_rows <- local({
+      # `i_rows` is relative to the filtered data sent to the client ...
       filter_mask <- attr(new_data, "filter_mask")
-      res <- which(filter_mask)[i_row]
+      res <- which(filter_mask)[i_rows]
       return(res)
     })
     
-    stored_i_row <- local({
-      # ... and that `i_row` needs to be mapped into a base+deltas (stable) index
+    stored_i_rows <- local({
+      # ... and that `i_rows` needs to be mapped into a base+deltas (stable) index
       row_map <- attr(state[["annotation_info"]][[dataset_list_name]][[dataset_name]], "state_to_dataset_row_mapping")
-      res <- row_map[defiltered_i_row]
+      res <- row_map[defiltered_i_rows]
       return(res)
     })
     option <- as.integer(info[["option"]])
@@ -621,11 +620,11 @@ REV_respond_to_user_review <- function(ns, state, input, review, selected_datase
 
     # TODO: This loop can be too long when there are too many rows
     # Writing is done in one step but by row update is done one by one.
-    for (idx in seq_along(i_row)) {
+    for (idx in seq_along(i_rows)) {
 
-      curr_i_row <- i_row[[idx]]
-      curr_defiltered_i_row <- defiltered_i_row[[idx]]
-      curr_stored_i_row <- stored_i_row[[idx]]
+      curr_i_row <- i_rows[[idx]]
+      curr_defiltered_i_row <- defiltered_i_rows[[idx]]
+      curr_stored_i_row <- stored_i_rows[[idx]]
 
       last_review_entry <- new_data[curr_i_row, ][[REV$ID$LATEST_REVIEW_COL]][[1]]
       last_review_entry[["reviews"]][[role]][["role"]] <- role
