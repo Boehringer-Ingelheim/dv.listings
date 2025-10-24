@@ -105,9 +105,10 @@ REV_include_outdated_info <- function(table_data, annotation_info, tracked_vars)
   for (col_name in highlight_col_names) 
     data[[col_name]] <- rep(FALSE, row_count) # Explicit `rep` avoids assignment error when `nrow(data) == 0`
  
+  dataset_to_state_row_mapping <- attr(annotation_info, "dataset_to_state_row_mapping")
   for (row_cols in row_col_changes){
-    i_row <- row_cols[["row"]]
-    if (data[[REV$ID$STATUS_COL]][[i_row]] == REV$STATUS_LEVELS$LATEST_OUTDATED) {
+    i_row <- dataset_to_state_row_mapping[row_cols[["row"]]]
+    if (i_row > 0 && data[[REV$ID$STATUS_COL]][[i_row]] == REV$STATUS_LEVELS$LATEST_OUTDATED) {
       col_names <- highlight_col_names[row_cols[["cols"]]]
       data[i_row, col_names] <- TRUE
     }
