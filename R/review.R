@@ -560,65 +560,15 @@ REV_logic_1 <- function(state, input, review, datasets, fs_client, fs_callbacks)
   )
 }
 
-# TODO: Nice entry point for a mid-level integration test.
-# Testing on 0-row, 1-row and multi-row inputs would have uncovered some bugs we've already addressed
-REV_review <- function(i_rows, new_data, annotation_info, option, role, timestamp, dataset_list_name, dataset_name){
-  res <- list()
-  
-  defiltered_i_rows <- local({
-    # `i_rows` is relative to the filtered data sent to the client ...
-    filter_mask <- attr(new_data, "filter_mask")
-    res <- which(filter_mask)[i_rows]
-    return(res)
-  })
-  
-  stored_i_rows <- local({
-    # ... and that `i_rows` needs to be mapped into a base+deltas (stable) index
-    row_map <- attr(annotation_info, "state_to_dataset_row_mapping")
-    res <- row_map[defiltered_i_rows]
-    return(res)
-  })
-  
-  # NOTE: Partially repeats #weilae 
-  # NOTE: We could cache the modified table and avoid repeating this operation 
-  #       if it turns out to be a performance bottleneck
-  
-  contents <- c()
-  
-  # TODO: This loop can be too long when there are too many rows
-  # Writing is done in one step but by row update is done one by one.
-  for (idx in seq_along(i_rows)) {
-    curr_i_row <- i_rows[[idx]]
-    curr_defiltered_i_row <- defiltered_i_rows[[idx]]
-    curr_stored_i_row <- stored_i_rows[[idx]]
-    
-    last_review_entry <- new_data[curr_i_row, ][[REV$ID$LATEST_REVIEW_COL]][[1]]
-    last_review_entry[["reviews"]][[role]][["role"]] <- role
-    last_review_entry[["reviews"]][[role]][["review"]] <- review[["choices"]][[option]]
-    last_review_entry[["reviews"]][[role]][["timestamp"]] <- timestamp
-    
-    # Fixed columns
-    new_data[curr_i_row, ][[REV$ID$REVIEW_COL]] <- review[["choices"]][[option]]
-    new_data[curr_i_row, ][[REV$ID$ROLE_COL]] <- role
-    new_data[curr_i_row, ][[REV$ID$LATEST_REVIEW_COL]][[1]] <- last_review_entry
-    
-    # - data_time does not change when reviewed
-    
-    # `REV_load_annotation_info()` would return this same (modified) state, but we do manual synchronization
-    # to avoid potentially expensive data reloading
-    row_contents <- annotation_info[curr_defiltered_i_row, ]
-    row_contents[["review"]] <- review[["choices"]][[option]]
-    row_contents[["timestamp"]] <- timestamp
-    row_contents[["role"]] <- role    
-    row_contents[["latest_reviews"]][[1]] <- last_review_entry
-    # > row_contents[["data_timestamp"]] # unchanged
-    
-    annotation_info[curr_defiltered_i_row, ] <- row_contents
-    
+REV_produce_IO_plan_for_review_action <- function(
+    canonical_row_indices, role, choice_index, timestamp, dataset_list_name, dataset_name
+) {
+  contents <- raw(0)
+  for (row_index in canonical_row_indices) {
     contents <- c(
       contents,
-      SH$integer_to_raw(curr_stored_i_row),
-      SH$integer_to_raw(option),
+      SH$integer_to_raw(row_index),
+      SH$integer_to_raw(choice_index),
       SH$double_to_raw(timestamp)
     )
   }
@@ -633,7 +583,65 @@ REV_review <- function(i_rows, new_data, annotation_info, option, role, timestam
     )
   )
   
-  res[["new_data"]] <- new_data 
+  return(IO_plan)
+}
+
+# Testing on 0-row, 1-row and multi-row inputs would have uncovered some bugs we've already addressed
+REV_review <- function(data,  row_indices,  annotation_info,  choices, choice_index,  role, timestamp,
+                       dataset_list_name, dataset_name){
+  res <- list()
+  
+  defiltered_row_indices <- local({
+    # `row_indices` relative to the filtered data sent to the client ...
+    filter_mask <- attr(data, "filter_mask")
+    res <- which(filter_mask)[row_indices]
+    return(res)
+  })
+  
+  canonical_row_indices <- local({
+    # ... and that `row_indices` needs to be mapped into a base+deltas (stable) index
+    row_map <- attr(annotation_info, "state_to_dataset_row_mapping")
+    res <- row_map[defiltered_row_indices]
+    return(res)
+  })
+  
+  IO_plan <- REV_produce_IO_plan_for_review_action(
+    canonical_row_indices, role, choice_index, timestamp, dataset_list_name, dataset_name
+  )
+  
+  # NOTE: We could cache the modified table and avoid repeating this operation 
+  #       if it turns out to be a performance bottleneck
+  # TODO: This loop can be too long when there are too many rows
+  # Writing is done in one step but by row update is done one by one.
+  for (i in seq_along(row_indices)) {
+    curr_i_row <- row_indices[[i]]
+    curr_defiltered_i_row <- defiltered_row_indices[[i]]
+    
+    last_review_entry <- data[curr_i_row, ][[REV$ID$LATEST_REVIEW_COL]][[1]]
+    last_review_entry[["reviews"]][[role]][["role"]] <- role
+    last_review_entry[["reviews"]][[role]][["review"]] <- choices[[choice_index]]
+    last_review_entry[["reviews"]][[role]][["timestamp"]] <- timestamp
+    
+    # Fixed columns
+    data[curr_i_row, ][[REV$ID$REVIEW_COL]] <- choices[[choice_index]]
+    data[curr_i_row, ][[REV$ID$ROLE_COL]] <- role
+    data[curr_i_row, ][[REV$ID$LATEST_REVIEW_COL]][[1]] <- last_review_entry
+    
+    # - data_time does not change when reviewed
+    
+    # `REV_load_annotation_info()` would return this same (modified) state, but we do manual synchronization
+    # to avoid potentially expensive data reloading
+    row_contents <- annotation_info[curr_defiltered_i_row, ]
+    row_contents[["review"]] <- choices[[choice_index]]
+    row_contents[["timestamp"]] <- timestamp
+    row_contents[["role"]] <- role    
+    row_contents[["latest_reviews"]][[1]] <- last_review_entry
+    # > row_contents[["data_timestamp"]] # unchanged
+    
+    annotation_info[curr_defiltered_i_row, ] <- row_contents
+  }
+  
+  res[["data"]] <- data 
   res[["annotation_info"]] <- annotation_info
   res[["IO_plan"]] <- IO_plan
   
@@ -672,13 +680,13 @@ REV_respond_to_user_review <- function(ns, state, input, review, selected_datase
     changes <- REV_include_review_info(annotation_info = annotation_info, data = new_data, col_names = list())
     new_data <- changes[["data"]]
     timestamp <- SH$get_UTC_time_in_seconds()
-    option <- as.integer(info[["option"]])
+    choice_index <- as.integer(info[["option"]])
     
-    subres <- REV_review(i_rows = i_rows, new_data = new_data, annotation_info = annotation_info, option = option, 
-                         role = role, timestamp = timestamp, dataset_list_name = dataset_list_name, 
-                         dataset_name = dataset_name)
+    subres <- REV_review(data = new_data, row_indices = i_rows, annotation_info = annotation_info, 
+                         choices = review[["choices"]], choice_index = choice_index,  role = role, 
+                         timestamp = timestamp, dataset_list_name = dataset_list_name,  dataset_name = dataset_name)
     
-    new_data <- subres[["new_data"]]
+    new_data <- subres[["data"]]
     annotation_info <- subres[["annotation_info"]]
     state[["annotation_info"]][[dataset_list_name]][[dataset_name]] <- annotation_info
     IO_plan <- subres[["IO_plan"]]
