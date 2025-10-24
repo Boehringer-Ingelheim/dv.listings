@@ -208,10 +208,15 @@ REV_load_annotation_info <- function(folder_contents, review, dataset_lists) {
       row_count <- nrow(dataset)
      
       default_review <- factor(review[["choices"]][[1]], levels = review[["choices"]])
-      dataset_review <- data.frame(review = rep(default_review, row_count),
-                                   timestamp = numeric(row_count), 
-                                   role = rep(role_factor, row_count), 
-                                   data_timestamp = numeric(row_count))
+      
+      # Glossary of variable suffixes:
+      # =============================
+      # _st: coming from or relative to `state` (contains all rows)
+      # _df: coming from or relative to `df` (contains only rows present in currently available data)
+      dataset_review_df <- data.frame(review = rep(default_review, row_count),
+                                      timestamp = numeric(row_count), 
+                                      role = rep(role_factor, row_count), 
+                                      data_timestamp = numeric(row_count))
       
       id_vars <- review[["datasets"]][[dataset_review_name]][["id_vars"]]
       tracked_vars <- setdiff(review[["datasets"]][[dataset_review_name]][["tracked_vars"]], id_vars)
@@ -398,15 +403,15 @@ REV_load_annotation_info <- function(folder_contents, review, dataset_lists) {
         return(res)
       }) 
      
-      dataset_review[["timestamp"]] <- base_timestamp
-      dataset_review[["data_timestamp"]] <- data_timestamps[state_to_dataset_row_mapping]
+      dataset_review_df[["timestamp"]] <- base_timestamp
+      dataset_review_df[["data_timestamp"]] <- data_timestamps[state_to_dataset_row_mapping]
       
       # <domain>_<ROLE>.review      
-      all_latest_reviews <- local({
+      all_latest_reviews_df <- local({
         role_list <- rep_len(list(), length.out = length(review[["roles"]]))
         names(role_list) <- review[["roles"]]
         role_timestamp_list <- list(reviews = role_list, data_timestamp = NULL)
-        rep_len(list(role_timestamp_list), length.out = nrow(dataset_review))
+        rep_len(list(role_timestamp_list), length.out = nrow(dataset_review_df))
       })
 
       for (role in review[["roles"]]){
@@ -427,40 +432,39 @@ REV_load_annotation_info <- function(folder_contents, review, dataset_lists) {
         }
 
         # NOTE: each role keeps their own decisions and we combine them to display the latest one
-        role_review <- RS_parse_review_reviews(contents, dataset_to_state_row_mapping = dataset_to_state_row_mapping, 
-                                               expected_role = role, expected_domain = dataset_review_name)
-
-        # Progressive update of all roles through the mask
-        update_mask <- (role_review[["timestamp"]] > dataset_review[["timestamp"]])
+        role_review_st <- RS_parse_review_reviews(contents, row_count = length(dataset_to_state_row_mapping),
+                                                  expected_role = role, expected_domain = dataset_review_name)
+        role_review_df <- role_review_st[state_to_dataset_row_mapping, , drop = FALSE]
         
-        if (any(update_mask)) {
-          review_indices <- role_review[update_mask, ][["review"]]         
-          dataset_review[update_mask, ][["review"]] <- review[["choices"]][review_indices]
-          dataset_review[update_mask, ][["timestamp"]] <- role_review[update_mask, ][["timestamp"]]
-          dataset_review[update_mask, ][["role"]] <- role
+        # Progressive update of all roles through the mask
+        update_mask_df <- (role_review_df[["timestamp"]] > dataset_review_df[["timestamp"]])
+        if (any(update_mask_df)) {
+          review_indices <- role_review_df[["review"]][update_mask_df]
+          dataset_review_df[["review"]][update_mask_df] <- review[["choices"]][review_indices]
+          dataset_review_df[["timestamp"]][update_mask_df] <- role_review_df[update_mask_df, ][["timestamp"]]
+          dataset_review_df[["role"]][update_mask_df] <- role
         }
         # compact all in lists
         # Replace by list of roles so it is a single columns and we can directly iterate over it
-        
-        all_latest_reviews <- local({          
-          reviewed_idx <- which(role_review[["timestamp"]] > 0)          
+        all_latest_reviews_df <- local({          
+          reviewed_idx <- which(role_review_df[["timestamp"]] > 0)
           for (idx in reviewed_idx) {
-            review_char <- review[["choices"]][role_review[["review"]][[idx]]]         
-            curr_crr <- list(role = role, review = review_char, timestamp = role_review[["timestamp"]][[idx]], reviewed_at_least_once = TRUE)            
-            all_latest_reviews[[idx]][["reviews"]][[role]] <- curr_crr            
+            review_char <- review[["choices"]][role_review_df[["review"]][[idx]]]         
+            curr_crr <- list(role = role, review = review_char, timestamp = role_review_df[["timestamp"]][[idx]], reviewed_at_least_once = TRUE)            
+            all_latest_reviews_df[[idx]][["reviews"]][[role]] <- curr_crr            
           } 
 
-          for (idx in seq_len(nrow(dataset_review))) {            
-            all_latest_reviews[[idx]][["data_timestamp"]] <- dataset_review[["data_timestamp"]][[idx]]
+          for (idx in seq_len(nrow(dataset_review_df))) {            
+            all_latest_reviews_df[[idx]][["data_timestamp"]] <- dataset_review_df[["data_timestamp"]][[idx]]
           } 
-          all_latest_reviews        
+          all_latest_reviews_df
         })
       }
 
-      dataset_review[["latest_reviews"]] <- all_latest_reviews
+      dataset_review_df[["latest_reviews"]] <- all_latest_reviews_df
            
       # Add latest roles columns      
-      sub_res[[dataset_review_name]] <- dataset_review[c("review", "timestamp", "role", "data_timestamp", "latest_reviews")]
+      sub_res[[dataset_review_name]] <- dataset_review_df[c("review", "timestamp", "role", "data_timestamp", "latest_reviews")]
       attr(sub_res[[dataset_review_name]], "state_to_dataset_row_mapping") <- state_to_dataset_row_mapping
       attr(sub_res[[dataset_review_name]], "dataset_to_state_row_mapping") <- dataset_to_state_row_mapping
       attr(sub_res[[dataset_review_name]], "base_timestamp") <- base_timestamp

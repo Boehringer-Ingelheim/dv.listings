@@ -1,9 +1,10 @@
-# dv.listings 4.2.0-9005
+# dv.listings 4.2.0-9006
 
 - Bulk editing of reviews
 - Highlighting of modified columns for outdated reviews
 - Show table title
 - Review allows previously known data rows to disappear
+- Correct review attribution when data rows are reordered
 
 # dv.listings 4.2.0
 
