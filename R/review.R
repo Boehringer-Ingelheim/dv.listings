@@ -589,7 +589,7 @@ REV_produce_IO_plan_for_review_action <- function(
 
 # Testing on 0-row, 1-row and multi-row inputs would have uncovered some bugs we've already addressed
 REV_review <- function(data,  row_indices,  annotation_info,  choices, choice_index,  role, timestamp,
-                       dataset_list_name, dataset_name){
+                       dataset_list_name, dataset_name) {
   res <- list()
   
   defiltered_row_indices <- local({
