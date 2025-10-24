@@ -429,8 +429,7 @@ RS_compute_review_reviews_memory <- function(role, dataset) {
   return(res)
 }
 
-RS_parse_review_reviews <- function(contents, dataset_to_state_row_mapping, expected_role, expected_domain) {
-  row_count <- length(dataset_to_state_row_mapping)
+RS_parse_review_reviews <- function(contents, row_count, expected_role, expected_domain) {
   res <- data.frame(review = rep(0L, row_count), timestamp = rep(0., row_count))
   
   con <- rawConnection(contents, open = "r")
@@ -453,17 +452,12 @@ RS_parse_review_reviews <- function(contents, dataset_to_state_row_mapping, expe
     review <- readBin(con, integer(), 1L, endian = "little")
     timestamp <- readBin(con, numeric(), 1L, endian = "little")
     # NOTE: timestamp increases monotonically with each new row, so not checking it
-    if (row_index <= length(dataset_to_state_row_mapping)) {
-      row_index <- dataset_to_state_row_mapping[[row_index]]
-      res[["review"]][[row_index]] <- review
-      res[["timestamp"]][[row_index]] <- timestamp
-    }
+    res[["review"]][[row_index]] <- review
+    res[["timestamp"]][[row_index]] <- timestamp
   }
   
   close(con)
   
-  rows_missing_mask <- (dataset_to_state_row_mapping == 0L)
-  res <- res[!rows_missing_mask, , drop = FALSE]
   return(res)
 }
 
