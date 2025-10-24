@@ -76,7 +76,7 @@ REV_include_review_info <- function(annotation_info, data, col_names) {
 REV_include_outdated_info <- function(table_data, annotation_info, tracked_vars) {
   data <- table_data[["data"]]
   # Compute dataset changes that make current reviews obsolete
-  row_col_changes <- local({
+  row_col_changes_st <- local({
     revisions <- attr(annotation_info, "revisions")
     h0 <- REV_collect_latest_review_hashes(
       revisions = revisions, 
@@ -105,12 +105,12 @@ REV_include_outdated_info <- function(table_data, annotation_info, tracked_vars)
   for (col_name in highlight_col_names) 
     data[[col_name]] <- rep(FALSE, row_count) # Explicit `rep` avoids assignment error when `nrow(data) == 0`
  
-  dataset_to_state_row_mapping <- attr(annotation_info, "dataset_to_state_row_mapping")
-  for (row_cols in row_col_changes){
-    i_row <- dataset_to_state_row_mapping[row_cols[["row"]]]
-    if (i_row > 0 && data[[REV$ID$STATUS_COL]][[i_row]] == REV$STATUS_LEVELS$LATEST_OUTDATED) {
-      col_names <- highlight_col_names[row_cols[["cols"]]]
-      data[i_row, col_names] <- TRUE
+  df_map_st <- attr(annotation_info, "df_map_st")
+  for (row_cols_st in row_col_changes_st){
+    i_row_df <- df_map_st[row_cols_st[["row"]]]
+    if (i_row_df > 0 && data[[REV$ID$STATUS_COL]][[i_row_df]] == REV$STATUS_LEVELS$LATEST_OUTDATED) {
+      col_names <- highlight_col_names[row_cols_st[["cols"]]]
+      data[i_row_df, col_names] <- TRUE
     }
   }
   table_data[["data"]] <- data
@@ -223,7 +223,7 @@ REV_load_annotation_info <- function(folder_contents, review, dataset_lists) {
       tracked_vars <- setdiff(review[["datasets"]][[dataset_review_name]][["tracked_vars"]], id_vars)
      
       base_timestamp <- NA_real_
-      data_timestamps <- rep(NA_real_, row_count)
+      data_timestamps_st <- rep(NA_real_, row_count)
       # <domain>_000.base
       fname <- paste0(dataset_review_name, "_000.base")
       if (fname %in% names(folder_contents[[dataset_lists_name]])) {
@@ -380,7 +380,7 @@ REV_load_annotation_info <- function(folder_contents, review, dataset_lists) {
       }
       
       base_timestamp <- base_info[["timestamp"]]
-      data_timestamps <- base_info[["row_timestamps"]]
+      data_timestamps_st <- base_info[["row_timestamps"]]
       
       # This probably should live alongside RS_* functions
       # NOTE(miguel): I didn't consider the possibility of row reordering in the original design of the review file
@@ -389,23 +389,29 @@ REV_load_annotation_info <- function(folder_contents, review, dataset_lists) {
       #               cost of four bytes per row. I think the superior approach would be to speed up data.frame row 
       #               hashing (by dropping down to C?), as the initial hashing would also benefit from it.
       #               That's why we recompute the hashes here:
-      state_to_dataset_row_mapping <- local({ # TODO: Is this the right name?
+      
+      # Map data from `_st` order into `_df` order through `data_st[st_map_df]`
+      # Map indices from `_df` order into `st` order through `st_map_df[indices_df]`
+      # Notice how the "st_" and "_df" prefix and suffix match the type of the operand to their left or right
+      st_map_df <- local({
         id_vars <- base_info[["id_vars"]]
         id_hashes <- RS_compute_id_hashes(dataset, id_vars)
         mapping <- match(asplit(id_hashes, 2), asplit(base_info[["id_hashes"]], 2))
         return(mapping)
       })
       
-      # Compute reverse mapping (which is a more useful representation for the running app)
-      dataset_to_state_row_mapping <- local({ # TODO: Is this the right name?
+      # Map data from `_df` order into `_st` order through `data_df[df_map_st]`
+      # Map indices from `_st` order into `df` order through `df_map_st[indices_st]`
+      # Notice how the "df_" and "_st" prefix and suffix match the type of the operand to their left or right
+      df_map_st <- local({
         row_count <- ncol(base_info[["id_hashes"]])
         res <- integer(row_count)
-        res[state_to_dataset_row_mapping] <- seq_along(state_to_dataset_row_mapping)
+        res[st_map_df] <- seq_along(st_map_df)
         return(res)
       }) 
      
       dataset_review_df[["timestamp"]] <- base_timestamp
-      dataset_review_df[["data_timestamp"]] <- data_timestamps[state_to_dataset_row_mapping]
+      dataset_review_df[["data_timestamp"]] <- data_timestamps_st[st_map_df]
       
       # <domain>_<ROLE>.review      
       all_latest_reviews_df <- local({
@@ -433,9 +439,10 @@ REV_load_annotation_info <- function(folder_contents, review, dataset_lists) {
         }
 
         # NOTE: each role keeps their own decisions and we combine them to display the latest one
-        role_review_st <- RS_parse_review_reviews(contents, row_count = length(dataset_to_state_row_mapping),
+        row_count <- ncol(base_info[["id_hashes"]])
+        role_review_st <- RS_parse_review_reviews(contents, row_count = row_count,
                                                   expected_role = role, expected_domain = dataset_review_name)
-        role_review_df <- role_review_st[state_to_dataset_row_mapping, , drop = FALSE]
+        role_review_df <- role_review_st[st_map_df, , drop = FALSE]
         
         # Progressive update of all roles through the mask
         update_mask_df <- (role_review_df[["timestamp"]] > dataset_review_df[["timestamp"]])
@@ -466,8 +473,8 @@ REV_load_annotation_info <- function(folder_contents, review, dataset_lists) {
            
       # Add latest roles columns      
       sub_res[[dataset_review_name]] <- dataset_review_df[c("review", "timestamp", "role", "data_timestamp", "latest_reviews")]
-      attr(sub_res[[dataset_review_name]], "state_to_dataset_row_mapping") <- state_to_dataset_row_mapping
-      attr(sub_res[[dataset_review_name]], "dataset_to_state_row_mapping") <- dataset_to_state_row_mapping
+      attr(sub_res[[dataset_review_name]], "st_map_df") <- st_map_df
+      attr(sub_res[[dataset_review_name]], "df_map_st") <- df_map_st
       attr(sub_res[[dataset_review_name]], "base_timestamp") <- base_timestamp
       # Add tracked_hashes for each revision of the dataset to be able to attribute row changes to specific columns
       attr(sub_res[[dataset_review_name]], "revisions") <- base_info[["revisions"]]
@@ -588,7 +595,7 @@ REV_produce_IO_plan_for_review_action <- function(
 }
 
 # Testing on 0-row, 1-row and multi-row inputs would have uncovered some bugs we've already addressed
-REV_review <- function(data,  row_indices,  annotation_info,  choices, choice_index,  role, timestamp,
+REV_review <- function(data, row_indices, annotation_info, choices, choice_index, role, timestamp,
                        dataset_list_name, dataset_name) {
   res <- list()
   
@@ -601,8 +608,8 @@ REV_review <- function(data,  row_indices,  annotation_info,  choices, choice_in
   
   canonical_row_indices <- local({
     # ... and that `row_indices` needs to be mapped into a base+deltas (stable) index
-    row_map <- attr(annotation_info, "state_to_dataset_row_mapping")
-    res <- row_map[defiltered_row_indices]
+    st_map_df <- attr(annotation_info, "st_map_df")
+    res <- st_map_df[defiltered_row_indices]
     return(res)
   })
   
