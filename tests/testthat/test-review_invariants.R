@@ -125,13 +125,12 @@ local({
   })
 })
 
-# NOTE: Simplify RNG so that we can serialize its seed as diagnostics to failing tests
 rng_seed <- local({
   runif(1)
   return(.Random.seed)
 })
 
-int_seed <- as.integer(Sys.time())
+int_seed <- as.integer(Sys.time()) # Force random seed to get fresh tests
 set.seed(int_seed)
 
 test_that(sprintf("Running random review tests with seed: %dL", int_seed), {
@@ -160,6 +159,8 @@ test_that(sprintf("Running random review tests with seed: %dL", int_seed), {
     
     track <- function(df){
       dataset_lists <- list(dataset_list = list(df = df))
+      
+      fs_client[["read_folder"]](subfolder_candidates = "dataset_list") # Refreshes potentially new review info
      
       # load and update if necessary
       info <- REV_load_annotation_info(folder_contents, review_param, dataset_lists)
@@ -197,6 +198,24 @@ test_that(sprintf("Running random review tests with seed: %dL", int_seed), {
           missing = missing_indices
         )
       }
+            
+      latest_reviews <- character(0) 
+      loaded_latest_reviews <- info[["loaded_annotation_info"]][["dataset_list"]][["df"]][["latest_reviews"]]
+      for(i_row_review in seq_along(loaded_latest_reviews)){
+        row_reviews <- loaded_latest_reviews[[i_row_review]][["reviews"]]
+        latest_review <- review_param[["choices"]][[1]]
+        latest_review_timestamp <- 0
+        for(role in review_param[["roles"]]){
+          role_row_review <- row_reviews[[role]]
+          if(!is.null(role_row_review) && latest_review_timestamp < role_row_review[["timestamp"]]){
+            latest_review <- role_row_review[["review"]]
+            latest_review_timestamp <- role_row_review[["timestamp"]]
+          }
+        }
+        latest_reviews <- c(latest_reviews, latest_review)
+      }
+      
+      res[["reviews"]] <- latest_reviews
       
       return(res)
     }
@@ -243,14 +262,6 @@ test_that(sprintf("Running random review tests with seed: %dL", int_seed), {
     }
     
     recover <- function(df, row_ids){
-      new_rows <- data.frame(
-        ID = row_ids,
-        TRACKED_1 = 2L * row_ids,
-        TRACKED_2 = 3L * row_ids,
-        TRACKED_3 = 5L * row_ids,
-        UNTRACKED = 7L * row_ids 
-      )
-      
       missing <- attr(df, 'missing')
       recover_mask <- missing[["ID"]] %in% row_ids
       res <- rbind(df, missing[recover_mask, , drop = FALSE])
@@ -266,22 +277,37 @@ test_that(sprintf("Running random review tests with seed: %dL", int_seed), {
       return(res)
     }
     
-    review <- function(df, role, choice){
-      browser()
+    review <- function(df, row_ids, role, choice){
+      res <- df
+      
+      choice_index <- match(choice, review_param[['choices']])
+      timestamp <- SH$get_UTC_time_in_seconds()
+      dataset_list_name <- 'dataset_list'
+      dataset_name <- 'df'
+     
+      IO_plan <- REV_produce_IO_plan_for_review_action(
+        canonical_row_indices = row_ids, role = role, choice_index, timestamp, dataset_list_name, dataset_name
+      )
+      
+      fs_client[["execute_IO_plan"]](IO_plan = IO_plan, is_init = FALSE)
+      
+      return(res)
     }
     
     return(list(
       track = track, create = create, append = append, shuffle = shuffle, remove = remove, recover = recover,
-      mutate = mutate, review = review, store_path = store_path
+      mutate = mutate, review = review, store_path = store_path, review_param = review_param
     ))
   })
   
   # NOTE: Random testing
+  initial_row_count <- 20
+  default_choice <- RT$review_param[['choices']][[1]]
+
   df <- RT$create()
   # TODO: Add `info <- RT$track(df)` if we ever allow to review 0-row data frames
-  df <- RT$append(df, 20)
+  df <- RT$append(df, initial_row_count)
   RT$track(df)
-
   
   rand_0_to_max <- function(max) sample(0:max, 1)
  
@@ -289,14 +315,26 @@ test_that(sprintf("Running random review tests with seed: %dL", int_seed), {
   
   max_delta_count <- 3
   missing_ids <- integer(0)
+  reviews_st <- rep(default_choice, initial_row_count)
   
   for(i_iteration in seq_len(iteration_count)){
-    
     expected <- list(
+      # Reset these to check only the change since last updated
       added = integer(0),
       modified = integer(0),
+      # Carry this one over from previous iteration to check all missing IDs regardless of when they disappeared
       missing = missing_ids
+      # `reviews` appended near the end of this `for` loop
     )
+    
+    # NOTE: Review
+    present_ids <- df[['ID']]
+    row_count <- rand_0_to_max(min(length(present_ids), max_delta_count))
+    row_ids <- sample(present_ids, row_count)
+    role <- sample(RT$review_param[['roles']], 1)
+    choice <- sample(RT$review_param[['choices']], 1)
+    df <- RT$review(df, row_ids, role, choice)
+    reviews_st[row_ids] <- choice
     
     # NOTE: Recover
     missing_ids <- attr(df, 'missing')[['ID']]
@@ -326,6 +364,9 @@ test_that(sprintf("Running random review tests with seed: %dL", int_seed), {
     extra_row_count <- rand_0_to_max(max_delta_count)
     expected[['added']] <- c(expected[['added']], attr(df, 'max_id') + seq_len(extra_row_count))
     df <- RT$append(df, extra_row_count)
+    reviews_st <- c(reviews_st, rep(default_choice, extra_row_count))
+    
+    expected[['reviews']] <- reviews_st[df[["ID"]]]
     
     # NOTE: Test
     info <- RT$track(df)
