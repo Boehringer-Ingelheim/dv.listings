@@ -29,7 +29,7 @@ export <- specs_list(
 review <- specs_list(
   "review_delta_detection" = "review feature detects changes in tracked variables across dataset updates",
   "review_reject_empty_dataset" = "review feature refuses to review empty datasets",
-  "review_no_hash_false_negatives" = "review hash function catches all cell changes up to four changes per row",
+  "review_hash_no_false_negatives" = "review hash function catches all cell changes up to four changes per row",
   "review_change_attribution" = "review hash function changes can be attributed to specific modified cells",
   "review_accept_removal_of_rows" = "review feature tolerates the removal of rows"
 )

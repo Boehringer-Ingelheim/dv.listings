@@ -393,8 +393,6 @@ listings_server <- function(module_id,
       "download_data",
       "dropdown_btn",
       "clear_filters",
-      # NOTE(miguel): Added here for easier merge with other branches
-      # TODO(miguel): Move elsewhere after merging 
       REV_UI(ns = identity, roles = character(0))[["input_ids_to_exclude_from_bookmarking"]]
     ))
 
@@ -464,9 +462,7 @@ listings_server <- function(module_id,
 
       shiny::outputOptions(output, TBL$REVIEW_UI_ID, suspendWhenHidden = FALSE)
 
-      # TODO: Extract the REV_logic_1 logic, it just creates a set of observers that maybe better
-      # located out here. Otherwise this observer declarations may be ignored.
-      REV_logic_1(REV_state, input, review, review[["data"]], fs_client, fs_callbacks)
+      REV_main_logic(REV_state, input, review, review[["data"]], fs_client, fs_callbacks)
       show_review_columns <- REV_state[["contents_ready"]]
     }
 

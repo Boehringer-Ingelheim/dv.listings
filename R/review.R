@@ -49,9 +49,6 @@ REV_include_review_info <- function(annotation_info, data, col_names) {
   status <- NA_character_
   latest_reviews <- annotation_info[["latest_reviews"]]
   
-  # TODO: Introduce something to this effect
-  # > shiny::validate(shiny::need(nrow(data) <= length(reviews), "Error: Inconsistency between review data and loaded datasets"))
- 
   # include review-related columns
   res <- data.frame(reviews, roles) # FIXME: (maybe) Can't pass latest review as argument. List confuses data.frame
   res[["status"]] <- rep(status, nrow(res)) # Explicit `rep` avoids assignment error when `nrow(res) == 0`
@@ -490,8 +487,7 @@ REV_load_annotation_info <- function(folder_contents, review, dataset_lists) {
   return(res)
 }
     
-REV_logic_1 <- function(state, input, review, datasets, fs_client, fs_callbacks) { # TODO: Rename
-  # TODO: Flesh out the state machine. Right now there are only default selections for quick iteration
+REV_main_logic <- function(state, input, review, datasets, fs_client, fs_callbacks) {
   state[["connected"]] <- shiny::reactiveVal(FALSE)
   state[["contents_ready"]] <- shiny::reactiveVal(FALSE)
   state[["folder"]] <- NULL
