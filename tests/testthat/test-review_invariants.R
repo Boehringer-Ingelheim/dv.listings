@@ -63,7 +63,6 @@ local({
       length(info[["error"]]) == 1 &&
         startsWith(info[["error"]][[1]], 
                    '[ae] The following variables have not been specified as `tracked_vars`: "AESEV"')
-      
     )
   })
   
@@ -116,7 +115,8 @@ local({
     )
   })
   
-  test_that("No error message when previously known row is dropped", {
+  test_that("No error message when previously known row is dropped" |>
+              vdoc[["add_spec"]](specs$review_accept_removal_of_rows), {
     dataset_lists2 <- dataset_lists
     dataset_lists2[["dataset_list"]][["ae"]] <- head(dataset_lists2[["dataset_list"]][["ae"]], 1)
     
@@ -133,7 +133,8 @@ rng_seed <- local({
 int_seed <- as.integer(Sys.time()) # Force random seed to get fresh tests
 set.seed(int_seed)
 
-test_that(sprintf("Running random review tests with seed: %dL", int_seed), {
+test_that(sprintf("Running random review tests with seed: %dL", int_seed) |>
+            vdoc[["add_spec"]](c(specs$review_delta_detection, specs$review_accept_removal_of_rows)), {
   # _R_eview _T_est
   RT <- local({
     folder_contents <- NULL

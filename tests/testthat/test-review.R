@@ -14,14 +14,15 @@ local({
   fs_client[["read_folder"]](subfolder_candidates = "dataset_list")
   
   # Review folder contents is initialized here
+  tracked_vars = c(
+    "AESEV", "AETERM", "AEHLGT", "AEHLT", "AELLT", 
+    "AEDECOD", "AESOC", "AESTDTC", "AEENDTC", "AESTDY","AEOUT", "AEACN", "AEREL"
+  )
   review = list(
     datasets = list(
       ae = list(
         id_vars = c("USUBJID", "AESEQ"), 
-        tracked_vars = c(
-          "AESEV", "AETERM", "AEHLGT", "AEHLT", "AELLT", 
-          "AEDECOD", "AESOC", "AESTDTC", "AEENDTC", "AESTDY","AEOUT", "AEACN", "AEREL"
-        )
+        tracked_vars = tracked_vars
       )
     ),
     choices = c("choiceA", "choiceB"),
@@ -39,7 +40,8 @@ local({
   fs_client[["execute_IO_plan"]](IO_plan = info[["folder_IO_plan"]], is_init = TRUE)
   fs_client[["read_folder"]](subfolder_candidates = "dataset_list")
   
-  test_that("Detect modification of previously known row and output new delta file", {
+  test_that("REV_load_annotation_info detects modification of previously known row and generates new delta file" |>
+              vdoc[["add_spec"]](specs$review_delta_detection), {
     dataset_lists2 <- dataset_lists
     dataset_lists2[["dataset_list"]][["ae"]][["AESEV"]][[1]] <- "SEVERE"
     
@@ -50,12 +52,13 @@ local({
     expect_equal(folder_op[["type"]], "write_file")
     expect_equal(folder_op[["fname"]], "ae_001.delta")
     
-    delta <- RS_parse_delta(info[["folder_IO_plan"]][[1]][["contents"]], 13)
+    delta <- RS_parse_delta(info[["folder_IO_plan"]][[1]][["contents"]], length(tracked_vars))
     
     expect_equal(delta[["modified_row_indices"]], c(1L))
   })
   
-  test_that("Review routines produce a descriptive error when asked to review an empty dataset", {
+  test_that("Review routines produce a descriptive error when asked to review an empty dataset" |>
+              vdoc[["add_spec"]](specs$review_reject_empty_dataset), {
     folder_contents <- NULL
     dataset_lists <- list(
       dataset_list = list(

@@ -26,9 +26,17 @@ export <- specs_list(
   "export_excel" = "For downloading all listings, the tables can be saved in .xlsx format only without considering local filters. Each listing will be placed in an individual worksheet within the file.",
   "export_pdf" = "For downloading in .pdf format, users can select one or multiple reference column(s), which will be displayed on all document pages."
 )
+review <- specs_list(
+  "review_delta_detection" = "review feature detects changes in tracked variables across dataset updates",
+  "review_reject_empty_dataset" = "review feature refuses to review empty datasets",
+  "review_no_hash_false_negatives" = "review hash function catches all cell changes up to four changes per row",
+  "review_change_attribution" = "review hash function changes can be attributed to specific modified cells",
+  "review_accept_removal_of_rows" = "review feature tolerates the removal of rows"
+)
 # nolint end line_length_linter
 
 specs <- c(
   listing,
-  export
+  export,
+  review
 )

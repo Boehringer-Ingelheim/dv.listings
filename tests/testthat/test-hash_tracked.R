@@ -1,4 +1,5 @@
-test_that("SH$hash_tracked exhibits almost no false negatives and few false positives", {
+test_that("SH$hash_tracked exhibits no false negatives and few false positives" |>
+            vdoc[["add_spec"]](specs$review_no_hash_false_negatives), {
   mutate <- function(df, i_row, i_col){
     v <- df[[i_col]][[i_row]]
     cl <- class(df[[i_col]])[[1]]
@@ -109,7 +110,7 @@ test_that("SH$hash_tracked exhibits almost no false negatives and few false posi
   expect_lte(length(res[["fn"]]), 0)
   res <- stress(ae, test_count, changes_per_test = 4)
   expect_lte(length(res[["fp"]]), 80)
-  expect_lte(length(res[["fn"]]), 3)
+  expect_lte(length(res[["fn"]]), 0)
   
  
   # Examine false negatives with: 
@@ -131,7 +132,8 @@ test_that("SH$hash_tracked exhibits almost no false negatives and few false posi
   }
 })
 
-test_that("Row changes can be attributed to specific modified columns", {
+test_that("Row changes can be attributed to specific modified columns" |>
+            vdoc[["add_spec"]](specs$review_no_hash_false_negatives), {
   folder_contents <- NULL
   fs_callbacks <- list(
     attach = function(arg) NULL, list = function(arg) NULL, read = function(arg) NULL, write = function(arg) NULL,
