@@ -651,7 +651,7 @@ listings_server <- function(module_id,
           scrollX = TRUE,
           ordering = TRUE,
           columnDefs = column_defs,
-          # FIXME: Update to use https://datatables.net/reference/option/layout
+          # TODO: Update to use new recommended API: https://datatables.net/reference/option/layout
           dom = "<'top'<'top-title'>>rtilp", # Buttons, filtering, processing display element, table, information summary, length, pagination
           fixedColumns = list(left = review_col_count),
           initComplete = htmlwidgets::JS(init_complete_js),

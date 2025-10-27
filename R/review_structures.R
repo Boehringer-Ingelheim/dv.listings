@@ -23,9 +23,12 @@ SH <- local({ # _S_erialization _H_elpers
     return(res)
   }
   
-..ref_hash_tracked_inner <- function(row) {
+  ..ref_hash_tracked_inner <- function(row) {
     # FIXME: Ensure that precision of numeric values does not affect serialization
     #        Maybe by using a string hex representation of their binary contents
+    # NOTE: This can't be done without versioning the file format so that old trials
+    #       can still use this old function and new trials use the new one.
+    #       It makes sense to postpone this improvement until we have a better reason
     input <- paste(row, collapse = "\1D")
     input <- charToRaw(input)
     res <- xxhashlite::xxhash_raw(input, algo = "xxh32", as_raw = TRUE)

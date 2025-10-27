@@ -37,7 +37,6 @@ REV_time_from_timestamp <- function(v) {
 }
 
 REV_include_review_info <- function(annotation_info, data, col_names) {
-  # FIXME? `extra_col_names` goes unused
   if (nrow(data) < nrow(annotation_info)) {
     filter_mask <- attr(data, "filter_mask")
     annotation_info <- annotation_info[filter_mask, ]
@@ -704,7 +703,7 @@ REV_respond_to_user_review <- function(ns, state, input, review, selected_datase
     new_data[[REV$ID$LATEST_REVIEW_COL]] <- REV_review_var_to_json(new_data[[REV$ID$LATEST_REVIEW_COL]])
 
     new_data <- local({
-      # FIXME: clumsy wrapper to avoid rewriting REV_include_outdated_info for the moment
+      # TODO: rewrite REV_include_outdated_info to avoid this clumsy wrapper
       table_data <- list(data = new_data, col_names = character(0))
       table_data <- REV_include_outdated_info(
         table_data, annotation_info, 
