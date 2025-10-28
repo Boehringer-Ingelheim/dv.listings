@@ -134,7 +134,10 @@ int_seed <- as.integer(Sys.time()) # Force random seed to get fresh tests
 set.seed(int_seed)
 
 test_that(sprintf("Running random review tests with seed: %dL", int_seed) |>
-            vdoc[["add_spec"]](c(specs$review_delta_detection, specs$review_accept_removal_of_rows)), {
+            vdoc[["add_spec"]](c(
+              specs$review, specs$review_per_row, specs$review_per_role,
+              specs$review_delta_detection, specs$review_accept_removal_of_rows)
+            ), {
   # _R_eview _T_est
   RT <- local({
     folder_contents <- NULL
