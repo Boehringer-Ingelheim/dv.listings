@@ -101,9 +101,9 @@ REV_include_highlight_info <- function(table_data, annotation_info, tracked_vars
   for (col_name in highlight_col_names) 
     data[[col_name]] <- rep(FALSE, row_count) # Explicit `rep` avoids assignment error when `nrow(data) == 0`
  
-  df_map_st <- attr(annotation_info, "df_map_st")
+  map_canonical_indices_into_current_order <- attr(annotation_info, "map_canonical_indices_into_current_order")
   for (row_cols_st in row_col_changes_st){
-    i_row_df <- df_map_st[row_cols_st[["row"]]]
+    i_row_df <- map_canonical_indices_into_current_order(row_cols_st[["row"]])
     if (i_row_df > 0 && data[[REV$ID$STATUS_COL]][[i_row_df]] == REV$STATUS_LEVELS$LATEST_OUTDATED) {
       col_names <- highlight_col_names[row_cols_st[["cols"]]]
       data[i_row_df, col_names] <- TRUE
@@ -395,6 +395,11 @@ REV_load_annotation_info <- function(folder_contents, review, dataset_lists) {
         mapping <- match(asplit(id_hashes, 2), asplit(base_info[["id_hashes"]], 2))
         return(mapping)
       })
+      map_canonical_data_into_current_order <- function(data) {
+        if (is.data.frame(data)) data[st_map_df, , drop = FALSE]
+        else data[st_map_df]
+      }
+      map_current_indices_into_canonical_order <- function(indices) st_map_df[indices]
       
       # Map data from `_df` order into `_st` order through `data_df[df_map_st]`
       # Map indices from `_st` order into `df` order through `df_map_st[indices_st]`
@@ -405,9 +410,14 @@ REV_load_annotation_info <- function(folder_contents, review, dataset_lists) {
         res[st_map_df] <- seq_along(st_map_df)
         return(res)
       }) 
+      map_current_data_into_canonical_order <- function(data) {
+        if (is.data.frame(data)) data[df_map_st, , drop = FALSE]
+        else data[df_map_st]
+      }
+      map_canonical_indices_into_current_order <- function(indices) df_map_st[indices]
      
       dataset_review_df[["timestamp"]] <- base_timestamp
-      dataset_review_df[["data_timestamp"]] <- data_timestamps_st[st_map_df]
+      dataset_review_df[["data_timestamp"]] <- map_canonical_data_into_current_order(data_timestamps_st)
       
       # <domain>_<ROLE>.review      
       all_latest_reviews_df <- local({
@@ -438,7 +448,7 @@ REV_load_annotation_info <- function(folder_contents, review, dataset_lists) {
         row_count <- ncol(base_info[["id_hashes"]])
         role_review_st <- RS_parse_review_reviews(contents, row_count = row_count,
                                                   expected_role = role, expected_domain = dataset_review_name)
-        role_review_df <- role_review_st[st_map_df, , drop = FALSE]
+        role_review_df <- map_canonical_data_into_current_order(role_review_st)
         
         # Progressive update of all roles through the mask
         update_mask_df <- (role_review_df[["timestamp"]] > dataset_review_df[["timestamp"]])
@@ -469,8 +479,15 @@ REV_load_annotation_info <- function(folder_contents, review, dataset_lists) {
            
       # Add latest roles columns      
       sub_res[[dataset_review_name]] <- dataset_review_df[c("review", "timestamp", "role", "data_timestamp", "latest_reviews")]
-      attr(sub_res[[dataset_review_name]], "st_map_df") <- st_map_df
-      attr(sub_res[[dataset_review_name]], "df_map_st") <- df_map_st
+      attr(sub_res[[dataset_review_name]], "map_canonical_data_into_current_order") <- 
+        map_canonical_data_into_current_order
+      attr(sub_res[[dataset_review_name]], "map_current_indices_into_canonical_order") <- 
+        map_current_indices_into_canonical_order
+      attr(sub_res[[dataset_review_name]], "map_current_data_into_canonical_order") <- 
+        map_current_data_into_canonical_order
+      attr(sub_res[[dataset_review_name]], "map_canonical_indices_into_current_order") <- 
+        map_canonical_indices_into_current_order
+      
       attr(sub_res[[dataset_review_name]], "base_timestamp") <- base_timestamp
       # Add tracked_hashes for each revision of the dataset to be able to attribute row changes to specific columns
       attr(sub_res[[dataset_review_name]], "revisions") <- base_info[["revisions"]]
@@ -603,8 +620,8 @@ REV_compute_review_changes <- function(data, row_indices, annotation_info, choic
   
   canonical_row_indices <- local({
     # ... and that `row_indices` needs to be mapped into a base+deltas (stable) index
-    st_map_df <- attr(annotation_info, "st_map_df")
-    res <- st_map_df[defiltered_row_indices]
+    map_current_indices_into_canonical_order <- attr(annotation_info, "map_current_indices_into_canonical_order")
+    res <- map_current_indices_into_canonical_order(defiltered_row_indices)
     return(res)
   })
   
