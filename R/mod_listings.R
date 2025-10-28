@@ -599,7 +599,7 @@ listings_server <- function(module_id,
         table_data[["data"]] <- changes[["data"]]
         table_data[["col_names"]] <- changes[["col_names"]]
         
-        table_data <- REV_include_outdated_info(
+        table_data <- REV_include_highlight_info(
           table_data, annotation_info, 
           tracked_vars = review[["datasets"]][[selected_dataset_name]][["tracked_vars"]]
         )

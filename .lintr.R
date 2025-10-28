@@ -10,6 +10,7 @@ linters <- lintr::modify_defaults(
   , trailing_blank_lines_linter = NULL        # natural extension of trailing_whitespace_linter, present on the template
   , semicolon_linter = NULL                   # used to highlight checks that lead to the early out on a function
   , return_linter = NULL                      # wickham being overly prescriptive
+  , spaces_inside_linter = NULL               # tabular formatting is useful and this rule is just cosmetic
 )
 
 if(identical(Sys.getenv('CI'), "true")){

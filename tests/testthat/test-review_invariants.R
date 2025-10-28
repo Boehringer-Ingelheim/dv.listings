@@ -163,7 +163,8 @@ test_that(sprintf("Running random review tests with seed: %dL", int_seed) |>
       
       fs_client[["read_folder"]](subfolder_candidates = "dataset_list") # Refreshes potentially new review info
      
-      # load and update if necessary
+      # TODO: This initial `_load_` is here to load reviews through a side channel. It would be preferable to 
+      #       load them explicitly through a separate function (both inside the module and in this oracle-like test)
       info <- REV_load_annotation_info(folder_contents, review_param, dataset_lists)
       stopifnot(length(info[["error"]]) == 0)
       fs_client[["execute_IO_plan"]](IO_plan = info[["folder_IO_plan"]], is_init = TRUE)

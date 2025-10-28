@@ -69,7 +69,7 @@ REV_include_review_info <- function(annotation_info, data, col_names) {
   return(list(data = res, col_names = res_col_names))
 }
 
-REV_include_outdated_info <- function(table_data, annotation_info, tracked_vars) {
+REV_include_highlight_info <- function(table_data, annotation_info, tracked_vars) {
   data <- table_data[["data"]]
   # Compute dataset changes that make current reviews obsolete
   row_col_changes_st <- local({
@@ -449,7 +449,7 @@ REV_load_annotation_info <- function(folder_contents, review, dataset_lists) {
           dataset_review_df[["role"]][update_mask_df] <- role
         }
         # compact all in lists
-        # Replace by list of roles so it is a single columns and we can directly iterate over it
+        # Replace by list of roles so it is a single column and we can directly iterate over it
         all_latest_reviews_df <- local({          
           reviewed_idx <- which(role_review_df[["timestamp"]] > 0)
           for (idx in reviewed_idx) {
@@ -590,8 +590,8 @@ REV_produce_IO_plan_for_review_action <- function(
 }
 
 # Testing on 0-row, 1-row and multi-row inputs would have uncovered some bugs we've already addressed
-REV_review <- function(data, row_indices, annotation_info, choices, choice_index, role, timestamp,
-                       dataset_list_name, dataset_name) {
+REV_compute_review_changes <- function(data, row_indices, annotation_info, choices, choice_index, role, timestamp,
+                                       dataset_list_name, dataset_name) {
   res <- list()
   
   defiltered_row_indices <- local({
@@ -685,9 +685,11 @@ REV_respond_to_user_review <- function(ns, state, input, review, selected_datase
     timestamp <- SH$get_UTC_time_in_seconds()
     choice_index <- as.integer(info[["option"]])
     
-    subres <- REV_review(data = new_data, row_indices = i_rows, annotation_info = annotation_info, 
-                         choices = review[["choices"]], choice_index = choice_index,  role = role, 
-                         timestamp = timestamp, dataset_list_name = dataset_list_name,  dataset_name = dataset_name)
+    subres <- REV_compute_review_changes(
+      data = new_data, row_indices = i_rows, annotation_info = annotation_info, 
+      choices = review[["choices"]], choice_index = choice_index,  role = role, 
+      timestamp = timestamp, dataset_list_name = dataset_list_name, dataset_name = dataset_name
+    )
     
     new_data <- subres[["data"]]
     annotation_info <- subres[["annotation_info"]]
@@ -699,9 +701,9 @@ REV_respond_to_user_review <- function(ns, state, input, review, selected_datase
     new_data[[REV$ID$LATEST_REVIEW_COL]] <- REV_review_var_to_json(new_data[[REV$ID$LATEST_REVIEW_COL]])
 
     new_data <- local({
-      # TODO: rewrite REV_include_outdated_info to avoid this clumsy wrapper
+      # TODO: rewrite REV_include_highlight_info to avoid this clumsy wrapper
       table_data <- list(data = new_data, col_names = character(0))
-      table_data <- REV_include_outdated_info(
+      table_data <- REV_include_highlight_info(
         table_data, annotation_info, 
         tracked_vars = review[["datasets"]][[dataset_name]][["tracked_vars"]]
       )

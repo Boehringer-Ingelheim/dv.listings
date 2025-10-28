@@ -296,7 +296,7 @@ RS_compute_delta_memory <- function(state, df) {
   
   indices_new_df <- local({
     merged_id_hashes <- cbind(state$id_hashes, id_hashes_df, deparse.level = 0)
-    mask_new_df <- !duplicated(merged_id_hashes, MARGIN = 2) |> c() |> tail(n = nrow(df))
+    mask_new_df <- !duplicated(merged_id_hashes, MARGIN = 2) |> as.logical() |> tail(n = nrow(df))
     return(which(mask_new_df))
   })
   
@@ -312,12 +312,6 @@ RS_compute_delta_memory <- function(state, df) {
  
   # Build an index that projects repeat IDs from new `_df` into canonical `_st` indices
   index_map_st_old <- match(asplit(id_hashes_df_old, 2), asplit(state$id_hashes, 2))
-
-  # FIXME(miguel): Ask Luis for details. His comment (below) predates an extensive rewrite of this function.
-  #                Suggest the use of `error` to shortcircuit file actions for the case described, if still relevant.
-  # TODO: This mapping may fail when data updates are messed. Dataset is updated, new deltas are calculated, and the
-  # outdated is loaded in the app again. It does not fail gracefully, mapping contains more entries than expected and
-  # an out of bounds error is thrown.
   
   tracked_hashes_st_old <- state$tracked_hashes[, index_map_st_old, drop = FALSE]
   modified_mask_df_old  <- (tracked_hashes_df_old != tracked_hashes_st_old) |> apply(any, MARGIN = 2)
@@ -454,6 +448,7 @@ RS_parse_review_reviews <- function(contents, row_count, expected_role, expected
     review <- readBin(con, integer(), 1L, endian = "little")
     timestamp <- readBin(con, numeric(), 1L, endian = "little")
     # NOTE: timestamp increases monotonically with each new row, so not checking it
+    # TODO: Possibly expensive. Could be the case that having two separate lists (one for `review` and one for `timestamp` and combine them after the fact into a data.frame is much cheaper
     res[["review"]][[row_index]] <- review
     res[["timestamp"]][[row_index]] <- timestamp
   }
@@ -471,6 +466,7 @@ RS_load <- function(base, deltas) {
     state_delta <- RS_parse_delta(contents = deltas[[i_delta]], tracked_var_count = length(res[["tracked_vars"]]))
     if (inherits(state_delta, "simpleCondition")) return(state_delta)
     
+    # NOTE: Check the vignette if this `256` confuses you :)
     if (!identical(state_delta$generation, (res$generation + 1L) %% 256L))
       return(simpleCondition(paste("Wrong generation marker. Should be", (res$generation + 1L) %% 256L)))
     
