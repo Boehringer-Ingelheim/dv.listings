@@ -613,7 +613,7 @@ listings_server <- function(module_id,
           list(
             list(className = "dv_listings_review_column", targets = review_column_indices),
             list(render = htmlwidgets::JS(js_render_call), data = 1, 
-                 targets = head(review_column_indices, 1)),
+                 targets = utils::head(review_column_indices, 1)),
             list(render = htmlwidgets::JS(render_status_js_call), data = 3,
                  targets = review_column_indices[[3]]),
             list(visible = FALSE,

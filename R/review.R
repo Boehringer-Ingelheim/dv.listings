@@ -115,7 +115,7 @@ REV_include_highlight_info <- function(table_data, annotation_info, tracked_vars
 }
 
 REV_UI <- function(ns, roles) {
-  choices <- setNames(c("", roles), c("<select reviewer role>", roles))
+  choices <- stats::setNames(c("", roles), c("<select reviewer role>", roles))
 
   res <- list()
   res[["ui"]] <- shiny::tagList(
@@ -859,7 +859,7 @@ REV_report_changes <- function(h0, h1, verbose = FALSE) {
     inferred_change_count <- ceiling(sum(diff) / length(offsets))
     
     # removes false negatives at the cost of false positives
-    threshold <- min(head(sort(evidence, decreasing = TRUE), inferred_change_count))
+    threshold <- min(utils::head(sort(evidence, decreasing = TRUE), inferred_change_count))
     col_indices <- which(evidence >= threshold)
     
     res[[length(res) + 1]] <- list(row = i_row, cols = col_indices)
