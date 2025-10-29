@@ -79,4 +79,37 @@ local({
     info <- REV_load_annotation_info(folder_contents, review, dataset_lists)
     expect_length(info[["error"]], 0)
   })
+  
+  test_that("RS_compute_delta_memory identifies new and modified rows" |>
+              vdoc[["add_spec"]](specs$review), {
+    old_df <- data.frame(
+      ID =        c(1L, 2L),
+      TRACKED_1 = c(1L, 2L), 
+      TRACKED_2 = c(1L, 2L), 
+      TRACKED_3 = c(1L, 2L)
+    )
+    
+    id_vars = c("ID")
+    tracked_vars <- c("TRACKED_1", "TRACKED_2", "TRACKED_3")
+    
+    state <- RS_parse_base(
+      RS_compute_base_memory(df_id = "df", df = old_df, id_vars = id_vars, tracked_vars = tracked_vars)
+    )
+    
+    # NOTE: Change to ID 1, ID 2 disappears, ID 3 appears
+    new_df <- data.frame(
+      ID =        c(1L, 3L),
+      TRACKED_1 = c(2L, 3L), 
+      TRACKED_2 = c(1L, 3L), 
+      TRACKED_3 = c(1L, 3L)
+    )
+    
+    info <- RS_compute_delta_memory(state, new_df)
+    expect_length(info[["error"]], 0)
+    
+    delta <- RS_parse_delta(info[['contents']], length(tracked_vars))
+    expect_true(
+      delta[["new_row_count"]] == 1 && delta[["modified_row_count"]] == 1 && delta[["modified_row_indices"]] == 1,
+    )
+  })
 })

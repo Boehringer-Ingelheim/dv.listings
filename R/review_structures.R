@@ -276,7 +276,15 @@ RS_parse_base <- function(contents) {
 }
 
 RS_compute_delta_memory <- function(state, df) {
-  checkmate::assert_data_frame(df) # TODO: etc.
+  # NOTE:
+  # The logic of this function is a bit tricky to grasp. Our recommendation is that you start from the contents of the 
+  # `res` variable (whose structure is described in the Data Review vignette, "Structured of stored files" section) and
+  # work backwards.
+  # 
+  # If you want to run this function with a trivial example, look inside `tests/testhat/test-review.R` and you'll find
+  # a test described as "RS_compute_delta_memory identifies new and modified rows", whose sole purpose is to trace this
+  # function.
+  checkmate::assert_data_frame(df)
 
   error <- character(0)
   
@@ -299,9 +307,6 @@ RS_compute_delta_memory <- function(state, df) {
     #       By column-binding them we create a longer matrix of dimensions "16 n+m"
     #       Looking for duplicates in the second axis, taking only the last "m" elements and negating the output
     #       tells us which elements of the new dataframe are _not_ present in the old one.
-    # 
-    #       If you want to see this process in action, place a `browser()` inside this local block and call:
-    #       > devtools::test(filter = 'review_oracle)
     merged_id_hashes <- cbind(state$id_hashes, id_hashes_df, deparse.level = 0)
     mask_new_df <- !duplicated(merged_id_hashes, MARGIN = 2) |> as.logical() |> utils::tail(n = ncol(id_hashes_df))
     return(which(mask_new_df))
