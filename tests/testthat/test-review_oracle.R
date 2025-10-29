@@ -195,6 +195,11 @@ test_that(sprintf("Running random review tests with seed: %dL", int_seed) |>
   missing_ids <- integer(0)
   reviews_st <- rep(default_choice, initial_row_count)
   
+  # TODO: Generalize to allow any of the operations in any order
+  #       The ecologically valid operations options are:
+  #       - Option A: Add any number of reviews by any number of reviewer roles
+  #       - Option B: Perform any combination of the dataset alteration operations in an arbitrarily chosen order
+  # TODO: Add operations that add and remove non-tracked columns
   for(i_iteration in seq_len(iteration_count)){
     expected <- list(
       # Reset these to check only the change since last updated
