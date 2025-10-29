@@ -1,7 +1,7 @@
 Package: dv.listings
 Type: Package
 Title: Data listings module
-Version: 4.2.0-9004
+Version: 4.2.0-9006
 Authors@R: 
     c(
       person("Boehringer-Ingelheim Pharma GmbH & Co.KG", role = c("cph", "fnd")),
@@ -42,7 +42,10 @@ Imports:
     shinyjs (>= 2.1.0),
     shinyWidgets (>= 0.8.0),
     tibble (>= 3.2.1),
-    xxhashlite
+    xxhashlite,
+    base64enc,
+    htmltools,
+    jsonlite
 Depends: R (>= 4.1.0)
 RoxygenNote: 7.3.2
 Roxygen: list(markdown = TRUE)

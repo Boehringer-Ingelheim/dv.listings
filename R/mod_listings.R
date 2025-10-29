@@ -393,8 +393,6 @@ listings_server <- function(module_id,
       "download_data",
       "dropdown_btn",
       "clear_filters",
-      # NOTE(miguel): Added here for easier merge with other branches
-      # TODO(miguel): Move elsewhere after merging 
       REV_UI(ns = identity, roles = character(0))[["input_ids_to_exclude_from_bookmarking"]]
     ))
 
@@ -464,9 +462,7 @@ listings_server <- function(module_id,
 
       shiny::outputOptions(output, TBL$REVIEW_UI_ID, suspendWhenHidden = FALSE)
 
-      # TODO: Extract the REV_logic_1 logic, it just creates a set of observers that maybe better
-      # located out here. Otherwise this observer declarations may be ignored.
-      REV_logic_1(REV_state, input, review, review[["data"]], fs_client, fs_callbacks)
+      REV_main_logic(REV_state, input, review, review[["data"]], fs_client, fs_callbacks)
       show_review_columns <- REV_state[["contents_ready"]]
     }
 
@@ -603,7 +599,7 @@ listings_server <- function(module_id,
         table_data[["data"]] <- changes[["data"]]
         table_data[["col_names"]] <- changes[["col_names"]]
         
-        table_data <- REV_include_outdated_info(
+        table_data <- REV_include_highlight_info(
           table_data, annotation_info, 
           tracked_vars = review[["datasets"]][[selected_dataset_name]][["tracked_vars"]]
         )
@@ -617,7 +613,7 @@ listings_server <- function(module_id,
           list(
             list(className = "dv_listings_review_column", targets = review_column_indices),
             list(render = htmlwidgets::JS(js_render_call), data = 1, 
-                 targets = head(review_column_indices, 1)),
+                 targets = utils::head(review_column_indices, 1)),
             list(render = htmlwidgets::JS(render_status_js_call), data = 3,
                  targets = review_column_indices[[3]]),
             list(visible = FALSE,
@@ -651,7 +647,7 @@ listings_server <- function(module_id,
           scrollX = TRUE,
           ordering = TRUE,
           columnDefs = column_defs,
-          # FIXME: Update to use https://datatables.net/reference/option/layout
+          # TODO: Update to use new recommended API: https://datatables.net/reference/option/layout
           dom = "<'top'<'top-title'>>rtilp", # Buttons, filtering, processing display element, table, information summary, length, pagination
           fixedColumns = list(left = review_col_count),
           initComplete = htmlwidgets::JS(init_complete_js),
@@ -962,98 +958,7 @@ check_mod_listings <- function(afmm, datasets, module_id, dataset_names,
     )
   )
 
-  # review
-  local({
-    if (is.null(review)) return(NULL)
-    ok <- CM$assert(
-      container = err,
-      cond = (checkmate::test_list(review, names = "unique") &&
-                checkmate::test_subset(c("datasets", "choices", "roles"), names(review))),
-      msg = "`review` should be a list with at least three elements: `datasets`, `choices` and `roles`"
-    ) &&
-      CM$assert(
-        container = err,
-        cond = (checkmate::test_list(review[["datasets"]], names = "unique") &&
-                  checkmate::test_subset(names(review[["datasets"]]), dataset_names)),
-        msg = sprintf(
-          "`review$datasets` should be a list and its elements should be named after the following dataset names: %s",
-          paste(dataset_names, collapse = ", ")
-        )
-      ) &&
-      CM$assert(
-        container = err,
-        cond = checkmate::test_character(review[["choices"]], min.len = 1, min.chars = 1, unique = TRUE),
-        msg = "`review$choices` should be a non-empty character vector of unique, non-empty strings"
-      ) &&
-      CM$assert(
-        container = err,
-        cond = checkmate::test_character(review[["roles"]], min.len = 1, min.chars = 1, unique = TRUE),
-        msg = "`review$roles` should be a non-empty character vector of unique, non-empty strings"
-      )
-    
-    if (!ok) return(NULL)
-    for (domain in names(review[["datasets"]])){
-      info <- review[["datasets"]][[domain]]            
-        
-        dataset <- datasets[[domain]]
-        
-        vars_OK <- CM$assert(
-          container = err,
-          cond = (checkmate::test_list(review, names = "unique") &&
-                    checkmate::test_subset(c("id_vars", "tracked_vars"), names(info))),
-          msg = sprintf("`review$datasets$%s` should be a list with two elements named `id_vars` and `tracked_vars`",
-                        domain)
-        ) &&
-          CM$assert(
-            container = err,
-            cond = (checkmate::test_character(info[["id_vars"]], min.len = 1, min.chars = 1, unique = TRUE) &&
-                      checkmate::test_subset(info[["id_vars"]], names(dataset))),
-            msg = sprintf(
-              paste(
-                "`review$datasets$%s$id_vars` should be a character vector listing a subset of the columns",
-                "available in dataset `%s`"
-              ), domain, domain
-            )
-          ) &&
-          CM$assert(
-            container = err,
-            cond = nrow(dataset[info[["id_vars"]]]) == nrow(unique(dataset[info[["id_vars"]]])),
-            msg = sprintf("`review$datasets$%s$id_vars` should identify uniquely every row of the dataset `%s`", 
-                          domain, domain)
-          ) &&
-          CM$assert(
-            container = err,
-            cond = (checkmate::test_character(info[["tracked_vars"]], min.chars = 1, min.len = 3, unique = TRUE) &&
-                      checkmate::test_subset(info[["tracked_vars"]], names(dataset))),
-            msg = sprintf(
-              paste(
-                "`review$datasets$%s$tracked_vars` should be a character vector listing a subset of",
-                " at least three columns available in dataset `%s`"
-              ), domain, domain
-            )
-          )
-        
-        if (vars_OK) {
-          common_vars <- intersect(info[["id_vars"]], info[["tracked_vars"]])
-          
-          CM$assert(
-            container = err,
-            cond = length(common_vars) == 0,
-            msg = sprintf(
-              paste(
-                "Variables should be assigned <b>exclusively</b> to either <tt>review$datasets$%s$id_vars</tt> or",
-                "<tt>review$datasets$%s$tracked_vars</tt>. However both of those parameters include the following variables:",
-                "%s.<br>If those are indeed variables that uniquely identify dataset rows and are not subject to", 
-                "change, our recommendation is that they are preserved as <tt>id_vars</tt> and excluded from <tt>tracked_vars</tt>."
-              ), domain, domain, paste(sprintf("`%s`", common_vars), collapse = ", ")
-            )
-          )
-          
-        }
-      
-    }
-  })
-
+  check_review_parameter(datasets, dataset_names, review, err)
   
   res <- list(warnings = warn[["messages"]], errors = err[["messages"]])
   return(res)

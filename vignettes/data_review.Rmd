@@ -172,7 +172,7 @@ If we take a hypothetical "xyz" domain, `dv.listings` will store the following f
 <details><summary>`xyz_001.delta` (one per domain dataset update)</summary>
 - 1 file magic code ("LISTDELT")
 - 1 format version number (0)
-- 1 generation marker (1)
+- 1 generation marker (1). Wraps around to 0 after 255 (e.g. for `xyz_256.delta`)
 - 1 timestamp delta (seconds elapsed since "base" timestamp)
 - 1 complete hash of new "xyz" data.frame
 - 1 domain string ("xyz")

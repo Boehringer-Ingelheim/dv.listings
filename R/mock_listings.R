@@ -256,3 +256,74 @@ mock_review <- function() {
     filter_key = "USUBJID"
   )
 }
+
+mock_synthetic_review <- function() {
+  # This mock is geared towards manual testing of the review functionality and works well in combination with hot app reloading
+  version <- 1
+ 
+  if (version == 1) {
+    df <- data.frame(
+      ID =        c(1L,  2L,  3L),
+      TRACKED_1 = c(2L,  4L,  6L), 
+      TRACKED_2 = c(3L,  6L,  9L), 
+      TRACKED_3 = c(5L, 10L, 15L), 
+      UNTRACKED = c(7L, 14L, 21L)
+    )
+  } else if (version == 2) {
+    df <- data.frame(
+      ID =        c(1L,  3L),
+      TRACKED_1 = c(2L,  6L), 
+      TRACKED_2 = c(3L,  9L), 
+      TRACKED_3 = c(5L, 15L), 
+      UNTRACKED = c(7L, 21L)
+    )
+  } else if (version == 3) {
+    df <- data.frame(
+      ID =        c( 3L, 1L),
+      TRACKED_1 = c( 6L, 2L), 
+      TRACKED_2 = c( 9L, 3L), 
+      TRACKED_3 = c(15L, 5L), 
+      UNTRACKED = c(21L, 7L)
+    )
+  } else if (version == 4) {
+    df <- data.frame(
+      ID =        c( 3L, 1L, 2L ),
+      TRACKED_1 = c( 6L, 2L, 4L ), 
+      TRACKED_2 = c( 9L, 3L, 6L ), 
+      TRACKED_3 = c(15L, 5L, 10L), 
+      UNTRACKED = c(21L, 7L, 14L)
+    )
+  } else if (version == 5) {
+    df <- data.frame(
+      ID =        c(1L,  2L,  3L),
+      TRACKED_1 = c(3L,  4L,  6L), 
+      TRACKED_2 = c(3L,  7L,  9L), 
+      TRACKED_3 = c(5L, 10L, 16L), 
+      UNTRACKED = c(7L, 14L, 21L)
+    )
+  }
+  
+  data_list <- list(df = df)
+  
+  # Step 4 - Module specification
+  listing <- mod_listings(
+    module_id = "listing",
+    dataset_names = c("df"),
+    review = list(
+      datasets = list(
+        df = list(id_vars = c("ID"), tracked_vars = c("TRACKED_1", "TRACKED_2", "TRACKED_3"))
+      ),
+      choices = c("Pending", "Reviewed with no issues", "Action required", "Resolved"),
+      roles = c("ROLE_1", "ROLE_2", "ROLE_3", "ROLE_4"),
+      store_path = tempdir()
+    )
+  )
+  
+  # Step 5 - Run app
+  dv.manager::run_app(
+    data = list("data_list" = data_list),
+    module_list = list("Listing" = listing),
+    filter_data = "df",
+    filter_key = "ID"
+  )
+}

@@ -4,13 +4,13 @@ linters <- lintr::modify_defaults(
   , line_length_linter = NULL                 # we see how long lines are when we write them
   , indentation_linter = NULL
   , trailing_whitespace_linter = NULL
-  , cyclocomp_linter = NULL                   # prevents trivial amount of nesting and long but straightforward functions
   , object_name_linter = NULL                 # we have reasons to capitalize. nobody in our team CamelCase. shiny does
   , object_length_linter = NULL               # we don't type long var names just because
   , pipe_continuation_linter = NULL           # wickham being overly prescriptive
   , trailing_blank_lines_linter = NULL        # natural extension of trailing_whitespace_linter, present on the template
   , semicolon_linter = NULL                   # used to highlight checks that lead to the early out on a function
   , return_linter = NULL                      # wickham being overly prescriptive
+  , spaces_inside_linter = NULL               # tabular formatting is useful and this rule is just cosmetic
 )
 
 if(identical(Sys.getenv('CI'), "true")){
