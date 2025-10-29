@@ -295,8 +295,15 @@ RS_compute_delta_memory <- function(state, df) {
                            array(dim = c(BYTES_PER_TRACKED_HASH * length(state$tracked_vars), nrow(df))))
   
   indices_new_df <- local({
+    # NOTE: `state$id_hashes` and `id_hashes_df` are matrices of 16-byte long hashes (dim() returns "16 n" and "16 m")
+    #       By column-binding them we create a longer matrix of dimensions "16 n+m"
+    #       Looking for duplicates in the second axis, taking only the last "m" elements and negating the output
+    #       tells us which elements of the new dataframe are _not_ present in the old one.
+    # 
+    #       If you want to see this process in action, place a `browser()` inside this local block and call:
+    #       > devtools::test(filter = 'review_oracle)
     merged_id_hashes <- cbind(state$id_hashes, id_hashes_df, deparse.level = 0)
-    mask_new_df <- !duplicated(merged_id_hashes, MARGIN = 2) |> as.logical() |> tail(n = nrow(df))
+    mask_new_df <- !duplicated(merged_id_hashes, MARGIN = 2) |> as.logical() |> utils::tail(n = ncol(id_hashes_df))
     return(which(mask_new_df))
   })
   
