@@ -887,7 +887,6 @@ REV_report_changes <- function(h0, h1, verbose = FALSE) {
 #' 
 #' @export
 check_review_parameter <- function(datasets, dataset_names, review, err) {
-  browser()
   if (is.null(review)) return(NULL)
   ok <- CM$assert(
     container = err,
