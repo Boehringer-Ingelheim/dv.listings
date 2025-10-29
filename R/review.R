@@ -866,3 +866,114 @@ REV_report_changes <- function(h0, h1, verbose = FALSE) {
   }
   return(res)
 }
+
+#' Early error feedback function for the optional review parameter
+#'
+#' @param datasets `[list(data.frame)]`
+#'
+#' Available datasets for review.
+#' 
+#' @param dataset_names `[character(n)]`
+#'
+#' Names of the datasets provided by the previous parameter.
+#'   
+#' @param review `[list()]`
+#' 
+#' Configuration of the experimental data review feature. Please refer to `vignette("data_review")`.
+#'
+#' @param error `[environment]`
+#' This environment has at least one element named "messages". It is a character vector. Diagnostic messages related to
+#' the configuration of the review parameter will be placed here.
+#' 
+#' @export
+check_review_parameter <- function(datasets, dataset_names, review, err) {
+  browser()
+  if (is.null(review)) return(NULL)
+  ok <- CM$assert(
+    container = err,
+    cond = (checkmate::test_list(review, names = "unique") &&
+              checkmate::test_subset(c("datasets", "choices", "roles"), names(review))),
+    msg = "`review` should be a list with at least three elements: `datasets`, `choices` and `roles`"
+  ) &&
+    CM$assert(
+      container = err,
+      cond = (checkmate::test_list(review[["datasets"]], names = "unique") &&
+                checkmate::test_subset(names(review[["datasets"]]), dataset_names)),
+      msg = sprintf(
+        "`review$datasets` should be a list and its elements should be named after the following dataset names: %s",
+        paste(dataset_names, collapse = ", ")
+      )
+    ) &&
+    CM$assert(
+      container = err,
+      cond = checkmate::test_character(review[["choices"]], min.len = 1, min.chars = 1, unique = TRUE),
+      msg = "`review$choices` should be a non-empty character vector of unique, non-empty strings"
+    ) &&
+    CM$assert(
+      container = err,
+      cond = checkmate::test_character(review[["roles"]], min.len = 1, min.chars = 1, unique = TRUE),
+      msg = "`review$roles` should be a non-empty character vector of unique, non-empty strings"
+    )
+  
+  if (!ok) return(NULL)
+  for (domain in names(review[["datasets"]])){
+    info <- review[["datasets"]][[domain]]            
+    
+    dataset <- datasets[[domain]]
+    
+    vars_OK <- CM$assert(
+      container = err,
+      cond = (checkmate::test_list(review, names = "unique") &&
+                checkmate::test_subset(c("id_vars", "tracked_vars"), names(info))),
+      msg = sprintf("`review$datasets$%s` should be a list with two elements named `id_vars` and `tracked_vars`",
+                    domain)
+    ) &&
+      CM$assert(
+        container = err,
+        cond = (checkmate::test_character(info[["id_vars"]], min.len = 1, min.chars = 1, unique = TRUE) &&
+                  checkmate::test_subset(info[["id_vars"]], names(dataset))),
+        msg = sprintf(
+          paste(
+            "`review$datasets$%s$id_vars` should be a character vector listing a subset of the columns",
+            "available in dataset `%s`"
+          ), domain, domain
+        )
+      ) &&
+      CM$assert(
+        container = err,
+        cond = nrow(dataset[info[["id_vars"]]]) == nrow(unique(dataset[info[["id_vars"]]])),
+        msg = sprintf("`review$datasets$%s$id_vars` should identify uniquely every row of the dataset `%s`", 
+                      domain, domain)
+      ) &&
+      CM$assert(
+        container = err,
+        cond = (checkmate::test_character(info[["tracked_vars"]], min.chars = 1, min.len = 3, unique = TRUE) &&
+                  checkmate::test_subset(info[["tracked_vars"]], names(dataset))),
+        msg = sprintf(
+          paste(
+            "`review$datasets$%s$tracked_vars` should be a character vector listing a subset of",
+            " at least three columns available in dataset `%s`"
+          ), domain, domain
+        )
+      )
+    
+    if (vars_OK) {
+      common_vars <- intersect(info[["id_vars"]], info[["tracked_vars"]])
+      
+      CM$assert(
+        container = err,
+        cond = length(common_vars) == 0,
+        msg = sprintf(
+          paste(
+            "Variables should be assigned <b>exclusively</b> to either <tt>review$datasets$%s$id_vars</tt> or",
+            "<tt>review$datasets$%s$tracked_vars</tt>. However both of those parameters include the following variables:",
+            "%s.<br>If those are indeed variables that uniquely identify dataset rows and are not subject to", 
+            "change, our recommendation is that they are preserved as <tt>id_vars</tt> and excluded from <tt>tracked_vars</tt>."
+          ), domain, domain, paste(sprintf("`%s`", common_vars), collapse = ", ")
+        )
+      )
+      
+    }
+  }
+}
+
