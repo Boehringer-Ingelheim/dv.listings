@@ -1,3 +1,11 @@
+# dv.listings 4.3.0
+
+- Display title of current table
+- Review functionality
+  - Bulk editing interface
+  - Highlighting of modified columns for outdated reviews
+  - Tolerate previously known data rows that go missing or reappearing across dataset updates
+
 # dv.listings 4.2.0
 
 - Includes the experimental review functionality

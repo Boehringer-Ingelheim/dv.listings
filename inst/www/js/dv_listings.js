@@ -38,7 +38,7 @@ const dv_listings = (function () {
       if (!is_empty_object(r.timestamp) && !isNaN(r.timestamp) && r.timestamp > latest_timestamp) {
         latest_timestamp = r.timestamp;
       }
-    });
+    }); 
 
     let html_inner = '';
     let conflict = 'false';
@@ -49,12 +49,12 @@ const dv_listings = (function () {
 
       let latest_label = '';
       if (r.timestamp === latest_timestamp) {
-        latest_label = '<span class="label label-primary" style="font-size: 0.75em;">Latest</span>';
+        latest_label = '<span class="dv-listings-label dv-listings-label-primary" style="font-size: 0.75em;">Latest</span>';
       }
 
       let outdated_label = '';
       if (!is_empty_object(r.timestamp) && r.timestamp < data_timestamp) {
-        outdated_label = '<span class="label label-default" style="font-size: 0.75em;">Outdated</span>';
+        outdated_label = '<span class="dv-listings-label dv-listings-label-default" style="font-size: 0.75em;">Outdated</span>';
       }
 
       let timestamp;
@@ -64,20 +64,21 @@ const dv_listings = (function () {
         timestamp = '';
       }
 
+      // FIXME: [BS5] Label classes can be removed once we move to bs5 definitely
       let review_text;
       let label_class;
       if (r.review) {
         review_text = r.review;
-        label_class = "label-info";
+        label_class = "dv-listings-label-info";
       } else {
         review_text = 'Not reviewed';
-        label_class = "label-default";
+        label_class = "dv-listings-label-default";
       }
 
       html_inner += `
         <div><strong>${role}</strong></div>
         <div>
-          <span class="label ${label_class}" style="display: block; font-size: 1em; padding: 2px 5px;">
+          <span class="dv-listings-label ${label_class}" style="display: block; font-size: 1em; padding: 2px 5px;">
             ${review_text}<br>
             <span class="text-muted" style="font-size: 0.75em;">${timestamp}</span>
           </span>
@@ -102,16 +103,44 @@ const dv_listings = (function () {
     return (data);
   }
 
+  /* #why_prevent_default
+  There are a few `event.preventDefault()` calls in the inline handlers of interactive elements embedded in the table.
+
+  The problem they solve is that after reviewing data with those controls, the table scrolls back to the beginning.
+  That is a big ergonomic failure.
+
+  Now, _crucially_, this **doesn't happen when using the bulk review controls**, even if only for a single row. It 
+  doesn't happen either when the code in the `onclick` handler of either the single-row or bulk review controls is 
+  executed in the browser's javascript console.
+
+  And, to makes matters more confusing, if the user:
+  - clicks on one of the embedded selector dropdowns
+  - clicks away _without changing the selection_
+  - and then triggers the `onclick` handler from the javascript console
+  the table _DOES_ scroll back to the top.
+
+  So, there is _something_ in the table that remembers that there was a click. After that, when there is a 
+  `DT::replaceData` that in turn calls an `ajax.reload()` in the client, the scroll position resets to the top.
+
+  The approach we take here is to **silence the default actions of the embedded input elements** that we place on the
+  table. The default action for the select dropdown is to... well... drop down, so we restore that one manually through
+  a call to showPicker. That API works with firefox and chrome. Support for safari on OSX is coming.
+
+  An alternative way of patching over this issue would be saving and restoring the `scrollTop` position after the ajax
+  data reload.
+  */
+
   const render_selection = function (id, role, choices) {
     let in_f = function (data, type, row, meta) {
       if (type === 'display') {
-        let result = '';
+        let result = '<div style="display: flex; align-items: baseline; gap: 0.5rem;">';
+        result += `<input type="checkbox" data-for-row="${row[row_number_idx]}" data-input-type="bulk-control" onchange = "dv_listings.on_change_table_checkbox(event)">`;
         let options = choices;
-        result += `<select style=\"width:100%%\" onchange=\"Shiny.setInputValue('${id}', {row:${row[row_number_idx]}, option:this.value}, {priority: 'event'});\">`;
+        result += `<select onmousedown=\"event.preventDefault(); event.srcElement.showPicker();\" onchange=\"Shiny.setInputValue('${id}', {row:${row[row_number_idx]}, option:this.value, bulk:'false'}, {priority: 'event'});\">`; // see comment tagged as #why_prevent_default for explanation
         for (let i = 0; i < options.length; i += 1) {
           result += `<option value=${i + 1}${options[i] == data ? ' selected' : ''}>${options[i]}</option>`;
         }
-        result += '</select>';
+        result += '</select></div>';
 
         return result;
       } else {
@@ -127,30 +156,29 @@ const dv_listings = (function () {
         const review_data = JSON.parse(row[latest_reviews_json_idx]);
         const current_role_review = review_data.reviews[role].review;
         const outdated = review_data.reviews[role].timestamp < review_data.data_timestamp;
-        const add_confirm_button = (current_role_review !== row[latest_review_idx] && row[role_idx] !== role) ||
-          (outdated && row[role_idx] !== role);
-
+        const add_confirm_button = (current_role_review !== row[latest_review_idx] && row[role_idx] !== role) || outdated;
+          
         let label_class = '';
 
         if(data === "OK") {
-          label_class = "label-success"
+          label_class = "dv-listings-label-success"
         } else if (data === "Conflict" || data === "Conflict I can fix" || data === "Latest Outdated") {
-          label_class = "label-warning";
+          label_class = "dv-listings-label-warning";
         } else {
-          label_class = "label-default";        
+          label_class = "dv-listings-label-default";        
         }
 
         let result = `
         <div style="width: 100px">
-        <div class = "label ${label_class}"> ${data} </div>
+        <div class = "dv-listings-label ${label_class}"> ${data} </div>
         <div>
-        <button class = "btn btn-primary btn-xs" style=\"width:100%%\" onclick=\"dv_listings.show_child(event, this, '${meta.settings}')\" title="Show detailed review info">\u{1F4CB}</button>
-        `;
+        <button class = "btn btn-primary dv-listings-btn-xs" style=\"width:100%%\" onmousedown=\"event.preventDefault();\" onclick=\"dv_listings.show_child(event, this, '${meta.settings}')\" title="Show detailed review info">\u{1F4CB}</button>
+        `; // see comment tagged as #why_prevent_default for explanation
 
         if (add_confirm_button) {
           result += `
-          <button class = "btn btn-primary btn-xs" style=\"width:100%%\" onclick=\"Shiny.setInputValue('${id}', {row:${row[row_number_idx]}, option:'${options.indexOf(row[latest_review_idx]) + 1}'}, {priority: 'event'})\" title="Agree with latest review">\u2714</button>          
-          `
+          <button class = "btn btn-primary dv-listings-btn-xs" style=\"width:100%%\" onmousedown=\"event.preventDefault();\" onclick=\"Shiny.setInputValue('${id}', {row:${row[row_number_idx]}, option:'${options.indexOf(row[latest_review_idx]) + 1}', bulk:'false'}, {priority: 'event'})\" title="Agree with latest review">\u2714</button>          
+          ` // see comment tagged as #why_prevent_default for explanation
         }
         result += `</div></div>`
 
@@ -180,10 +208,11 @@ const dv_listings = (function () {
       tr.removeClass('shown');
     } else {
       const json = row.data()[4];
+      // FIXME:[BS5] Panel classes will be removed once we move definitely to bs5
       row.child(`
         <div class="child-wrapper" style="display: none;">
-          <div class="panel panel-default" style="margin: 0; margin-left: 20px; display: inline-block">
-            <div class="panel-body">
+          <div class="panel panel-default card card-default" style="margin: 0; margin-left: 20px; display: inline-block">
+            <div class="panel-body card-body">
               ${render_HTML_review(json)}
             </div>
           </div>
@@ -195,11 +224,142 @@ const dv_listings = (function () {
     }
   }
 
+  const render_bulk_menu = function(id, choices, input_id) {    
+    const container = $("#" + id).find('.top');
+
+    let choices_menu = '';
+    let options = choices;
+    choices_menu += `<select>`;
+        for (let i = 0; i < options.length; i += 1) {
+          choices_menu += `<option value=${i + 1}${i == 0 ? ' selected' : ''}>${options[i]}</option>`;
+        }
+    choices_menu += '</select>';
+
+    const select_all_visible = `
+    <input type="checkbox" onchange="dv_listings.on_change_select_all_checkbox('${id}')">
+    `;
+
+    const apply_bulk_split = `
+    <div class="btn-group" style = "display:inline-flex">
+    <button type="button" class="btn btn-outline-primary" 
+            onclick="dv_listings.apply_bulk_visible('${id}', '${input_id}')">
+      Apply selected
+    </button>
+    <button type="button" class="btn btn-primary dropdown-toggle dropdown-toggle-split" data-bs-toggle="dropdown" data-toggle="dropdown" aria-expanded="false">
+      <span class="caret"></span>
+      <span class="sr-only">Toggle Dropdown</span>
+    </button>
+    <ul class="dropdown-menu" role="menu">
+      <li>
+        <a href="#" onclick="dv_listings.apply_bulk_filtered('${id}', '${input_id}'); return false;">
+          Apply full table
+        </a>
+      </li>
+    </ul>
+  </div>    
+    `;
+
+    const html = `
+      <div class='bulk-menu-wrapper'>
+        ${select_all_visible}
+        ${choices_menu}
+        ${apply_bulk_split}
+        
+      </div>`;
+    container.prepend(html);
+  }
+
+  const get_all_select_checkbox = function(container_id) {
+    const inputs = $("#" + container_id).find('input[data-input-type="bulk-control"]');
+      return(inputs);
+  }
+
+  const compute_select_all_checkbox_state = function (container_id) {
+    const inputs = get_all_select_checkbox(container_id);
+    let checkbox_state;
+    let all_false;
+    let all_true;    
+    if (inputs.length > 0) {
+      all_false = true;
+      all_true = true;    
+      for (let i = 0; i < inputs.length; i++) {
+        all_false = all_false && !inputs[i].checked;
+        all_true = all_true && inputs[i].checked;
+      }      
+    } else {
+      all_false = true;
+      all_true = false;    
+    }
+    checkbox_state = {checked: all_true, indeterminate: !all_false&&!all_true}
+    return (checkbox_state);    
+  };
+
+  const set_select_all_checkbox_state = function (state, container_id) {    
+    const checkbox = document.querySelector(`#${container_id} .bulk-menu-wrapper input[type="checkbox"]`);
+    if(checkbox!==null) {
+      checkbox.checked = state.checked;
+      checkbox.indeterminate = state.indeterminate;    
+    }    
+  };
+
+  const refresh_bulk_select_all_checkbox = function(container_id) {
+    const state = compute_select_all_checkbox_state(container_id);
+    set_select_all_checkbox_state(state, container_id);
+  };
+
+  const on_change_table_checkbox = function (event) {
+    const container_id = event.target.closest(".dataTables_wrapper").id;
+    const state = compute_select_all_checkbox_state(container_id);
+    set_select_all_checkbox_state(state, container_id);
+  };
+
+  const on_change_select_all_checkbox = function (container_id) {    
+    const inputs = get_all_select_checkbox(container_id);    
+    const current_state = compute_select_all_checkbox_state(container_id);
+    let next_state;
+
+    if(current_state.indeterminate || !current_state.checked) {
+      for (let i = 0; i < inputs.length; i++) {
+        inputs[i].checked = true;
+      }
+      next_state = {checked: true, indeterminate: false};
+    } else if(current_state.checked) {
+      for (let i = 0; i < inputs.length; i++) {
+        inputs[i].checked = false;
+      }
+      next_state = {checked: false, indeterminate: false};
+    }
+
+    set_select_all_checkbox_state(next_state, container_id);
+  };
+
+  const apply_bulk_visible = function(container_id, input_id) {
+    const inputs = $("#" + container_id + " input[data-input-type='bulk-control']:checked");
+    const choice_value = $("#" + container_id + " .top select").val();
+    let selected_row_ids = [];
+    for (let i = 0; i < inputs.length; i++) {
+      const row_id = inputs[i].getAttribute('data-for-row');  
+      selected_row_ids.push(row_id);  
+    }    
+    Shiny.setInputValue(input_id, {row:selected_row_ids, option:choice_value, bulk:'false'}, {priority: 'event'})
+  };
+
+  const apply_bulk_filtered = function(container_id, input_id) {        
+    const choice_value = $("#" + container_id + " .top select").val();    
+    Shiny.setInputValue(input_id, {row:null, option:choice_value, bulk:'filtered'}, {priority: 'event'})
+  };
+
   const res = {
     review_column_render: review_column_render,
     render_selection: render_selection,
     render_identity: render_identity,
     render_status: render_status,
+    render_bulk_menu: render_bulk_menu,
+    refresh_bulk_select_all_checkbox: refresh_bulk_select_all_checkbox,
+    on_change_select_all_checkbox: on_change_select_all_checkbox,
+    on_change_table_checkbox: on_change_table_checkbox,
+    apply_bulk_visible: apply_bulk_visible,
+    apply_bulk_filtered: apply_bulk_filtered,
     show_child: show_child
   }
   return (res)

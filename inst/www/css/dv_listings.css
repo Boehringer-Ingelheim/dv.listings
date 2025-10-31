@@ -1,0 +1,107 @@
+.top {
+  display: flex;
+  align-items: center;
+  margin-top: 8px; /* separate from controls above; table heading takes care of separation from controls below */ 
+}
+.bulk-menu-wrapper {
+  display: flex;
+  width: fit-content;
+  gap: 5px;
+  align-items: baseline;
+  background-color: #f8f9fa;
+  padding: 10px 15px;
+  border: 1px solid #dee2e6;
+  border-radius: 6px;
+  box-shadow: 1px 1px 3px rgba(0, 0, 0, 0.05);
+}
+.top-title {
+  flex: 1;
+  text-align: center;
+}
+
+/* FIXME:[BS5] This class can be removed once we abandon bs3*/
+.dv-listings-btn-xs { 
+  padding: 3px 6px;
+  font-size: 12px;
+  border-radius: 3px;
+}
+
+.dv-listings-badge.dv-listings-bg-primary,
+.dv-listings-label.dv-listings-label-primary {
+  /* Fallback color if no Bootstrap CSS variable exists */
+  background-color: #002f62; /* default Bootstrap 5 primary blue */
+  color: #fff;
+}
+ 
+/* === BASE BADGE === */
+.dv-listings-badge {
+  display: inline-block;
+  padding: 0.35em 0.65em;
+  font-size: 0.75em;
+  font-weight: 700;
+  line-height: 1;
+  text-align: center;
+  white-space: nowrap;
+  vertical-align: baseline;
+  border-radius: 0.25rem;
+  color: #fff;
+  background-color: #6c757d; /* default: secondary gray */
+}
+
+/* === BASE LABEL === */
+.dv-listings-label {
+  display: inline-block;
+  padding: 0.25em 0.6em;
+  font-size: 0.75em;
+  font-weight: 700;
+  line-height: 1;
+  text-align: center;
+  white-space: nowrap;
+  vertical-align: baseline;
+  border-radius: 0.25em;
+  color: #fff;
+  background-color: #999; /* default neutral */
+}
+
+/* === INFO === */
+.dv-listings-badge.dv-listings-bg-info,
+.dv-listings-label.dv-listings-label-info {
+  background-color: #0dcaf0; /* blue */
+}
+.dv-listings-badge.dv-listings-bg-info:hover,
+.dv-listings-label.dv-listings-label-info:hover {
+  background-color: #31d2f2;
+}
+
+/* === SUCCESS === */
+.dv-listings-badge.dv-listings-bg-success,
+.dv-listings-label.dv-listings-label-success {
+  background-color: #198754; /* green */
+}
+.dv-listings-bg-success:hover,
+.dv-listings-label.dv-listings-label-success:hover {
+  background-color: #239a61;
+}
+
+/* === WARNING === */
+.dv-listings-badge.dv-listings-bg-warning,
+.dv-listings-label.dv-listings-label-warning {
+  background-color: #ffc107; /* yellow/orange */
+  color: #212529; /* dark text for readability */
+}
+.dv-listings-badge.dv-listings-bg-warning:hover,
+.dv-listings-label.dv-listings-label-warning:hover {
+  background-color: #ffcd39;
+}
+
+/* === DANGER / ERROR === */
+.dv-listings-badge.dv-listings-bg-danger,
+.dv-listings-label.dv-listings-label-danger {
+  background-color: #dc3545; /* red */
+}
+.dv-listings-badge.dv-listings-bg-danger:hover,
+.dv-listings-label.dv-listings-label-danger:hover {
+  background-color: #e4605a;
+}
+
+

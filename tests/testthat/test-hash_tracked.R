@@ -1,41 +1,5 @@
-test_that("SH$hash_tracked exhibits almost no false negatives and few false positives", {
-  # TODO(miguel): Refactor and move next to hash_tracked into SH  
-  report_changes <- function(df, h0, verbose = FALSE){
-    res <- list()
-    h1 <- SH$hash_tracked(df[colnames(df)])
-    
-    offsets <- c(0, 2, 3)
-    
-    n_col <- ncol(df)
-    row_diff_indices <- which(apply(h0 != h1, 2, any))
-    for (i_row in row_diff_indices) {
-      prev <- as.integer(h0[,i_row])
-      cur <- as.integer(h1[,i_row])
-      diff <- (prev != cur)
-      diff <- apply(matrix(diff, ncol = BYTES_PER_TRACKED_HASH, byrow = TRUE), 1, any)
-      evidence <- integer(n_col)
-      for(i in seq_len(n_col)){
-        v <- diff[[i]]
-        affected_indices <- (((i-1) + offsets) %% n_col) + 1
-        delta <- isTRUE(v)
-        evidence[affected_indices] <- evidence[affected_indices] + delta
-        
-        if(verbose) print(evidence)
-      }
-      inferred_change_count <- ceiling(sum(diff)/length(offsets))
-      
-      # removes false negatives at the cost of false positives
-      threshold <- min(head(sort(evidence, decreasing = TRUE), inferred_change_count))
-      col_indices <- which(evidence >= threshold)
-      col_names <- paste(names(df)[col_indices], collapse = ', ')
-      
-      for(i_col in col_indices){
-        res[[length(res)+1]] <- c(i_row, i_col)
-      }
-    }
-    return(res)
-  }
-  
+test_that("SH$hash_tracked exhibits no false negatives and few false positives" |>
+            vdoc[["add_spec"]](specs$review_hash_no_false_negatives), {
   mutate <- function(df, i_row, i_col){
     v <- df[[i_col]][[i_row]]
     cl <- class(df[[i_col]])[[1]]
@@ -52,7 +16,7 @@ test_that("SH$hash_tracked exhibits almost no false negatives and few false posi
   }
   
   stress <- function(df, test_count, changes_per_test){
-    hashes <- SH$hash_tracked(df[colnames(df)])
+    h0 <- SH$hash_tracked(df[colnames(df)])
     
     n_row <- nrow(df)
     n_col <- ncol(df)
@@ -81,8 +45,17 @@ test_that("SH$hash_tracked exhibits almost no false negatives and few false posi
           dfp <- mutate(dfp, i_row, i_col)
         }
       }
+      
+      h1 <- SH$hash_tracked(dfp[colnames(dfp)])
    
-      reported_changes <- report_changes(dfp, hashes)
+      reported_changes_row_cols <- REV_report_changes(h0, h1)
+      
+      # Flatten changes for simpler downstream comparison
+      reported_changes <- list()
+      for(row_cols in reported_changes_row_cols){
+        row <- row_cols[["row"]]
+        for(col in row_cols[["cols"]]) reported_changes[[length(reported_changes) + 1]] <- c(row, col)
+      }
       
       if(!identical(expected_changes, reported_changes)) {
         i_exp <- 1
@@ -137,7 +110,7 @@ test_that("SH$hash_tracked exhibits almost no false negatives and few false posi
   expect_lte(length(res[["fn"]]), 0)
   res <- stress(ae, test_count, changes_per_test = 4)
   expect_lte(length(res[["fp"]]), 80)
-  expect_lte(length(res[["fn"]]), 3)
+  expect_lte(length(res[["fn"]]), 0)
   
  
   # Examine false negatives with: 
@@ -157,4 +130,98 @@ test_that("SH$hash_tracked exhibits almost no false negatives and few false posi
     info <- hash(ae, tracked_vars = colnames(ae), c, b)
     reported_changes <- report_changes(dfp, info, c, b, verbose = TRUE)
   }
+})
+
+test_that("Row changes can be attributed to specific modified columns" |>
+            vdoc[["add_spec"]](specs$review_change_attribution), {
+  folder_contents <- NULL
+  fs_callbacks <- list(
+    attach = function(arg) NULL, list = function(arg) NULL, read = function(arg) NULL, write = function(arg) NULL,
+    append = function(arg) NULL, execute_IO_plan = function(arg) NULL,
+    read_folder = function(arg) folder_contents <<- arg
+  )
+  
+  store_path <- file.path(tempdir(), "data_checks")
+  dir.create(store_path, showWarnings = FALSE)
+  on.exit(unlink(store_path, recursive = TRUE), add = TRUE, after = FALSE)
+  
+  fs_client <- fs_init(callbacks = fs_callbacks, store_path)
+  fs_client[["read_folder"]](subfolder_candidates = "dataset_list")
+  
+  tracked_vars <- c(
+    "AESEV", "AETERM", "AEHLGT", "AEHLT", "AELLT", 
+    "AEDECOD", "AESOC", "AESTDTC", "AEENDTC", "AESTDY","AEOUT", "AEACN", "AEREL"
+  )
+  
+  # Review folder contents initialized here with a dataset consisting of two rows from `sdtm_ae`
+  review = list(
+    datasets = list(ae = list(id_vars = c("USUBJID", "AESEQ"),  tracked_vars = tracked_vars)),
+    choices = c("choiceA", "choiceB"),
+    roles = c("roleA", "roleB")
+  )
+  
+  dataset_lists <- list(
+    dataset_list = list(
+      ae = safetyData::sdtm_ae[1:2,]
+    )
+  )
+  
+  info <- REV_load_annotation_info(folder_contents, review, dataset_lists)
+  expect_length(info[["error"]], 0)
+  fs_client[["execute_IO_plan"]](IO_plan = info[["folder_IO_plan"]], is_init = TRUE)
+  fs_client[["read_folder"]](subfolder_candidates = "dataset_list")
+  
+  Sys.sleep(1)
+  
+  # The severity of the first record changes on the first dataset update (#first_change)
+  
+  dataset_lists[["dataset_list"]][["ae"]][["AESEV"]][[1]] <- "SEVERE"
+  info <- REV_load_annotation_info(folder_contents, review, dataset_lists)
+  fs_client[["execute_IO_plan"]](IO_plan = info[["folder_IO_plan"]], is_init = TRUE)
+  fs_client[["read_folder"]](subfolder_candidates = "dataset_list")
+  
+  Sys.sleep(1)
+ 
+  # The severity of the second record changes on the second dataset update (#second_change)
+  dataset_lists[["dataset_list"]][["ae"]][["AESEV"]][[2]] <- "SEVERE"
+  # On the same update two new rows appear _before_ the two already known rows
+  dataset_lists[["dataset_list"]][["ae"]] <- rbind(safetyData::sdtm_ae[3:4,], dataset_lists[["dataset_list"]][["ae"]])
+  
+  info <- REV_load_annotation_info(folder_contents, review, dataset_lists)
+  fs_client[["execute_IO_plan"]](IO_plan = info[["folder_IO_plan"]], is_init = TRUE)
+  fs_client[["read_folder"]](subfolder_candidates = "dataset_list")
+  
+  # Compute which columns have changed
+  revisions <- attr(info[["loaded_annotation_info"]][["dataset_list"]][["ae"]], "revisions")
+  
+  canonical_tracked_vars <- sort(tracked_vars)
+  
+  # We fake a complete review process that happens before the latest dataset update
+  revision_count <- length(revisions$tracked_hashes)
+  timestamp_a_bit_lower_than_latest_update <- (revisions$timestamps[[revision_count]] + 
+                                                 revisions$timestamps[[revision_count-1]])/2.
+  
+  latest_revision_row_count <- ncol(revisions$tracked_hashes[[revision_count]])
+  review_timestamps <- rep(timestamp_a_bit_lower_than_latest_update, latest_revision_row_count)
+  
+  h0 <- REV_collect_latest_review_hashes(revisions, review_timestamps)
+  h1 <- revisions$tracked_hashes[[revision_count]]
+  
+  changes <- REV_report_changes(h0, h1)
+
+  # Row and column numbers reported here are canonical. Meaning:
+  # - rows denote order in which they were added. 1 and 2 are the first rows even though they are now rows 3 and 4
+  #   in the last revision of the dataset
+  # - columns refer to the indices of columns after _sorting them by name_
+   
+  expected_changes <- list(
+    # Row 1 is not listed here because we've specified that #first_change preceeds the review time of this row
+    # AESEV of second row, modified here #second_change
+    list(row = 2L, cols = 9L),
+    # All columns for the third and fourth rows (added on #second_change) are notified
+    list(row = 3L, cols = 1:13), 
+    list(row = 4L, cols = 1:13)
+  )
+  
+  expect_equal(changes, expected_changes)
 })

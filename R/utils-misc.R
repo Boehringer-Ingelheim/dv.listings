@@ -12,3 +12,19 @@ trigger_only_on_change <- function(r) {
   shiny::observe(rv(r()))
   rv
 }
+
+#' If x is `NULL`, return y, otherwise return x
+#'
+#' @param x,y Two elements to test, one potentially `NULL`
+#'
+#' @noRd
+#'
+
+#' @keywords internal
+"%||%" <- function(x, y) {
+  if (is.null(x)) {
+    y
+  } else {
+    x
+  }
+}

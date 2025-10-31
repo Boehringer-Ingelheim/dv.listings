@@ -123,7 +123,7 @@ data_frame_by_row(
   data = list(
     "Yes", "Pass", n_pass_dec, "white",
     "Yes", "Failed", n_fail_dec, if (n_fail_dec > 0) "red" else "green",
-    "Yes", "Skipped", n_skip_dec, if (n_skip_dec > 0) "red" else "green",
+    "Yes", "Skipped", n_skip_dec, if (n_skip_dec > 0) "yellow" else "green",
     "Yes", "No Test", n_uncov, if (n_uncov > 0) "red" else "green",
     "No", "NA", n_undec, if (n_undec > 0) "red" else "green"
   )

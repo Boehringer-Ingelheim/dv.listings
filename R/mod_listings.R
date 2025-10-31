@@ -98,7 +98,7 @@ listings_UI <- function(module_id) { # nolint
       shiny::tags[["button"]](
         id = ns(TBL$RESET_ROWS_ORDER_BUTTON_ID),
         class = "btn btn-default action-button",
-        "Reset Row Order"
+        TBL$RESET_ROWS_ORDER_BUTTON_LABEL
       ),
       shiny::tags[["script"]](shiny::HTML(sprintf("
   $(document).on('click', '#%s', function() {
@@ -177,7 +177,7 @@ listings_UI <- function(module_id) { # nolint
       for(let i = 0; i < tds.length; i += 1){
         let td = tds[i];
         let dropdown_content = td.querySelector('div.selectize-dropdown-content');
-        dropdown_content.setAttribute('style','width:max-content; background-color:white; border:1px solid rgba(0, 0, 0, 0.15); border-radius:4px; box-shadow:0 6px 12px rgba(0, 0, 0, 0.175);');
+        dropdown_content.setAttribute('style','min-width:100%%; width:max-content; background-color:white; border:1px solid rgba(0, 0, 0, 0.15); border-radius:4px; box-shadow:0 6px 12px rgba(0, 0, 0, 0.175);');
       }
   });", ns(TBL$TABLE_ID), ns(TBL$TABLE_ID))))
   )
@@ -221,6 +221,7 @@ listings_UI <- function(module_id) { # nolint
 #' @param review `[list()]`
 #'
 #' Configuration of the experimental data review feature. 
+#' Only one instance of the listings module can use this feature on any given app.
 #' For more details, please refer to `vignette("data_review")`.
 #'
 #' @export
@@ -392,8 +393,6 @@ listings_server <- function(module_id,
       "download_data",
       "dropdown_btn",
       "clear_filters",
-      # NOTE(miguel): Added here for easier merge with other branches
-      # TODO(miguel): Move elsewhere after merging 
       REV_UI(ns = identity, roles = character(0))[["input_ids_to_exclude_from_bookmarking"]]
     ))
 
@@ -439,12 +438,16 @@ listings_server <- function(module_id,
       # TODO: Consider adapting https://github.com/r-lib/fs/blob/main/R/sanitize.R instead to allow alternative charsets
       review[["roles"]] <- gsub("[^a-zA-Z0-9 _.-]", "", review[["roles"]]) # Accepts alpha+num+space+'.'+'_'+'-'
 
-      output[[TBL$REVIEW_UI_ID]] <- shiny::renderUI(
-        shinyWidgets::dropdownButton(
+      output[[TBL$REVIEW_UI_ID]] <- shiny::renderUI({
+
+        review_ui <- shinyWidgets::dropdownButton(
           inputId = ns(TBL$REVIEW_DROPDOWN_ID), label = shiny::textOutput(ns("review_label"), inline = TRUE), circle = FALSE,
           REV_UI(ns = ns, roles = review[["roles"]])[["ui"]]
         )
-      )
+
+        review_ui
+
+      })
 
       review_button_label <- shiny::reactive({
         role <- input[[REV$ID$ROLE]]
@@ -459,9 +462,7 @@ listings_server <- function(module_id,
 
       shiny::outputOptions(output, TBL$REVIEW_UI_ID, suspendWhenHidden = FALSE)
 
-      # TODO: Extract the REV_logic_1 logic, it just creates a set of observers that maybe better
-      # located out here. Otherwise this observer declarations may be ignored.
-      REV_logic_1(REV_state, input, review, review[["data"]], fs_client, fs_callbacks)
+      REV_main_logic(REV_state, input, review, review[["data"]], fs_client, fs_callbacks)
       show_review_columns <- REV_state[["contents_ready"]]
     }
 
@@ -536,7 +537,7 @@ listings_server <- function(module_id,
         })
       }
       
-      return( # FIXME: returns in a reactive seems strange
+      return(
         list(
           data = data, 
           row_names = set_up[["row_names"]], 
@@ -548,8 +549,8 @@ listings_server <- function(module_id,
     })
   
     if (enable_review) {
-      REV_logic_2(
-        ns = ns, state = REV_state, input = input, review = review, datasets = review[["data"]],
+      REV_respond_to_user_review(
+        ns = ns, state = REV_state, input = input, review = review,
         selected_dataset_list_name = review[["selected_dataset"]],
         selected_dataset_name = shiny::reactive(input[[TBL$DATASET_ID]]),
         data = shiny::reactive(output_table_data()[["data"]]),
@@ -565,8 +566,17 @@ listings_server <- function(module_id,
       
       column_defs <- list(list(className = "dt-center", targets = "_all"))
       selected_dataset_name <- shiny::isolate(input[[TBL$DATASET_ID]])
-      if (show_review_columns() && selected_dataset_name %in% names(review$datasets) && nrow(output_table_data()[["data"]]) > 0) {
-
+      
+      selected_dataset_label <- attr(shiny::isolate(dataset_list())[[selected_dataset_name]], "label")
+      if (length(selected_dataset_label) == 0 || nchar(selected_dataset_label) == 0) 
+        selected_dataset_label <- selected_dataset_name
+      
+      init_complete_payloads <- sprintf(
+        "$('#' + settings.sTableId + '_wrapper').find('.top-title').append('<h4>%s</h4>');", selected_dataset_label 
+      )
+      
+      review_col_count <- 0L
+      if (show_review_columns() && selected_dataset_name %in% names(review$datasets)) {
         js_render_call <- js_generate_review_column_contents()[["js_render_call"]]
         render_status_js_call <- js_generate_review_column_contents()[["render_status_js_call"]]
         role <- js_generate_review_column_contents()[["role"]]
@@ -574,12 +584,12 @@ listings_server <- function(module_id,
         # patch table data
         selected_dataset_list_name <- shiny::isolate(review[["selected_dataset"]]())
 
-        extra_col_names <- input[[REV$ID$DEV_EXTRA_COLS_SELECT]]
+        # NOTE: Partially repeats #weilae 
+        annotation_info <- REV_state[["annotation_info"]][[selected_dataset_list_name]][[selected_dataset_name]]
         changes <- REV_include_review_info(
-          annotation_info = REV_state[["annotation_info"]][[selected_dataset_list_name]][[selected_dataset_name]],
+          annotation_info = annotation_info,
           data = table_data[["data"]],
-          col_names = table_data[["col_names"]],
-          extra_col_names = extra_col_names
+          col_names = table_data[["col_names"]]
         )
 
         changes[["data"]][[REV$ID$STATUS_COL]] <- REV_compute_status(changes[["data"]], role)
@@ -589,26 +599,41 @@ listings_server <- function(module_id,
         table_data[["data"]] <- changes[["data"]]
         table_data[["col_names"]] <- changes[["col_names"]]
         
+        table_data <- REV_include_highlight_info(
+          table_data, annotation_info, 
+          tracked_vars = review[["datasets"]][[selected_dataset_name]][["tracked_vars"]]
+        )
+        
         # patch table style
-        review_column_indices <- seq_len(review_col_count)        
+        review_column_indices <- seq_len(review_col_count)
+        highlight_column_indices <- which(endsWith(table_data[["col_names"]], REV$ID$HIGHLIGHT_SUFFIX))
         
         column_defs <- append(
           column_defs,
           list(
             list(className = "dv_listings_review_column", targets = review_column_indices),
             list(render = htmlwidgets::JS(js_render_call), data = 1, 
-                 targets = head(review_column_indices, 1)),
+                 targets = utils::head(review_column_indices, 1)),
             list(render = htmlwidgets::JS(render_status_js_call), data = 3,
                  targets = review_column_indices[[3]]),
             list(visible = FALSE,
-                 targets = review_column_indices[[4]])            
+                 targets = c(review_column_indices[[4]], highlight_column_indices))
           )
         )
-      } else {
-        review_col_count <- 0        
-      }
 
-      DT::datatable(
+        # TODO: find a place for this if
+        if (checkmate::test_string(input[[REV$ID$ROLE]], min.chars = 1)) {
+          bulk_render <- sprintf(
+            "dv_listings.render_bulk_menu(settings.sTableId + \"_wrapper\", [%s], '%s');",
+            paste(paste0("'", review[["choices"]], "'"), collapse = ", "), ns(REV$ID$REVIEW_SELECT)
+          )
+          init_complete_payloads <- c(init_complete_payloads, bulk_render)
+        }
+      }
+      
+      init_complete_js <- paste0("function(settings, json) {", paste(init_complete_payloads, collapse = "\n"), "}")
+
+      res <- DT::datatable(
         data = table_data[["data"]],
         colnames = table_data[["col_names"]],
         rownames = table_data[["row_names"]],
@@ -622,31 +647,72 @@ listings_server <- function(module_id,
           scrollX = TRUE,
           ordering = TRUE,
           columnDefs = column_defs,
-          # FIXME: Update to use https://datatables.net/reference/option/layout
-          dom = "frtilp", # Buttons, filtering, processing display element, table, information summary, length, pagination
+          # TODO: Update to use new recommended API: https://datatables.net/reference/option/layout
+          dom = "<'top'<'top-title'>>rtilp", # Buttons, filtering, processing display element, table, information summary, length, pagination
           fixedColumns = list(left = review_col_count),
+          initComplete = htmlwidgets::JS(init_complete_js),
           drawCallback = htmlwidgets::JS("
-            function(settings) {
-              $('.dataTables_wrapper thead input[type=\"search\"]').removeAttr('disabled');
+            function (settings) {  
+            const table_wrapper = settings.nTableWrapper;
+              const search_inputs = table_wrapper.querySelectorAll('thead input[type=\"search\"]');
+              for(let i = 0; i < search_inputs.length; i++){
+                search_inputs[i].removeAttribute('disabled');
+              }              
+              
+              dv_listings.refresh_bulk_select_all_checkbox(settings.sTableId + \"_wrapper\");
+
+              /*
+              when upgrading to bs5 some filters were duplicated and left as orphans in the table body.
+              The options fillContainer and scrollX seems to be the culprits. Although I could not find specific issues
+              on this there seems to be many threads on the interactions of these two options with other datatable
+              features. The included solution is to remove these elements by hand on each draw.
+              */
+              const scroll_body = table_wrapper.querySelector('.dataTables_scrollBody');
+              if (scroll_body) {
+                const letfover_sliders = scroll_body.querySelectorAll('.noUi-target');
+                for(let i=0;i<letfover_sliders.length;++i){
+                  letfover_sliders[i].parentNode.remove();
+                }                
+              }
             }
           ") # Keep filtering enabled even for columns that have a unique value
         ),
         selection = "none"
       )
+      
+      if (show_review_columns()) {
+        tracked_vars <- sort(review[["datasets"]][[selected_dataset_name]][["tracked_vars"]])
+        present_vars <- names(table_data[["data"]])
+        sorted_present_tracked_vars <- sort(intersect(tracked_vars, present_vars))
+        
+        if (length(sorted_present_tracked_vars)) {
+          res <- DT::formatStyle(
+            table = res,
+            columns = sorted_present_tracked_vars,
+            valueColumns = paste0("__", sorted_present_tracked_vars, REV$ID$HIGHLIGHT_SUFFIX),
+            target = "cell",
+            backgroundColor = DT::styleEqual(c(FALSE, TRUE), c("#00000000", "#f0ad4ecc"))
+          )
+        }
+      }
+      
+      return(res)
     })
     
     shiny::exportTestValues(
       selected_columns_in_dataset = r_selected_columns_in_dataset()
     )
     
+    # Tell other modules we are a listing that offers the review function
+    mod_return_value <- list(enabled_review = !is.null(review))
+
     ## Jump to subject ----
-    mod_return_value <- NULL
     if (!is.null(on_sbj_click)) {
       shiny::observe({
         shiny::req(!is.null(input[[TBL$SEL_SUB_ID]]))
         on_sbj_click()
       })
-      mod_return_value <- list(subj_id = shiny::reactive(input[[TBL$SEL_SUB_ID]]))
+      mod_return_value[["subj_id"]] <- shiny::reactive(input[[TBL$SEL_SUB_ID]])
     }
     
     return(mod_return_value)
@@ -741,6 +807,32 @@ mod_listings <- function(
         # These afmm fields are only required for the review functionality, so we bundle them in the `review` list
         review[["data"]] <- afmm[["data"]]
         review[["selected_dataset"]] <- afmm[["dataset_metadata"]][["name"]]
+        
+        # Prevent and warn against multiple `dv.listings` instances with active review functionality.
+        #
+        # This block of code takes advantage of the way `dv.manager` incrementally populates afmm[["module_output"]].
+        # At this point in (non-reactive) time, `dv.manager` has run the server functions of only the modules that
+        # precede this one in the `module_list` declaration of the DaVinci app. As long as one of them has declared 
+        # that it offers the review interface, we will refuse to start our own.
+        for (mod_output in afmm[["module_output"]]()){
+          if (is.list(mod_output) && isTRUE(mod_output[["enabled_review"]])) {
+            this_tab_name <- afmm[["module_names"]][[module_id]]
+            
+            shiny::showNotification({
+              paste(
+                "This app is configured to review listings in more than one tab. However,",
+                "only one instance of the `dv.listings` module can offer review functionality on any given app.<br>",
+                sprintf(
+                  'We have <b>disabled the review interface on the tab labeled "%s" (with module ID "%s")</b>',
+                  this_tab_name, module_id
+                ), "to sidestep this issue. Sorry for the inconvenience."
+              ) |> htmltools::HTML()
+            }, duration = NULL, type = "error")
+            
+            review <- NULL
+            break
+          }
+        }
       }
       
       listings_server(
@@ -866,80 +958,7 @@ check_mod_listings <- function(afmm, datasets, module_id, dataset_names,
     )
   )
 
-  # review
-  local({
-    if (is.null(review)) return(NULL)
-    ok <- CM$assert(
-      container = err,
-      cond = (checkmate::test_list(review, names = "unique") &&
-                checkmate::test_subset(c("datasets", "choices", "roles"), names(review))),
-      msg = "`review` should be a list with at least three elements: `datasets`, `choices` and `roles`"
-    ) &&
-      CM$assert(
-        container = err,
-        cond = (checkmate::test_list(review[["datasets"]], names = "unique") &&
-                  checkmate::test_subset(names(review[["datasets"]]), dataset_names)),
-        msg = sprintf(
-          "`review$datasets` should be a list and its elements should be named after the following dataset names: %s",
-          paste(dataset_names, collapse = ", ")
-        )
-      ) &&
-      CM$assert(
-        container = err,
-        cond = checkmate::test_character(review[["choices"]], min.len = 1, min.chars = 1, unique = TRUE),
-        msg = "`review$choices` should be a non-empty character vector of unique, non-empty strings"
-      ) &&
-      CM$assert(
-        container = err,
-        cond = checkmate::test_character(review[["roles"]], min.len = 1, min.chars = 1, unique = TRUE),
-        msg = "`review$roles` should be a non-empty character vector of unique, non-empty strings"
-      )
-    
-    if (!ok) return(NULL)
-    for (domain in names(review[["datasets"]])){
-      info <- review[["datasets"]][[domain]]            
-        
-        dataset <- datasets[[domain]]
-        
-        CM$assert(
-          container = err,
-          cond = (checkmate::test_list(review, names = "unique") &&
-                    checkmate::test_subset(c("id_vars", "tracked_vars"), names(info))),
-          msg = sprintf("`review$datasets$%s` should be a list with two elements named `id_vars` and `tracked_vars`",
-                        domain)
-        ) &&
-          CM$assert(
-            container = err,
-            cond = (checkmate::test_character(info[["id_vars"]], min.len = 1, min.chars = 1, unique = TRUE) &&
-                      checkmate::test_subset(info[["id_vars"]], names(dataset))),
-            msg = sprintf(
-              paste(
-                "`review$datasets$%s$id_vars` should be a character vector listing a subset of the columns",
-                "available in dataset `%s`"
-              ), domain, domain
-            )
-          ) &&
-          CM$assert(
-            container = err,
-            cond = nrow(dataset[info[["id_vars"]]]) == nrow(unique(dataset[info[["id_vars"]]])),
-            msg = sprintf("`review$datasets$%s$id_vars` should identify uniquely every row of the dataset `%s`", 
-                          domain, domain)
-          ) &&
-          CM$assert(
-            container = err,
-            cond = (checkmate::test_character(info[["tracked_vars"]], min.chars = 1, min.len = 3, unique = TRUE) &&
-                      checkmate::test_subset(info[["tracked_vars"]], names(dataset))),
-            msg = sprintf(
-              paste(
-                "`review$datasets$%s$tracked_vars` should be a character vector listing a subset of",
-                " at least three columns available in dataset `%s`"
-              ), domain, domain
-            )
-          )
-      
-    }
-  })
-
+  check_review_parameter(datasets, dataset_names, review, err)
   
   res <- list(warnings = warn[["messages"]], errors = err[["messages"]])
   return(res)

@@ -10,8 +10,8 @@ REV <- pack_of_constants(
     LATEST_REVIEW_COL = "__latest_review__",
     REVIEW_SELECT = "rev_id",
     ROLE = "rev_role",
-    DEV_EXTRA_COLS_SELECT = "dev_extra_cols_select",
-    CONNECT_STORAGE = "connect_storage"
+    CONNECT_STORAGE = "connect_storage",
+    HIGHLIGHT_SUFFIX = "_highlight__"
   ),
   LABEL = pack_of_constants(
     DROPDOWN = "Annotation",
@@ -23,7 +23,8 @@ REV <- pack_of_constants(
     CONFLICT = "Conflict",
     CONFLICT_ROLE = "Conflict I can fix",
     OK = "OK"
-  )
+  ),
+  HIGHLIGHT_ALL_TRACKED_COLUMNS_IF_MORE_THAN_N_COLUMNS_HAVE_CHANGED = 4
 )
 
 REV_time_from_timestamp <- function(v) {  
@@ -35,7 +36,7 @@ REV_time_from_timestamp <- function(v) {
   return(res)
 }
 
-REV_include_review_info <- function(annotation_info, data, col_names, extra_col_names) {
+REV_include_review_info <- function(annotation_info, data, col_names) {
   if (nrow(data) < nrow(annotation_info)) {
     filter_mask <- attr(data, "filter_mask")
     annotation_info <- annotation_info[filter_mask, ]
@@ -48,12 +49,9 @@ REV_include_review_info <- function(annotation_info, data, col_names, extra_col_
   status <- NA_character_
   latest_reviews <- annotation_info[["latest_reviews"]]
   
-  # TODO: Introduce something to this effect
-  # > shiny::validate(shiny::need(nrow(data) <= length(reviews), "Error: Inconsistency between review data and loaded datasets"))
- 
   # include review-related columns
   res <- data.frame(reviews, roles) # FIXME: (maybe) Can't pass latest review as argument. List confuses data.frame
-  res[["status"]] <- status
+  res[["status"]] <- rep(status, nrow(res)) # Explicit `rep` avoids assignment error when `nrow(res) == 0`
   res[["latest_reviews"]] <- latest_reviews
   names(res)[[1]] <- REV$ID$REVIEW_COL
   names(res)[[2]] <- REV$ID$ROLE_COL
@@ -64,12 +62,60 @@ REV_include_review_info <- function(annotation_info, data, col_names, extra_col_
   # add actual data
   res <- cbind(res, data)
   res_col_names <- c(res_col_names, col_names)
+ 
+  attributes_to_restore <- setdiff(ls(attributes(data)), c("class", "names"))
+  for (e in attributes_to_restore) attr(res, e) <- attr(data, e)
 
   return(list(data = res, col_names = res_col_names))
 }
 
+REV_include_highlight_info <- function(table_data, annotation_info, tracked_vars) {
+  data <- table_data[["data"]]
+  # Compute dataset changes that make current reviews obsolete
+  row_col_changes_st <- local({
+    revisions <- attr(annotation_info, "revisions")
+    h0 <- REV_collect_latest_review_hashes(
+      revisions = revisions, 
+      review_timestamps = annotation_info[["timestamp"]]
+    )
+    h1 <- revisions$tracked_hashes[[length(revisions$tracked_hashes)]]
+    
+    if (nrow(data) < nrow(annotation_info)) {
+      filter_mask <- attr(data, "filter_mask")
+      h0 <- h0[, filter_mask, drop = FALSE]
+      h1 <- h1[, filter_mask, drop = FALSE]
+    }
+    
+    res <- REV_report_changes(h0, h1)
+    for (i_row in seq_along(res)){
+      cols <- res[[i_row]][["cols"]]
+      if (length(cols) > REV$HIGHLIGHT_ALL_TRACKED_COLUMNS_IF_MORE_THAN_N_COLUMNS_HAVE_CHANGED)
+        res[[i_row]][["cols"]] <- seq_len(length(tracked_vars)) # consider all tracked_vars as modified
+    }
+    return(res)
+  })
+  
+  highlight_col_names <- paste0("__", sort(tracked_vars), REV$ID$HIGHLIGHT_SUFFIX)
+  table_data[["col_names"]] <- c(table_data[["col_names"]], highlight_col_names)
+  row_count <- nrow(data)
+  for (col_name in highlight_col_names) 
+    data[[col_name]] <- rep(FALSE, row_count) # Explicit `rep` avoids assignment error when `nrow(data) == 0`
+ 
+  map_canonical_indices_into_current_order <- attr(annotation_info, "map_canonical_indices_into_current_order")
+  for (row_cols_st in row_col_changes_st){
+    i_row_df <- map_canonical_indices_into_current_order(row_cols_st[["row"]])
+    if (i_row_df > 0 && data[[REV$ID$STATUS_COL]][[i_row_df]] == REV$STATUS_LEVELS$LATEST_OUTDATED) {
+      col_names <- highlight_col_names[row_cols_st[["cols"]]]
+      data[i_row_df, col_names] <- TRUE
+    }
+  }
+  table_data[["data"]] <- data
+  
+  return(table_data)
+}
+
 REV_UI <- function(ns, roles) {
-  choices <- setNames(c("", roles), c("<select reviewer role>", roles))
+  choices <- stats::setNames(c("", roles), c("<select reviewer role>", roles))
 
   res <- list()
   res[["ui"]] <- shiny::tagList(
@@ -80,8 +126,7 @@ REV_UI <- function(ns, roles) {
       inputId = ns(REV$ID$ROLE), label = "Role:", choices = choices
     )
   )
-  res[["input_ids_to_exclude_from_bookmarking"]] <- c(ns(REV$ID$CONNECT_STORAGE), ns(REV$ID$ROLE), 
-                                                      ns(REV$ID$DEV_EXTRA_COLS_SELECT))
+  res[["input_ids_to_exclude_from_bookmarking"]] <- c(ns(REV$ID$CONNECT_STORAGE), ns(REV$ID$ROLE))
 
   return(res)
 }
@@ -160,16 +205,21 @@ REV_load_annotation_info <- function(folder_contents, review, dataset_lists) {
       row_count <- nrow(dataset)
      
       default_review <- factor(review[["choices"]][[1]], levels = review[["choices"]])
-      dataset_review <- data.frame(review = rep(default_review, row_count),
-                                   timestamp = numeric(row_count), 
-                                   role = rep(role_factor, row_count), 
-                                   data_timestamp = numeric(row_count))
+      
+      # Glossary of variable suffixes:
+      # =============================
+      # _st: coming from or relative to `state` (contains all rows)
+      # _df: coming from or relative to `df` (contains only rows present in currently available data)
+      dataset_review_df <- data.frame(review = rep(default_review, row_count),
+                                      timestamp = numeric(row_count), 
+                                      role = rep(role_factor, row_count), 
+                                      data_timestamp = numeric(row_count))
       
       id_vars <- review[["datasets"]][[dataset_review_name]][["id_vars"]]
       tracked_vars <- setdiff(review[["datasets"]][[dataset_review_name]][["tracked_vars"]], id_vars)
      
       base_timestamp <- NA_real_
-      data_timestamps <- rep(NA_real_, row_count)
+      data_timestamps_st <- rep(NA_real_, row_count)
       # <domain>_000.base
       fname <- paste0(dataset_review_name, "_000.base")
       if (fname %in% names(folder_contents[[dataset_lists_name]])) {
@@ -285,31 +335,35 @@ REV_load_annotation_info <- function(folder_contents, review, dataset_lists) {
             new_delta_and_errors <- RS_compute_delta_memory(state = base_info, dataset)
            
             error_strings <- new_delta_and_errors[["error"]]
-            if (length(error_strings)) {
+            if (length(error_strings)) { # Error conditions prevent generation of delta files
               error <- c(error, paste0("[", dataset_review_name, "] ", error_strings))
-            }
-            
-            new_delta <- new_delta_and_errors[["contents"]]
-            
-            deltas[[length(deltas) + 1]] <- new_delta
-            base_info <- RS_load(contents, deltas)
-
-            delta_number <- length(delta_fnames) + 1
-            fname <- sprintf("%s_%03d.delta", dataset_review_name, delta_number)
-            append_IO_action(
-              list(
-                type = "write_file",
-                mode = "bin",
-                path = dataset_lists_name,
-                fname = fname,
-                contents = new_delta
+            } else {
+              new_delta <- new_delta_and_errors[["contents"]]
+              
+              deltas[[length(deltas) + 1]] <- new_delta
+              base_info <- RS_load(contents, deltas)
+              
+              delta_number <- length(delta_fnames) + 1
+              fname <- sprintf("%s_%03d.delta", dataset_review_name, delta_number)
+              append_IO_action(
+                list(
+                  type = "write_file",
+                  mode = "bin",
+                  path = dataset_lists_name,
+                  fname = fname,
+                  contents = new_delta
+                )
               )
-            )
+            }
         }
       } else {
         contents <- RS_compute_base_memory(dataset_review_name, dataset, id_vars, tracked_vars)
-        base_info <- RS_parse_base(contents)
-        append_IO_action(
+        if (inherits(contents, "simpleCondition")) {
+          # IMPORTANT: Not being able to compute the base info is too severe an error to recover from, so we error out
+          return(list(error = c(error, contents[["message"]])))
+        } else {
+          base_info <- RS_load(base = contents, deltas = list())
+          append_IO_action(
             list(
               type = "write_file",
               mode = "bin",
@@ -318,12 +372,11 @@ REV_load_annotation_info <- function(folder_contents, review, dataset_lists) {
               contents = contents
             )
           )  
-        base_timestamp <- base_info[["timestamp"]] # TODO: Consider providing timestamp to RS_compute_base_memory instead?
-        data_timestamps <- base_info[["row_timestamps"]]
+        }
       }
       
       base_timestamp <- base_info[["timestamp"]]
-      data_timestamps <- base_info[["row_timestamps"]]
+      data_timestamps_st <- base_info[["row_timestamps"]]
       
       # This probably should live alongside RS_* functions
       # NOTE(miguel): I didn't consider the possibility of row reordering in the original design of the review file
@@ -332,29 +385,46 @@ REV_load_annotation_info <- function(folder_contents, review, dataset_lists) {
       #               cost of four bytes per row. I think the superior approach would be to speed up data.frame row 
       #               hashing (by dropping down to C?), as the initial hashing would also benefit from it.
       #               That's why we recompute the hashes here:
-      state_to_dataset_row_mapping <- local({ # TODO: Is this the right name?
+      
+      # Map data from `_st` order into `_df` order through `data_st[st_map_df]`
+      # Map indices from `_df` order into `st` order through `st_map_df[indices_df]`
+      # Notice how the "st_" and "_df" prefix and suffix match the type of the operand to their left or right
+      st_map_df <- local({
         id_vars <- base_info[["id_vars"]]
         id_hashes <- RS_compute_id_hashes(dataset, id_vars)
         mapping <- match(asplit(id_hashes, 2), asplit(base_info[["id_hashes"]], 2))
         return(mapping)
       })
+      map_canonical_data_into_current_order <- function(data) {
+        if (is.data.frame(data)) data[st_map_df, , drop = FALSE]
+        else data[st_map_df]
+      }
+      map_current_indices_into_canonical_order <- function(indices) st_map_df[indices]
       
-      # Compute reverse mapping (which is a more useful representation for the running app)
-      dataset_to_state_row_mapping <- local({ # TODO: Is this the right name?
-        res <- integer(length(state_to_dataset_row_mapping))
-        res[state_to_dataset_row_mapping] <- seq_along(state_to_dataset_row_mapping)
+      # Map data from `_df` order into `_st` order through `data_df[df_map_st]`
+      # Map indices from `_st` order into `df` order through `df_map_st[indices_st]`
+      # Notice how the "df_" and "_st" prefix and suffix match the type of the operand to their left or right
+      df_map_st <- local({
+        row_count <- ncol(base_info[["id_hashes"]])
+        res <- integer(row_count)
+        res[st_map_df] <- seq_along(st_map_df)
         return(res)
       }) 
+      map_current_data_into_canonical_order <- function(data) {
+        if (is.data.frame(data)) data[df_map_st, , drop = FALSE]
+        else data[df_map_st]
+      }
+      map_canonical_indices_into_current_order <- function(indices) df_map_st[indices]
      
-      dataset_review[["timestamp"]] <- base_timestamp
-      dataset_review[["data_timestamp"]] <- data_timestamps[state_to_dataset_row_mapping]
+      dataset_review_df[["timestamp"]] <- base_timestamp
+      dataset_review_df[["data_timestamp"]] <- map_canonical_data_into_current_order(data_timestamps_st)
       
       # <domain>_<ROLE>.review      
-      all_latest_reviews <- local({
+      all_latest_reviews_df <- local({
         role_list <- rep_len(list(), length.out = length(review[["roles"]]))
         names(role_list) <- review[["roles"]]
         role_timestamp_list <- list(reviews = role_list, data_timestamp = NULL)
-        rep_len(list(role_timestamp_list), length.out = nrow(dataset_review))
+        rep_len(list(role_timestamp_list), length.out = nrow(dataset_review_df))
       })
 
       for (role in review[["roles"]]){
@@ -374,48 +444,53 @@ REV_load_annotation_info <- function(folder_contents, review, dataset_lists) {
           )
         }
 
-        # NOTE: each role keeps their own decisions...
-        role_review <- RS_parse_review_reviews(contents, dataset_to_state_row_mapping = dataset_to_state_row_mapping, 
-                                               expected_role = role, expected_domain = dataset_review_name)
-        # NOTE: and we combine them to display the latest one, but we could...
-        # TODO: ...make reviews by all roles available to the user? (could be done through separate columns)
-
-
-        # Progressive update of all roles through the mask
-        update_mask <- (role_review[["timestamp"]] > dataset_review[["timestamp"]])
+        # NOTE: each role keeps their own decisions and we combine them to display the latest one
+        row_count <- ncol(base_info[["id_hashes"]])
+        role_review_st <- RS_parse_review_reviews(contents, row_count = row_count,
+                                                  expected_role = role, expected_domain = dataset_review_name)
+        role_review_df <- map_canonical_data_into_current_order(role_review_st)
         
-        if (any(update_mask)) {
-          review_indices <- role_review[update_mask, ][["review"]]         
-          dataset_review[update_mask, ][["review"]] <- review[["choices"]][review_indices]
-          dataset_review[update_mask, ][["timestamp"]] <- role_review[update_mask, ][["timestamp"]]
-          dataset_review[update_mask, ][["role"]] <- role
+        # Progressive update of all roles through the mask
+        update_mask_df <- (role_review_df[["timestamp"]] > dataset_review_df[["timestamp"]])
+        if (any(update_mask_df)) {
+          review_indices <- role_review_df[["review"]][update_mask_df]
+          dataset_review_df[["review"]][update_mask_df] <- review[["choices"]][review_indices]
+          dataset_review_df[["timestamp"]][update_mask_df] <- role_review_df[update_mask_df, ][["timestamp"]]
+          dataset_review_df[["role"]][update_mask_df] <- role
         }
         # compact all in lists
-        # Replace by list of roles so it is a single columns and we can directly iterate over it
-        
-        all_latest_reviews <- local({          
-          reviewed_idx <- which(role_review[["timestamp"]] > 0)          
+        # Replace by list of roles so it is a single column and we can directly iterate over it
+        all_latest_reviews_df <- local({          
+          reviewed_idx <- which(role_review_df[["timestamp"]] > 0)
           for (idx in reviewed_idx) {
-            review_char <- review[["choices"]][role_review[["review"]][[idx]]]         
-            curr_crr <- list(role = role, review = review_char, timestamp = role_review[["timestamp"]][[idx]], reviewed_at_least_once = TRUE)            
-            all_latest_reviews[[idx]][["reviews"]][[role]] <- curr_crr            
+            review_char <- review[["choices"]][role_review_df[["review"]][[idx]]]         
+            curr_crr <- list(role = role, review = review_char, timestamp = role_review_df[["timestamp"]][[idx]], reviewed_at_least_once = TRUE)            
+            all_latest_reviews_df[[idx]][["reviews"]][[role]] <- curr_crr            
           } 
 
-          for (idx in seq_len(nrow(dataset_review))) {            
-            all_latest_reviews[[idx]][["data_timestamp"]] <- dataset_review[["data_timestamp"]][[idx]]
+          for (idx in seq_len(nrow(dataset_review_df))) {            
+            all_latest_reviews_df[[idx]][["data_timestamp"]] <- dataset_review_df[["data_timestamp"]][[idx]]
           } 
-          all_latest_reviews        
+          all_latest_reviews_df
         })
       }
 
-      dataset_review[["latest_reviews"]] <- all_latest_reviews
+      dataset_review_df[["latest_reviews"]] <- all_latest_reviews_df
            
-      # FIXME? Mapping attached as attribute to avoid rewriting prototype-level code
       # Add latest roles columns      
-      sub_res[[dataset_review_name]] <- dataset_review[c("review", "timestamp", "role", "data_timestamp", "latest_reviews")]
-      attr(sub_res[[dataset_review_name]], "state_to_dataset_row_mapping") <- state_to_dataset_row_mapping
-      # FIXME? Base timestamp attached as attribute to avoid rewriting prototype-level code
+      sub_res[[dataset_review_name]] <- dataset_review_df[c("review", "timestamp", "role", "data_timestamp", "latest_reviews")]
+      attr(sub_res[[dataset_review_name]], "map_canonical_data_into_current_order") <- 
+        map_canonical_data_into_current_order
+      attr(sub_res[[dataset_review_name]], "map_current_indices_into_canonical_order") <- 
+        map_current_indices_into_canonical_order
+      attr(sub_res[[dataset_review_name]], "map_current_data_into_canonical_order") <- 
+        map_current_data_into_canonical_order
+      attr(sub_res[[dataset_review_name]], "map_canonical_indices_into_current_order") <- 
+        map_canonical_indices_into_current_order
+      
       attr(sub_res[[dataset_review_name]], "base_timestamp") <- base_timestamp
+      # Add tracked_hashes for each revision of the dataset to be able to attribute row changes to specific columns
+      attr(sub_res[[dataset_review_name]], "revisions") <- base_info[["revisions"]]
     }
     loaded_annotation_info[[dataset_lists_name]] <- sub_res
   }
@@ -429,8 +504,7 @@ REV_load_annotation_info <- function(folder_contents, review, dataset_lists) {
   return(res)
 }
     
-REV_logic_1 <- function(state, input, review, datasets, fs_client, fs_callbacks) { # TODO: Rename
-  # TODO: Flesh out the state machine. Right now there are only default selections for quick iteration
+REV_main_logic <- function(state, input, review, datasets, fs_client, fs_callbacks) {
   state[["connected"]] <- shiny::reactiveVal(FALSE)
   state[["contents_ready"]] <- shiny::reactiveVal(FALSE)
   state[["folder"]] <- NULL
@@ -506,73 +580,152 @@ REV_logic_1 <- function(state, input, review, datasets, fs_client, fs_callbacks)
   )
 }
 
-REV_logic_2 <- function(ns, state, input, review, datasets, selected_dataset_list_name, selected_dataset_name, data,
-                        dt_proxy, fs_execute_IO_plan) { # TODO: Rename
+REV_produce_IO_plan_for_review_action <- function(
+    canonical_row_indices, role, choice_index, timestamp, dataset_list_name, dataset_name
+) {
+  contents <- raw(0)
+  for (row_index in canonical_row_indices) {
+    contents <- c(
+      contents,
+      SH$integer_to_raw(row_index),
+      SH$integer_to_raw(choice_index),
+      SH$double_to_raw(timestamp)
+    )
+  }
+  
+  IO_plan <- list(
+    list(
+      type = "append_file",
+      mode = "bin",
+      path = dataset_list_name,
+      fname = paste0(dataset_name, "_", role, ".review"),
+      contents = contents
+    )
+  )
+  
+  return(IO_plan)
+}
+
+# Testing on 0-row, 1-row and multi-row inputs would have uncovered some bugs we've already addressed
+REV_compute_review_changes <- function(data, row_indices, annotation_info, choices, choice_index, role, timestamp,
+                                       dataset_list_name, dataset_name) {
+  res <- list()
+  
+  defiltered_row_indices <- local({
+    # `row_indices` relative to the filtered data sent to the client ...
+    filter_mask <- attr(data, "filter_mask")
+    res <- which(filter_mask)[row_indices]
+    return(res)
+  })
+  
+  canonical_row_indices <- local({
+    # ... and that `row_indices` needs to be mapped into a base+deltas (stable) index
+    map_current_indices_into_canonical_order <- attr(annotation_info, "map_current_indices_into_canonical_order")
+    res <- map_current_indices_into_canonical_order(defiltered_row_indices)
+    return(res)
+  })
+  
+  IO_plan <- REV_produce_IO_plan_for_review_action(
+    canonical_row_indices, role, choice_index, timestamp, dataset_list_name, dataset_name
+  )
+  
+  # NOTE: We could cache the modified table and avoid repeating this operation 
+  #       if it turns out to be a performance bottleneck
+  # TODO: This loop can be too long when there are too many rows
+  # Writing is done in one step but by row update is done one by one.
+  for (i in seq_along(row_indices)) {
+    curr_i_row <- row_indices[[i]]
+    curr_defiltered_i_row <- defiltered_row_indices[[i]]
+    
+    last_review_entry <- data[curr_i_row, ][[REV$ID$LATEST_REVIEW_COL]][[1]]
+    last_review_entry[["reviews"]][[role]][["role"]] <- role
+    last_review_entry[["reviews"]][[role]][["review"]] <- choices[[choice_index]]
+    last_review_entry[["reviews"]][[role]][["timestamp"]] <- timestamp
+    
+    # Fixed columns
+    data[curr_i_row, ][[REV$ID$REVIEW_COL]] <- choices[[choice_index]]
+    data[curr_i_row, ][[REV$ID$ROLE_COL]] <- role
+    data[curr_i_row, ][[REV$ID$LATEST_REVIEW_COL]][[1]] <- last_review_entry
+    
+    # - data_time does not change when reviewed
+    
+    # `REV_load_annotation_info()` would return this same (modified) state, but we do manual synchronization
+    # to avoid potentially expensive data reloading
+    row_contents <- annotation_info[curr_defiltered_i_row, ]
+    row_contents[["review"]] <- choices[[choice_index]]
+    row_contents[["timestamp"]] <- timestamp
+    row_contents[["role"]] <- role    
+    row_contents[["latest_reviews"]][[1]] <- last_review_entry
+    # > row_contents[["data_timestamp"]] # unchanged
+    
+    annotation_info[curr_defiltered_i_row, ] <- row_contents
+  }
+  
+  res[["data"]] <- data 
+  res[["annotation_info"]] <- annotation_info
+  res[["IO_plan"]] <- IO_plan
+  
+  return(res)
+}
+  
+
+REV_respond_to_user_review <- function(ns, state, input, review, selected_dataset_list_name, selected_dataset_name, data,
+                                       dt_proxy, fs_execute_IO_plan, table_data_rw) {
   shiny::observeEvent(input[[REV$ID$REVIEW_SELECT]], {
     role <- input[[REV$ID$ROLE]]
 
+    if (!checkmate::test_string(role, min.chars = 1)) {
+      msg <- "Attempted write with unset role"
+      shiny::showNotification(msg, type = "warning")
+      warning(msg)
+      shiny::req(FALSE)
+    }
+    
     dataset_list_name <- selected_dataset_list_name() 
     dataset_name <- selected_dataset_name()
     
     new_data <- data()
     
     info <- input[[REV$ID$REVIEW_SELECT]]
-    i_row <- info[["row"]]
+
+    # Replace in full bulk operation
+    if ("bulk" %in% names(info) && identical(info[["bulk"]], "filtered")) {
+      info[["row"]] <- input[[paste0(TBL$TABLE_ID, "_rows_all")]]
+    }
+    shiny::req(length(info[["row"]]) > 0)
+
+    i_rows <- as.numeric(info[["row"]])
+    annotation_info <- state[["annotation_info"]][[dataset_list_name]][[dataset_name]]
     
-    defiltered_i_row <- local({
-      # `i_row` is relative to the filtered data sent to the client ...
-      filter_mask <- attr(new_data, "filter_mask")
-      res <- which(filter_mask)[[i_row]]
-      return(res)
-    })
-    
-    stored_i_row <- local({
-      # ... and that `i_row` needs to be mapped into a base+deltas (stable) index
-      row_map <- attr(state[["annotation_info"]][[dataset_list_name]][[dataset_name]], "state_to_dataset_row_mapping")
-      res <- row_map[[defiltered_i_row]]
-      return(res)
-    })
-    option <- as.integer(info[["option"]])
-   
-    timestamp <- SH$get_UTC_time_in_seconds()
-        
-    extra_col_names <- input[[REV$ID$DEV_EXTRA_COLS_SELECT]]
-    
-    # NOTE: Partially repeats #weilae 
-    # NOTE: We could cache the modified table and avoid repeating this operation 
-    #       if it turns out to be a performance bottleneck
-    changes <- REV_include_review_info(
-      annotation_info = state[["annotation_info"]][[dataset_list_name]][[dataset_name]],
-      data = data(), col_names = list(), extra_col_names = extra_col_names
-    )
+    changes <- REV_include_review_info(annotation_info = annotation_info, data = new_data, col_names = list())
     new_data <- changes[["data"]]
-
-    last_review_entry <- new_data[i_row, ][[REV$ID$LATEST_REVIEW_COL]][[1]]
-    last_review_entry[["reviews"]][[role]][["role"]] <- role
-    last_review_entry[["reviews"]][[role]][["review"]] <- review[["choices"]][[option]]
-    last_review_entry[["reviews"]][[role]][["timestamp"]] <- timestamp
-
-    # Fixed columns
-    new_data[i_row, ][[REV$ID$REVIEW_COL]] <- review[["choices"]][[option]]
-    new_data[i_row, ][[REV$ID$ROLE_COL]] <- role
-    new_data[i_row, ][[REV$ID$LATEST_REVIEW_COL]][[1]] <- last_review_entry
+    timestamp <- SH$get_UTC_time_in_seconds()
+    choice_index <- as.integer(info[["option"]])
+    
+    subres <- REV_compute_review_changes(
+      data = new_data, row_indices = i_rows, annotation_info = annotation_info, 
+      choices = review[["choices"]], choice_index = choice_index,  role = role, 
+      timestamp = timestamp, dataset_list_name = dataset_list_name, dataset_name = dataset_name
+    )
+    
+    new_data <- subres[["data"]]
+    annotation_info <- subres[["annotation_info"]]
+    state[["annotation_info"]][[dataset_list_name]][[dataset_name]] <- annotation_info
+    IO_plan <- subres[["IO_plan"]]
 
     # TODO: Benchmark to decide if this is a bottleneck for bigger datasets
     new_data[[REV$ID$STATUS_COL]] <- REV_compute_status(new_data, role)
     new_data[[REV$ID$LATEST_REVIEW_COL]] <- REV_review_var_to_json(new_data[[REV$ID$LATEST_REVIEW_COL]])
-    
-    # - data_time does not change when reviewed
-    
-    # `REV_load_annotation_info()` would return this same (modified) state, but we do manual synchronization
-    # to avoid potentially expensive data reloading
-    row_contents <- state[["annotation_info"]][[dataset_list_name]][[dataset_name]][defiltered_i_row, ]
-    row_contents[["review"]] <- review[["choices"]][[option]]
-    row_contents[["timestamp"]] <- timestamp
-    row_contents[["role"]] <- role    
-    row_contents[["latest_reviews"]][[1]] <- last_review_entry
-    # > row_contents[["data_timestamp"]] # unchanged
-    
-    state[["annotation_info"]][[dataset_list_name]][[dataset_name]][defiltered_i_row, ] <- row_contents
+
+    new_data <- local({
+      # TODO: rewrite REV_include_highlight_info to avoid this clumsy wrapper
+      table_data <- list(data = new_data, col_names = character(0))
+      table_data <- REV_include_highlight_info(
+        table_data, annotation_info, 
+        tracked_vars = review[["datasets"]][[dataset_name]][["tracked_vars"]]
+      )
+      return(table_data[["data"]])
+    })
    
     # If we were doing pure client-side rendering of DT, maybe we could do a lighter upgrade with javascript:
     # > var table = $('#DataTables_Table_0').DataTable();
@@ -580,26 +733,8 @@ REV_logic_2 <- function(ns, state, input, review, datasets, selected_dataset_lis
     # > table.columns()[0].length;
     # > tmp[9] = '2';
     # > table.row(5).data(tmp).invalidate();
-    DT::replaceData(dt_proxy, new_data, resetPaging = FALSE, clearSelection = "none")
-
-    contents <- c(
-      SH$integer_to_raw(stored_i_row),
-      SH$integer_to_raw(option),
-      SH$double_to_raw(timestamp)
-    )
+    DT::replaceData(dt_proxy, new_data, resetPaging = FALSE, clearSelection = "none")    
     
-    fname <- paste0(dataset_name, "_", role, ".review")
-
-    IO_plan <- list(
-      list(
-        type = "append_file",
-        mode = "bin",
-        path = dataset_list_name,
-        fname = fname,
-        contents = contents
-      )
-    )
-
     fs_execute_IO_plan(IO_plan, is_init = FALSE)
   })
   
@@ -619,9 +754,9 @@ REV_review_var_to_json <- function(col) {
 
 REV_compute_status <- function(dataset_review, role) {
 
-  # Does this function make sense with no role? Yes it does because the latest review is the one that maybe outdated,
+  # Does this function make sense with no role? Yes it does because the latest review is the one that may be outdated,
   # conflicting, unreviewed, etc.
-  # Optionally we could indicate if the current role does have a conflict or is it someone else?
+  # Optionally, we could indicate if the current role does have a conflict or is it someone else?
   # We can indicate who conflicts with the latest review
   # Include the button if the selected role has this problem, basically we have a different review and we want to 
   # change to the currently selected.
@@ -631,7 +766,8 @@ REV_compute_status <- function(dataset_review, role) {
   # For now we say conflict but we don't say with whom.
 
   res <- dataset_review
-  res[[REV$ID$STATUS_COL]] <- factor(rep(REV$STATUS_LEVELS$OK, length = nrow(res)), levels = REV$STATUS_LEVELS)
+  unclassed_status_levels <- unclass(REV$STATUS_LEVELS) # Get rid of poc class, otherwise factor levels errors
+  res[[REV$ID$STATUS_COL]] <- factor(rep(REV$STATUS_LEVELS$OK, length = nrow(res)), levels = unclassed_status_levels)
   pending_mask <- dataset_review[[REV$ID$REVIEW_COL]] == levels(dataset_review[[REV$ID$REVIEW_COL]])[[1]] # First level is always default
   reviewed_status_idx <- which(dataset_review[[REV$ID$ROLE_COL]] != "")
   
@@ -673,3 +809,170 @@ REV_compute_status <- function(dataset_review, role) {
     
   return(res[[REV$ID$STATUS_COL]])
 }
+
+# Collect hashes that were known prior to the times indicated by `review_timestamps` 
+REV_collect_latest_review_hashes <- function(revisions, review_timestamps) {
+  res <- revisions$tracked_hashes[[1]]
+  
+  revision_count <- length(revisions$tracked_hashes)
+  i_revision <- 2
+  while (i_revision <= revision_count) {
+    ts <- revisions$timestamps[[i_revision]]
+    hashes <- revisions$tracked_hashes[[i_revision]]
+    update_mask <- (ts < review_timestamps)
+    res[, update_mask] <- hashes[, update_mask]
+    i_revision <- i_revision + 1
+  }
+  return(res)
+}
+
+# Infer which cells changed based of two matrices of old (`h0`) and new (`h1`) hashes
+# Returns pairs of (row, col) based on the ordering of h0
+# The hashes are kept in canonical order, so that's the order this function outputs
+REV_report_changes <- function(h0, h1, verbose = FALSE) {
+  res <- list()
+  if (nrow(h0) != nrow(h1) || nrow(h0) %% 2 != 0) {
+    stop(paste("Hashes of tracked columns are expected to be multiples of 16 bits",
+               "and the count of tracked columns should remain the same across the",
+               "lifetime of the stury"))
+  }
+  
+  offsets <- c(0, 2, 3)
+  
+  n_col <- nrow(h1) %/% 2L
+  
+  row_diff_indices <- which(apply(h0 != h1, 2, any))
+  for (i_row in row_diff_indices) {
+    prev <- as.integer(h0[, i_row])
+    cur <- as.integer(h1[, i_row])
+    diff <- (prev != cur)
+    diff <- apply(matrix(diff, ncol = BYTES_PER_TRACKED_HASH, byrow = TRUE), 1, any)
+    evidence <- integer(n_col)
+    for (i in seq_len(n_col)){
+      v <- diff[[i]]
+      affected_indices <- (((i - 1) + offsets) %% n_col) + 1
+      delta <- isTRUE(v)
+      evidence[affected_indices] <- evidence[affected_indices] + delta
+      
+      if (verbose) print(evidence)
+    }
+    inferred_change_count <- ceiling(sum(diff) / length(offsets))
+    
+    # removes false negatives at the cost of false positives
+    threshold <- min(utils::head(sort(evidence, decreasing = TRUE), inferred_change_count))
+    col_indices <- which(evidence >= threshold)
+    
+    res[[length(res) + 1]] <- list(row = i_row, cols = col_indices)
+  }
+  return(res)
+}
+
+#' Early error feedback function for the optional review parameter
+#'
+#' @param datasets `[list(data.frame)]`
+#'
+#' Available datasets for review.
+#' 
+#' @param dataset_names `[character(n)]`
+#'
+#' Names of the datasets provided by the previous parameter.
+#'   
+#' @param review `[list()]`
+#' 
+#' Configuration of the experimental data review feature. Please refer to `vignette("data_review")`.
+#'
+#' @param error `[environment]`
+#' This environment has at least one element named "messages". It is a character vector. Diagnostic messages related to
+#' the configuration of the review parameter will be placed here.
+#' 
+#' @export
+check_review_parameter <- function(datasets, dataset_names, review, err) {
+  if (is.null(review)) return(NULL)
+  ok <- CM$assert(
+    container = err,
+    cond = (checkmate::test_list(review, names = "unique") &&
+              checkmate::test_subset(c("datasets", "choices", "roles"), names(review))),
+    msg = "`review` should be a list with at least three elements: `datasets`, `choices` and `roles`"
+  ) &&
+    CM$assert(
+      container = err,
+      cond = (checkmate::test_list(review[["datasets"]], names = "unique") &&
+                checkmate::test_subset(names(review[["datasets"]]), dataset_names)),
+      msg = sprintf(
+        "`review$datasets` should be a list and its elements should be named after the following dataset names: %s",
+        paste(dataset_names, collapse = ", ")
+      )
+    ) &&
+    CM$assert(
+      container = err,
+      cond = checkmate::test_character(review[["choices"]], min.len = 1, min.chars = 1, unique = TRUE),
+      msg = "`review$choices` should be a non-empty character vector of unique, non-empty strings"
+    ) &&
+    CM$assert(
+      container = err,
+      cond = checkmate::test_character(review[["roles"]], min.len = 1, min.chars = 1, unique = TRUE),
+      msg = "`review$roles` should be a non-empty character vector of unique, non-empty strings"
+    )
+  
+  if (!ok) return(NULL)
+  for (domain in names(review[["datasets"]])){
+    info <- review[["datasets"]][[domain]]            
+    
+    dataset <- datasets[[domain]]
+    
+    vars_OK <- CM$assert(
+      container = err,
+      cond = (checkmate::test_list(review, names = "unique") &&
+                checkmate::test_subset(c("id_vars", "tracked_vars"), names(info))),
+      msg = sprintf("`review$datasets$%s` should be a list with two elements named `id_vars` and `tracked_vars`",
+                    domain)
+    ) &&
+      CM$assert(
+        container = err,
+        cond = (checkmate::test_character(info[["id_vars"]], min.len = 1, min.chars = 1, unique = TRUE) &&
+                  checkmate::test_subset(info[["id_vars"]], names(dataset))),
+        msg = sprintf(
+          paste(
+            "`review$datasets$%s$id_vars` should be a character vector listing a subset of the columns",
+            "available in dataset `%s`"
+          ), domain, domain
+        )
+      ) &&
+      CM$assert(
+        container = err,
+        cond = nrow(dataset[info[["id_vars"]]]) == nrow(unique(dataset[info[["id_vars"]]])),
+        msg = sprintf("`review$datasets$%s$id_vars` should identify uniquely every row of the dataset `%s`", 
+                      domain, domain)
+      ) &&
+      CM$assert(
+        container = err,
+        cond = (checkmate::test_character(info[["tracked_vars"]], min.chars = 1, min.len = 3, unique = TRUE) &&
+                  checkmate::test_subset(info[["tracked_vars"]], names(dataset))),
+        msg = sprintf(
+          paste(
+            "`review$datasets$%s$tracked_vars` should be a character vector listing a subset of",
+            " at least three columns available in dataset `%s`"
+          ), domain, domain
+        )
+      )
+    
+    if (vars_OK) {
+      common_vars <- intersect(info[["id_vars"]], info[["tracked_vars"]])
+      
+      CM$assert(
+        container = err,
+        cond = length(common_vars) == 0,
+        msg = sprintf(
+          paste(
+            "Variables should be assigned <b>exclusively</b> to either <tt>review$datasets$%s$id_vars</tt> or",
+            "<tt>review$datasets$%s$tracked_vars</tt>. However both of those parameters include the following variables:",
+            "%s.<br>If those are indeed variables that uniquely identify dataset rows and are not subject to", 
+            "change, our recommendation is that they are preserved as <tt>id_vars</tt> and excluded from <tt>tracked_vars</tt>."
+          ), domain, domain, paste(sprintf("`%s`", common_vars), collapse = ", ")
+        )
+      )
+      
+    }
+  }
+}
+

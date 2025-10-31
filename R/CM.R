@@ -76,7 +76,7 @@ CM <- local({ # _C_hecked _M_odule
     local({
       # Make sure that the signature of `check_mod_fn` matches that of `module` except for the expected differences
       check_formals <- names(formals(check_mod_fn))
-      if (!identical(head(check_formals, 2), c("afmm", "datasets"))) {
+      if (!identical(utils::head(check_formals, 2), c("afmm", "datasets"))) {
         stop("The first two arguments of check functions passed onto `module` should be `afmm` and `datasets`")
       }
       check_formals <- check_formals[c(-1, -2)]
@@ -247,7 +247,7 @@ CM <- local({ # _C_hecked _M_odule
 
     roxygen_wrapper <- function() { # to keep parameters in the reference docs
       args <- (match.call() |> as.list())[c(-1)]
-      do.call(wrapper, args, env = parent.frame())
+      do.call(wrapper, args, envir = parent.frame())
     }
     formals(roxygen_wrapper) <- formals(module)
     return(roxygen_wrapper)
@@ -851,7 +851,7 @@ CM <- local({ # _C_hecked _M_odule
         rep("Parameter:", length(par)), rep("Visit:", length(vis))
       )
 
-      first_duplicates <- head(supposedly_unique[dup_mask, ], 5)
+      first_duplicates <- utils::head(supposedly_unique[dup_mask, ], 5)
       names(first_duplicates) <- paste(prefixes, names(first_duplicates))
       dups <- df_to_string(first_duplicates)
       

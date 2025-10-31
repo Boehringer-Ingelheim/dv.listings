@@ -63,7 +63,6 @@ local({
       length(info[["error"]]) == 1 &&
         startsWith(info[["error"]][[1]], 
                    '[ae] The following variables have not been specified as `tracked_vars`: "AESEV"')
-      
     )
   })
   
@@ -116,12 +115,12 @@ local({
     )
   })
   
-  test_that("Review error message when previously known row is dropped", {
+  test_that("No error message when previously known row is dropped" |>
+              vdoc[["add_spec"]](specs$review_accept_removal_of_rows), {
     dataset_lists2 <- dataset_lists
     dataset_lists2[["dataset_list"]][["ae"]] <- head(dataset_lists2[["dataset_list"]][["ae"]], 1)
     
     info <- REV_load_annotation_info(folder_contents, review, dataset_lists2)
-    expect_true(length(info[["error"]]) == 1 &&
-                  startsWith(info[["error"]][[1]], "[ae] Dataset update is missing 1 previously known row(s)"))
+    expect_true(length(info[["error"]]) == 0)
   })
 })

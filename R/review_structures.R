@@ -23,9 +23,12 @@ SH <- local({ # _S_erialization _H_elpers
     return(res)
   }
   
-..ref_hash_tracked_inner <- function(row) {
+  ..ref_hash_tracked_inner <- function(row) {
     # FIXME: Ensure that precision of numeric values does not affect serialization
     #        Maybe by using a string hex representation of their binary contents
+    # NOTE: This can't be done without versioning the file format so that old trials
+    #       can still use this old function and new trials use the new one.
+    #       It makes sense to postpone this improvement until we have a better reason
     input <- paste(row, collapse = "\1D")
     input <- charToRaw(input)
     res <- xxhashlite::xxhash_raw(input, algo = "xxh32", as_raw = TRUE)
@@ -55,7 +58,7 @@ SH <- local({ # _S_erialization _H_elpers
     hashed_col <- vectorized_hash_id(single_col)
     n_col <- length(hashed_col)
     n_row <- if (length(hashed_col) > 0) length(hashed_col[[1]]) else 0
-    res <- matrix(unlist(vectorized_hash_id(single_col)), nrow = n_row, ncol = n_col)  
+    res <- matrix(unlist(vectorized_hash_id(single_col)) %||% raw(0), nrow = n_row, ncol = n_col)  
     res
   }
 
@@ -66,7 +69,7 @@ SH <- local({ # _S_erialization _H_elpers
     res <- list()   
     for (i_col in seq_len(n_col)) {
       col_indices <- (((i_col - 1) + hash_tracked_offsets) %% n_col) + 1
-      res[[i_col]] <- vectorized_hash_row(df[col_indices], algo = "xxh32")[1:BYTES_PER_TRACKED_HASH, ] # MSBs
+      res[[i_col]] <- vectorized_hash_row(df[col_indices], algo = "xxh32")[1:BYTES_PER_TRACKED_HASH, , drop = FALSE] # MSBs
     }
     res <- do.call(rbind, res)
     return(res)
@@ -185,7 +188,8 @@ RS_compute_id_hashes <- function(df, id_vars) {
 RS_compute_base_memory <- function(df_id, df, id_vars, tracked_vars) {
   checkmate::assert_string(df_id, min.chars = 1, max.chars = 65535)
   checkmate::assert_data_frame(df)
-  # TODO: assert *_vars char unique col names of df
+
+  ; if (nrow(df) == 0) return(simpleCondition("Refusing to review 0-row dataset"))
  
   id_vars <- sort(id_vars)
   tracked_vars <- sort(tracked_vars)
@@ -210,7 +214,7 @@ RS_compute_base_memory <- function(df_id, df, id_vars, tracked_vars) {
   res <- c(
     charToRaw("LISTBASE"),                                          # file magic code
     as.raw(0),                                                      # format version number
-    as.raw(0),                                                      # generation marker
+    as.raw(0),                                                      # generation marker (wraps around after 255)
     SH$double_to_raw(SH$get_UTC_time_in_seconds()),                 # timestamp
     df_hash,                                                        # complete hash of input data.frame
     SH$string_to_raw(df_id),                                        # domain string
@@ -272,70 +276,72 @@ RS_parse_base <- function(contents) {
 }
 
 RS_compute_delta_memory <- function(state, df) {
-  checkmate::assert_data_frame(df) # TODO: etc.
-  
+  # NOTE:
+  # The logic of this function is a bit tricky to grasp. Our recommendation is that you start from the contents of the 
+  # `res` variable (whose structure is described in the Data Review vignette, "Structured of stored files" section) and
+  # work backwards.
+  # 
+  # If you want to run this function with a trivial example, look inside `tests/testhat/test-review.R` and you'll find
+  # a test described as "RS_compute_delta_memory identifies new and modified rows", whose sole purpose is to trace this
+  # function.
+  checkmate::assert_data_frame(df)
+
   error <- character(0)
   
+  # Glossary of variable suffixes:
+  # =============================
+  # _st: coming from or relative to `state`
+  # _df: coming from or relative to `df` 
+  # _new: new rows (not present in state)
+  # _old: old rows (present in state)
+
   time_delta <- as.integer(ceiling(SH$get_UTC_time_in_seconds() - state$timestamp))
-  df_hash <- RS_hash_data_frame(df)
+  hash_df <- RS_hash_data_frame(df)
 
-  id_vars <- state$id_vars
-  id_hashes <- RS_compute_id_hashes(df, id_vars) |> c() |> array(dim = c(16L, nrow(df)))
-
-  tracked_vars <- state$tracked_vars
-  # FIXME: (LUIS): Ask Miguel about the postlude
-  tracked_hashes <- (SH$hash_tracked(df[tracked_vars]) |> c() |> 
-                       array(dim = c(BYTES_PER_TRACKED_HASH * length(tracked_vars), nrow(df))))
-
-  # Assert against removal of rows
-  local({
-    merged <- cbind(id_hashes, state$id_hashes, deparse.level = 0)
-    dropped_row_mask <- !duplicated(merged, MARGIN = 2) |> c() |> tail(n = ncol(state$id_hashes))
-    dropped_row_count <- sum(dropped_row_mask)
-    if (dropped_row_count > 0) {
-      error <<- c(error, sprintf("Dataset update is missing %s previously known row(s).\n", dropped_row_count))
-    }
+  id_hashes_df <- RS_compute_id_hashes(df, state$id_vars) |> c() |> array(dim = c(16L, nrow(df)))
+  tracked_hashes_df <- (SH$hash_tracked(df[state$tracked_vars]) |> c() |> 
+                           array(dim = c(BYTES_PER_TRACKED_HASH * length(state$tracked_vars), nrow(df))))
+  
+  indices_new_df <- local({
+    # NOTE: `state$id_hashes` and `id_hashes_df` are matrices of 16-byte long hashes (dim() returns "16 n" and "16 m")
+    #       By column-binding them we create a longer matrix of dimensions "16 n+m"
+    #       Looking for duplicates in the second axis, taking only the last "m" elements and negating the output
+    #       tells us which elements of the new dataframe are _not_ present in the old one.
+    merged_id_hashes <- cbind(state$id_hashes, id_hashes_df, deparse.level = 0)
+    mask_new_df <- !duplicated(merged_id_hashes, MARGIN = 2) |> as.logical() |> utils::tail(n = ncol(id_hashes_df))
+    return(which(mask_new_df))
   })
   
-  merged <- cbind(state$id_hashes, id_hashes, deparse.level = 0)
-  new_row_mask <- !duplicated(merged, MARGIN = 2) |> c() |> tail(n = nrow(df))
-  new_row_indices <- which(new_row_mask)
-  
-  new_id_hashes <- id_hashes[, new_row_indices, drop = FALSE]
-  new_tracked_hashes <- tracked_hashes[, new_row_indices, drop = FALSE]
+  id_hashes_df_new <- id_hashes_df[, indices_new_df, drop = FALSE]
+  tracked_hashes_df_new <- tracked_hashes_df[, indices_new_df, drop = FALSE]
 
-  # drop new rows
-  if (length(new_row_indices)) {
-    id_hashes <- id_hashes[, -new_row_indices, drop = FALSE]
-    tracked_hashes <- tracked_hashes[, -new_row_indices, drop = FALSE]
+  id_hashes_df_old <- id_hashes_df
+  tracked_hashes_df_old <- tracked_hashes_df
+  if (length(indices_new_df)) {
+    id_hashes_df_old <- id_hashes_df_old[, -indices_new_df, drop = FALSE]
+    tracked_hashes_df_old <- tracked_hashes_df_old[, -indices_new_df, drop = FALSE]
   }
  
-  # Sort remaining according to state$id_hashes order # TODO: Streamline for performance?
-  mapping <- match(asplit(id_hashes, 2), asplit(state$id_hashes, 2))
-  # FIXME(miguel): Ask Luis for details. Suggest the use of `error` to shortcircuit file actions for the case described.
-  # TODO: This mapping may fail when data updates are messed. Dataset is updated, new deltas are calculated, and the
-  # outdated is loaded in the app again. It does not fail gracefully, mapping contains more entries than expected and
-  # an out of bounds error is thrown.
-  id_hashes <- id_hashes[, mapping, drop = FALSE]
-  tracked_hashes <- tracked_hashes[, mapping, drop = FALSE]
-
-  merged <- cbind(state$tracked_hashes, tracked_hashes, deparse.level = 0)
-  modified_row_mask <- !duplicated(merged, MARGIN = 2) |> c() |> tail(n = nrow(df) - length(new_row_indices))
-  modified_row_indices <- which(modified_row_mask)
+  # Build an index that projects repeat IDs from new `_df` into canonical `_st` indices
+  index_map_st_old <- match(asplit(id_hashes_df_old, 2), asplit(state$id_hashes, 2))
+  
+  tracked_hashes_st_old <- state$tracked_hashes[, index_map_st_old, drop = FALSE]
+  modified_mask_df_old  <- (tracked_hashes_df_old != tracked_hashes_st_old) |> apply(any, MARGIN = 2)
+  modified_indices_st_old <- index_map_st_old[modified_mask_df_old]
   
   res <- list(
     contents = c(
-      charToRaw("LISTDELT"),                                # file magic code
-      as.raw(0),                                            # format version number
-      as.raw(state$generation + 1L),                        # generation marker
-      SH$integer_to_raw(time_delta),                        # delta timestamp (seconds since state)
-      df_hash,                                              # complete hash of input data.frame
-      SH$string_to_raw(state$domain),                       # domain string
-      SH$integer_to_raw(length(new_row_indices)),           # count of new rows
-      new_id_hashes,                                        # one hash of id_vars per new row
-      new_tracked_hashes,                                   # one hash of tracked_vars per new row
-      SH$integer_vector_to_raw(modified_row_indices),       # modified row indices
-      tracked_hashes[, modified_row_indices, drop = FALSE]  # one hash of tracked_vars per modified row
+      charToRaw("LISTDELT"),                                       # file magic code
+      as.raw(0),                                                   # format version number
+      as.raw((state$generation + 1L) %% 256L),                     # generation marker (wraps around after 255)
+      SH$integer_to_raw(time_delta),                               # delta timestamp (seconds since state)
+      hash_df,                                                     # complete hash of input data.frame
+      SH$string_to_raw(state$domain),                              # domain string
+      SH$integer_to_raw(length(indices_new_df)),                   # count of new rows
+      id_hashes_df_new,                                            # one hash of id_vars per new row
+      tracked_hashes_df_new,                                       # one hash of tracked_vars per new row
+      SH$integer_vector_to_raw(modified_indices_st_old),           # modified row indices
+      tracked_hashes_df_old[, modified_mask_df_old, drop = FALSE]  # one hash of tracked_vars per modified row
     ),
     error = error
   )
@@ -431,8 +437,7 @@ RS_compute_review_reviews_memory <- function(role, dataset) {
   return(res)
 }
 
-RS_parse_review_reviews <- function(contents, dataset_to_state_row_mapping, expected_role, expected_domain) {
-  row_count <- length(dataset_to_state_row_mapping)
+RS_parse_review_reviews <- function(contents, row_count, expected_role, expected_domain) {
   res <- data.frame(review = rep(0L, row_count), timestamp = rep(0., row_count))
   
   con <- rawConnection(contents, open = "r")
@@ -455,24 +460,27 @@ RS_parse_review_reviews <- function(contents, dataset_to_state_row_mapping, expe
     review <- readBin(con, integer(), 1L, endian = "little")
     timestamp <- readBin(con, numeric(), 1L, endian = "little")
     # NOTE: timestamp increases monotonically with each new row, so not checking it
-    row_index <- dataset_to_state_row_mapping[[row_index]]
+    # TODO: Possibly expensive. Could be the case that having two separate lists (one for `review` and one for `timestamp` and combine them after the fact into a data.frame is much cheaper
     res[["review"]][[row_index]] <- review
     res[["timestamp"]][[row_index]] <- timestamp
   }
   
   close(con)
+  
   return(res)
 }
 
 RS_load <- function(base, deltas) {
   res <- RS_parse_base(base) 
   base_timestamp <- res$timestamp
-  for (delta in deltas){
-    state_delta <- RS_parse_delta(contents = delta, tracked_var_count = length(res[["tracked_vars"]]))
+  res$revisions <- list(timestamps = res$timestamp, tracked_hashes = list(res$tracked_hashes))
+  for (i_delta in seq_along(deltas)){
+    state_delta <- RS_parse_delta(contents = deltas[[i_delta]], tracked_var_count = length(res[["tracked_vars"]]))
     if (inherits(state_delta, "simpleCondition")) return(state_delta)
     
-    if (!identical(state_delta$generation, res$generation + 1L))
-      return(simpleCondition(paste("Wrong generation marker. Should be", res$generation + 1L)))
+    # NOTE: Check the vignette if this `256` confuses you :)
+    if (!identical(state_delta$generation, (res$generation + 1L) %% 256L))
+      return(simpleCondition(paste("Wrong generation marker. Should be", (res$generation + 1L) %% 256L)))
     
     if (!identical(state_delta$domain, res$domain))
       return(simpleCondition(paste("Wrong domain. Expected", res$domain, "and got", state_delta$domain)))
@@ -488,7 +496,33 @@ RS_load <- function(base, deltas) {
     # modified rows
     res$tracked_hashes[, state_delta$modified_row_indices] <- state_delta$modified_tracked_hashes
     res$row_timestamps[state_delta$modified_row_indices] <- base_timestamp + state_delta$time_delta
+    
+    # collect all tracked_hashes revisions to allow change attribution to specific columns
+    res$revisions$timestamps <- c(res$revisions$timestamps, base_timestamp + state_delta$time_delta)
+    res$revisions$tracked_hashes[[i_delta + 1]] <- res$tracked_hashes
   }
+  
+  # extend all revision hashes with dummy tracked_hashes for rows not present at a particular timestamp
+  if (length(deltas)) {
+    last_known_col_count <- ncol(res$revisions$tracked_hashes[[length(deltas) + 1]])
+    for (i_revision in seq_len(length(deltas))){
+      revision_row_count <- ncol(res$revisions$tracked_hashes[[i_revision]])
+      if (revision_row_count < last_known_col_count) {
+        missing_col_count <- last_known_col_count - revision_row_count
+        row_count <- nrow(res$revisions$tracked_hashes[[i_revision]])
+        extra_cols <- matrix(raw(0), row_count, missing_col_count)
+        res$revisions$tracked_hashes[[i_revision]] <- cbind(res$revisions$tracked_hashes[[i_revision]], extra_cols)
+      } else if (last_known_col_count < revision_row_count) {
+        return( # The diagnostic message could be improved, but we don't expect this one to trigger
+          simpleCondition(sprintf(
+            "Integrity error: Revision %d contains %d more rows than latest revision", 
+            i_revision, revision_row_count - last_known_col_count)
+          )
+        )
+      }
+    }
+  }
+  
   return(res)
 }
 
@@ -498,140 +532,4 @@ RS_append <- function(path, contents) {
   seek(f, where = 0, origin = "end", rw = "write")
   writeBin(contents, f)
   close(f)
-}
-
-# NOTE: The contents of the following conditional are a WIP of the review feature.
-#       They may be useful for performance testing, but maybe a higher-level approach,
-#       such as that on `tests/testthat/test-review.R`, is enough and we don't need
-#       to call the `RS_*` functions directly.
-if (FALSE) {
-  describe_and_time <- function(description, expr) {
-    t0 <- Sys.time()
-    res <- force(expr)
-    t1 <- Sys.time()
-    cat(sprintf("%.2f s: %s\n", t1 - t0, description))
-    if (inherits(res, "condition")) stop(res)
-    return(res)
-  }
- 
-  if (FALSE) {
-    df <- safetyData::adam_adae[1:2, ]
-    base_contents <- describe_and_time(
-      "Derive .base file contents from initial dataset (expensive; only done the first time app is run by some user)", {
-        df_id <- "ae"
-        id_vars <- c("USUBJID", "AESEQ")
-        tracked_vars <- setdiff(names(df), "id_vars") # tracks all non-id vars (worst case for performance)
-        RS_compute_base_memory(df_id, df, id_vars, tracked_vars)
-      }
-    )
-    
-    review_state <- describe_and_time(
-      "Initial load (base and no deltas)",
-      RS_load(base_contents, deltas = list())
-    )
-    
-    df <- safetyData::adam_adae[2:1, ] # Reverse the order of rows of the dataset
-    
-    delta1_contents <- describe_and_time(
-      "Processing dataset update (done first time app is run after update)",
-      RS_compute_delta_memory(review_state, df)[["contents"]]
-    )
-    
-    review_state <- describe_and_time(
-      "Initial load (base and one delta)",
-      RS_load(base_contents, deltas = list(delta1_contents)) 
-    )
-    
-    df[1, ][["AESEV"]] <- "SEVERE"
-    delta2_contents <- describe_and_time(
-      "Processing dataset update (done first time app is run after update)",
-      RS_compute_delta_memory(review_state, df)[["contents"]]
-    )
-  
-
-    browser()
-  }
-  
-
-  # Build an arbitrarily large input dataset
-  df <- local({
-    df <- safetyData::adam_adae[1:1000, ]
-    df <- rbind(df, df, df, df, df, df, df, df, df, df) # 10k # nolint
-    # df <- rbind(df, df, df, df, df, df, df, df, df, df) # 100k # nolint
-    # df <- rbind(df, df, df, df, df, df, df, df, df, df) # 1000k # nolint
-    
-    for (i_row_block in seq_len(nrow(df) / 1000)){
-      fake_study_prefix <- sprintf("%05d", i_row_block)
-      df[["USUBJID"]][seq((i_row_block - 1) * 1000 + 1, i_row_block * 1000)] <- 
-        sub("^01", fake_study_prefix, df[["USUBJID"]][seq((i_row_block - 1) * 1000 + 1, i_row_block * 1000)])
-    }
-    return(df)
-  })
- 
-  base_contents <- describe_and_time(
-    "Derive .base file contents from initial dataset (expensive; only done the first time app is run by some user)", {
-      df_id <- "ae"
-      id_vars <- c("USUBJID", "AESEQ")
-      tracked_vars <- setdiff(names(df), "id_vars") # tracks all non-id vars (worst case for performance)
-      RS_compute_base_memory(df_id, df, id_vars, tracked_vars)
-    }
-  )
-  
-  # TODO: Write to disk
-  # TODO: Read from disk
-
-  review_codes_raw <- RS_compute_review_codes_memory(
-    c("Seen", "Should look into", "Looked into", "We don't seem to agree", "Clearly artifactual")
-  )
-  
-  if (FALSE) {
-    review_codes <- RS_parse_review_codes(review_codes_raw)
-    
-    browser() # TODO: Maybe RS_compute_role_review_memory + RS_parse_role_review
-    
-    review_roles <- c("TSTAT", "SP", "Safety", "CTL")
-    
-    for (role in review_roles) {
-      browser()
-      
-    }
-  }
-
-  review_state <- describe_and_time(
-    "Initial load (base and no deltas)",
-    RS_load(base_contents, deltas = list())
-  )
-
-  # Let's imagine there is an update that adds a new entry to the dataset
-  df <- rbind(df, safetyData::adam_adae[1001, ])
-  # Furthermore, the severity of an adverse event is described now as "MODERATE" instead of "MILD"
-  df[500, "AESEV"] <- "MODERATE"
-  
-  delta1_contents <- describe_and_time(
-    "Processing dataset update (done first time app is run after update)",
-    RS_compute_delta_memory(review_state, df)[["contents"]]
-  )
-  
-  review_state <- describe_and_time(
-    "Initial load (base and one delta)",
-    RS_load(base_contents, deltas = list(delta1_contents)) 
-  )
-  
-  # The severity of an adverse event is described now as "SEVERE" instead of "MODERATE"
-  df[500, "AESEV"] <- "SEVERE"
-  # and another one that was "MILD" is now "MODERATE"
-  df[501, "AESEV"] <- "SEVERE"
-  # And we also _prepend_ two new entries to the dataset
-  df <- rbind(safetyData::adam_adae[1002:1003, ], df)
-  delta2_contents <- describe_and_time(
-    "Processing dataset update (done first time app is run after update)",
-    RS_compute_delta_memory(review_state, df)[["contents"]]
-  )
-  
-  review_state <- describe_and_time(
-    "Initial load (base and two deltas)",
-    RS_load(base_contents, deltas = list(delta1_contents, delta2_contents)) 
-  )
-  
-  browser() # TODO: Start the application based on base and deltas (RS_parse_base_and_deltas)
 }
