@@ -1,6 +1,7 @@
 <urlset xmlns = 'http://www.sitemaps.org/schemas/sitemap/0.9'>
 <url><loc>/404.html</loc></url>
 <url><loc>/LICENSE-text.html</loc></url>
+<url><loc>/PULL_REQUEST_TEMPLATE.html</loc></url>
 <url><loc>/articles/Communication_jumping_feature.html</loc></url>
 <url><loc>/articles/data_review.html</loc></url>
 <url><loc>/articles/index.html</loc></url>
@@ -10,6 +11,7 @@
 <url><loc>/news/index.html</loc></url>
 <url><loc>/reference/calculate_col_width.html</loc></url>
 <url><loc>/reference/cash-.pack_of_constants.html</loc></url>
+<url><loc>/reference/check_review_parameter.html</loc></url>
 <url><loc>/reference/convert_data.html</loc></url>
 <url><loc>/reference/excel_export.html</loc></url>
 <url><loc>/reference/export_modal_content.html</loc></url>

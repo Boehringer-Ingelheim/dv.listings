@@ -8,8 +8,8 @@
 <title>Data review (experimental feature) • dv.listings</title>
 <script src="../deps/jquery-3.6.0/jquery-3.6.0.min.js"></script><meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
 <link href="../deps/bootstrap-5.3.1/bootstrap.min.css" rel="stylesheet">
-<script src="../deps/bootstrap-5.3.1/bootstrap.bundle.min.js"></script><link href="../deps/font-awesome-6.4.2/css/all.min.css" rel="stylesheet">
-<link href="../deps/font-awesome-6.4.2/css/v4-shims.min.css" rel="stylesheet">
+<script src="../deps/bootstrap-5.3.1/bootstrap.bundle.min.js"></script><link href="../deps/font-awesome-6.5.2/css/all.min.css" rel="stylesheet">
+<link href="../deps/font-awesome-6.5.2/css/v4-shims.min.css" rel="stylesheet">
 <script src="../deps/headroom-0.11.0/headroom.min.js"></script><script src="../deps/headroom-0.11.0/jQuery.headroom.min.js"></script><script src="../deps/bootstrap-toc-1.0.1/bootstrap-toc.min.js"></script><script src="../deps/clipboard.js-2.0.11/clipboard.min.js"></script><script src="../deps/search-1.0.0/autocomplete.jquery.min.js"></script><script src="../deps/search-1.0.0/fuse.min.js"></script><script src="../deps/search-1.0.0/mark.min.js"></script><!-- pkgdown --><script src="../pkgdown.js"></script><meta property="og:title" content="Data review (experimental feature)">
 </head>
 <body>
@@ -20,7 +20,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">dv.listings</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">4.2.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">4.3.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -75,8 +75,11 @@ interface to assist data review processes. It enables a team of
 reviewers to annotate each row of a given listing with a tag chosen from
 a preconfigured list of options. In addition, it keeps track of changes
 to the data underlying the listings to warn about possibly outdated
-reviews. Please note that this feature is still experimental and maybe
-subject to change.</p>
+reviews.</p>
+<p>Please note that <strong>this feature is still experimental and may
+be subject to change</strong>. Also note that, at the moment,
+<strong>only one instance of the <code>dv.listings</code> module can
+provide this feature on any given DaVinci app</strong>.</p>
 <p>Here’s a more detailed description of the review function:</p>
 <ul>
 <li>Users can self-select a reviewer role and, under that capacity,
@@ -105,10 +108,13 @@ require re-confirmation.</li>
 <div class="section level2">
 <h2 id="user-interface">User interface<a class="anchor" aria-label="anchor" href="#user-interface"></a>
 </h2>
-<p>When properly configured, the interface of the module expands with
-two extra components, as pictured below:</p>
+<div class="section level3">
+<h3 id="structure">Structure<a class="anchor" aria-label="anchor" href="#structure"></a>
+</h3>
+<p>When properly configured, the interface of the module expands to show
+three extra components, as pictured below:</p>
 <ul>
-<li>A drop-down menu (top-right corner), that allows users to select:
+<li>A drop-down menu (top-right corner) that allows users to select:
 <ol style="list-style-type: decimal">
 <li>A location to store information derived from the review
 process.</li>
@@ -124,12 +130,45 @@ a member of the team and allows to change it.</li>
 team and allows to investigate and resolve them.</li>
 </ol>
 </li>
+<li>A “bulk review” menu (top-left) that allows users to:
+<ol start="5" style="list-style-type: decimal">
+<li>Select a new review decision.</li>
+<li>Apply it to:
+<ul>
+<li>Rows individually selected through the left-most per-row checkboxes
+(through the “Apply selected” button).</li>
+<li>All rows in the output, including on subsequent pages (through the
+“Apply full table”). This selection is affected by the column
+filters.</li>
 </ul>
-<p><img src="images%2Freview00.jpg"></p>
+</li>
+</ol>
+</li>
+</ul>
+<p><img src="images/review00.jpg"></p>
 <p>These three review columns behave similarly to the regular listing
 columns, as they allow filtering and sorting. Thus, they make it easy to
 find which reviews are pending or to list reviews that conflict across
 reviewers.</p>
+</div>
+<div class="section level3">
+<h3 id="highlighting-of-potentially-outdated-reviews">Highlighting of potentially outdated reviews<a class="anchor" aria-label="anchor" href="#highlighting-of-potentially-outdated-reviews"></a>
+</h3>
+<p>As a study progresses, it is possible for data that has already been
+reviewed to change. In order to bring those changes to the attention of
+reviewers, <code>dv.listings</code> automatically highlights altered
+data cells (on columns specified as <code>tracked</code>) that may make
+previous reviews outdated.</p>
+<p>In case there are more than four altered cells on a given row, the
+whole row is highlighted as outdated.</p>
+<p>In the picture below, you can see that the “Severity” of the first
+adverse event has changed.</p>
+<p><img src="images/review01.jpg"></p>
+<p>The user can isolate all reviewed, and later altered, rows by
+selecting “Latest Outdated” on the “Status” column. These rows will be
+cleared of the orange highlighting once a reviewer confirms them as
+still correct or re-reviews them otherwise.</p>
+</div>
 </div>
 <div class="section level2">
 <h2 id="module-configuration">Module configuration<a class="anchor" aria-label="anchor" href="#module-configuration"></a>
@@ -220,15 +259,18 @@ parameter is left unspecified.</p>
 etc.) offer experimental support for javascript code to read and write
 to the client file system as native apps do. This module takes advantage
 of this <a href="https://wicg.github.io/file-system-access/" class="external-link">File System
-Access API</a> to compensate for the lack of server storage.</p>
+Access API</a> to compensate for the potential lack of server
+storage.</p>
 <p>In practical terms, relying on this feature means that every time
 users access a review app, their browser will prompt them to ask for
 permission to read and write to a folder allocated specifically for
 review purposes.</p>
 <p>In the case of reviews conducted by a team of reviewers, the team as
-a whole will have to decide beforehand on which networked folder (shared
+a whole will have to decide beforehand which networked folder (shared
 through NFS, Google Drive, Microsoft OneDrive, Dropbox, …) to use in
 order to collaborate for the duration of the study.</p>
+<p>We recommend that users participating in multiple studies set up an
+independent folder for each of them.</p>
 </div>
 </div>
 <div class="section level2">
@@ -248,10 +290,6 @@ tracked variables (defined through <code>tracked_vars</code>) have to
 remain the same for the duration of the study.</li>
 <li>Identifying and tracked variables retain their types (factor,
 numeric, …) and are available on each revision of each dataset.</li>
-<li>No data rows are dropped during the study. In other words, if a row
-identified by a combination of <code>id_vars</code> is present on
-revision <code>n</code> of a dataset, it will be available on revision
-<code>n+1</code>.</li>
 </ul>
 </div>
 <div class="section level2">
@@ -280,15 +318,15 @@ infrequently used (but still useful) functionality.</p>
 (multi-session, multi-process) write access to a shared resource, which
 Posit deems incompatible with pins (<a href="https://docs.posit.co/connect/user/pins/" class="external-link uri">https://docs.posit.co/connect/user/pins/</a>, see reddish
 box).</p>
-<p>This is the first DaVinci module that will serialize to permanent
-storage a substantial amount of study decisions taken over an extended
-period of time. Loss of data in this context is not acceptable. To
-guarantee data integrity, we propose the use of simple
-<em>append-only</em> data structures. Put simply, they are plain files
-opened in “append” mode. It’s easy to demonstrate that they can’t become
-the source of catastrophic loss of data of past review sessions. The
-granularity of the <code>pins</code> API (which only allows to load and
-store complete files) is incompatible with this design.</p>
+<p>This is the first DaVinci module that stores permanently a
+substantial amount of study decisions taken over an extended period of
+time. Loss of data in this context is not acceptable. To guarantee data
+integrity, we propose the use of simple <em>append-only</em> data
+structures. Those are stored as plain files opened in “append” mode.
+It’s easy to demonstrate that they can’t become the source of
+catastrophic loss of data of past review sessions. The granularity of
+the <code>pins</code> API (which only allows to load and store complete
+files) is incompatible with this design.</p>
 <p>Data appending improves performance, as only new changes need to be
 serialized. It’s also useful for version tracking, as all editing
 operations can be replayed in the order in which they happened.</p>
@@ -328,7 +366,8 @@ encoding” below)</li>
 </summary><ul>
 <li>1 file magic code (“LISTDELT”)</li>
 <li>1 format version number (0)</li>
-<li>1 generation marker (1)</li>
+<li>1 generation marker (1). Wraps around to 0 after 255 (e.g. for
+<code>xyz_256.delta</code>)</li>
 <li>1 timestamp delta (seconds elapsed since “base” timestamp)</li>
 <li>1 complete hash of new “xyz” data.frame</li>
 <li>1 domain string (“xyz”)</li>
@@ -483,10 +522,10 @@ six), this would mean:</p>
 <li>Byte pair 5: Variables 5, 0 and 1</li>
 <li>Byte pair 6: Variables 6, 1 and 2</li>
 </ul>
-<p>This scheme creates a unique mixtures of variables. Take, for
-instance, variable 0. It is combined with variables 2 and 3 on the
-zeroth byte pair, with variables 4 and 6 on the fourth byte pair and
-with 1 and 5 for the fifth byte pair.</p>
+<p>This scheme creates unique mixtures of variables. Take, for instance,
+variable 0. It is combined with variables 2 and 3 on the zeroth byte
+pair, with variables 4 and 6 on the fourth byte pair and with 1 and 5
+for the fifth byte pair.</p>
 <p>Each of these byte pairs is computed by:</p>
 <ul>
 <li>Taking the three values to hash.</li>
@@ -535,7 +574,7 @@ users have to concern themselves about the underlying
 </div>
 
 <div class="pkgdown-footer-right">
-  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.1.1.</p>
+  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.1.2.</p>
 </div>
 
     </footer>
