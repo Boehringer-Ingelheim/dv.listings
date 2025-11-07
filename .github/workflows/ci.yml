@@ -1,5 +1,5 @@
 ---
-name: Checks 🧩
+name: Checks
 
 on:
   pull_request:
