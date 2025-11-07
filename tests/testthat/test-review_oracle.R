@@ -13,7 +13,8 @@ test_that(sprintf("Running random review tests with seed: %dL", int_seed) |>
             ), {
               
   # Sane sample (`base::sample` without the weird edge case)
-  ssample <- function(from, count) from[sample.int(length(from), count, replace = FALSE, prob = NULL)]
+  ssample <- function(from, count, replace = FALSE)
+    from[sample.int(length(from), count, replace = replace, prob = NULL)]
   # Shadow `base::sample` for good measure
   sample <- function(...) stop("`sample` is Out of Office today")
               
@@ -123,17 +124,20 @@ test_that(sprintf("Running random review tests with seed: %dL", int_seed) |>
       return(res)
     }
     
-    create <- function(base_col_contents = integer(0)){
+    create <- function(base_col_contents = integer(0), untracked_col_names){
       res <- data.frame(
         ID = base_col_contents,
         TRACKED_1 = 2L * base_col_contents,
         TRACKED_2 = 3L * base_col_contents,
-        TRACKED_3 = 5L * base_col_contents,
-        UNTRACKED = 7L * base_col_contents 
+        TRACKED_3 = 5L * base_col_contents
       )
-      attr(res, 'missing') <- data.frame(
-        ID = integer(0), TRACKED_1 = integer(0), TRACKED_2 = integer(0), TRACKED_3 = integer(0), UNTRACKED = integer(0)
-      )
+      
+      for(name in untracked_col_names) res[[name]] <- ssample(c(1L, 2L, 3L), nrow(res), replace = TRUE)
+     
+      missing <- data.frame(ID = integer(0), TRACKED_1 = integer(0), TRACKED_2 = integer(0), TRACKED_3 = integer(0))
+      for(name in untracked_col_names) missing[[name]] <- ssample(c(1L, 2L, 3L), nrow(missing), replace = TRUE)
+      attr(res, 'missing') <- missing
+      
       attr(res, 'max_id') <- c(0L, base_col_contents)
       return(res)
     }
@@ -147,8 +151,9 @@ test_that(sprintf("Running random review tests with seed: %dL", int_seed) |>
     append <- function(df, row_count){
       last_row_id <- attr(df, 'max_id')
       col_contents <- last_row_id + seq_len(row_count)
-     
-      new_rows <- create(base_col_contents = col_contents)
+   
+      untracked_col_names <- Filter(function(x) startsWith(x, "UNTRACKED_"), names(df))
+      new_rows <- create(base_col_contents = col_contents, untracked_col_names = untracked_col_names)
       
       res <- rbind(df, new_rows)
       attr(res, 'max_id') <- last_row_id + as.integer(row_count)
@@ -209,7 +214,7 @@ test_that(sprintf("Running random review tests with seed: %dL", int_seed) |>
   initial_row_count <- 3
   default_choice <- RT$review_param[['choices']][[1]]
 
-  df <- RT$create()
+  df <- RT$create(untracked_col_names = "UNTRACKED_1")
   # TODO: Add `info <- RT$track(df)` if we ever allow to review 0-row data frames
   df <- RT$append(df, initial_row_count)
   
@@ -230,7 +235,6 @@ test_that(sprintf("Running random review tests with seed: %dL", int_seed) |>
   iteration_count <- 100
   max_delta_count <- 3L
   
-  # TODO: Add operations that add and remove non-tracked columns
   for(i_iteration in seq_len(iteration_count)){
     oracle_expected[["added"]] <- integer(0)
     oracle_expected[["modified"]] <- integer(0)
@@ -242,9 +246,9 @@ test_that(sprintf("Running random review tests with seed: %dL", int_seed) |>
     #
     # REVIEW PHASE --> <------------------ DATASET UPDATE PHASE --------------------------------> <--- CHECK PHASE
     # 
-    #                    recover                                               shuffle
-    #    review   -->       +       -->    mutate   -->    append   -->           +            -->   oracle check
-    #                    remove                                            sort newly appended
+    #                   recover                           add and remove         shuffle
+    #    review   -->      +    --> mutate --> append -->  non-tracked   -->        +            -->   oracle check
+    #                   remove                              variables        sort newly appended
     #
     # We start each iteration with a dataset that has just been updated and loaded in the app. The `.base` and `.delta`
     # files are up to date.
@@ -254,7 +258,6 @@ test_that(sprintf("Running random review tests with seed: %dL", int_seed) |>
     # It's important to allow interleaved reviews of at least two different roles (e.g. A, B, A), 
     # so `max_review_action_count` should be at least three:
     stopifnot(max_review_action_count >= 3L)
-    
     
     # NOTE: Review
     review_action_count <- rand_0_to_max(max_review_action_count)
@@ -320,6 +323,28 @@ test_that(sprintf("Running random review tests with seed: %dL", int_seed) |>
     df <- RT$append(df, extra_row_count)
     reviews_oracle <- c(reviews_oracle, rep(default_choice, extra_row_count))
     newly_appended_row_ids <- tail(df, extra_row_count)[["ID"]]
+    
+    # NOTE: Add and remove non-tracked variables
+    # Add
+    untracked_col_names <- Filter(function(x) startsWith(x, "UNTRACKED_"), names(df))
+    max_col_numnber <- max(c(0, as.integer(gsub("^UNTRACKED_", "", untracked_col_names))))
+    col_count <- rand_0_to_max(min(length(untracked_col_names), max_delta_count))
+    if(col_count){
+      new_col_names <- paste0("UNTRACKED_", seq_len(col_count) + max_col_numnber)
+      for(name in untracked_col_names) df[[name]] <- ssample(c(1L, 2L, 3L), nrow(df), replace = TRUE)
+      missing <- attr(df, "missing")
+      for(name in untracked_col_names) missing[[name]] <- ssample(c(1L, 2L, 3L), nrow(missing), replace = TRUE)
+      attr(df, 'missing') <- missing
+    }
+    
+    # Remove
+    untracked_column_indices <- which(startsWith(names(df), "UNTRACKED_"))
+    col_count <- rand_0_to_max(min(length(untracked_column_indices), max_delta_count))
+    col_indices <- ssample(untracked_column_indices, col_count)
+    df[col_indices] <- NULL
+    attr(df, 'missing')[col_indices] <- NULL
+    
+    
     
     # NOTE: Shuffle + Sort newly appended
     #       This step is best left for the end, so that it has a chance to affect all records.
