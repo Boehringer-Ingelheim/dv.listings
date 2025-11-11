@@ -11,7 +11,8 @@ REV <- pack_of_constants(
     REVIEW_SELECT = "rev_id",
     ROLE = "rev_role",
     CONNECT_STORAGE = "connect_storage",
-    HIGHLIGHT_SUFFIX = "_highlight__"
+    HIGHLIGHT_SUFFIX = "_highlight__",
+    APP_ID_suffix = "APP_ID-"
   ),
   LABEL = pack_of_constants(
     DROPDOWN = "Annotation",
@@ -136,21 +137,22 @@ REV_load_annotation_info <- function(folder_contents, review, dataset_lists) {
 
   error <- character()
 
-  # TODO: Chop it in a set of consecutive observers with the app blocked with an overlay
-  # consecutive observers should allow given client time in an asynch way
-  # consider including the global lock for the whole process until released
-  # A queue should exist or retry in the client that is activated when the global lock is released
-  # Maybe a one second wait on a general state 
-  # NOTE(miguel): I think it's possible the above comment predates the IO_action plan. The expensive operations
-  #               are all I/O related and I think it's OK for the server to wait for all of them to be performed
-  #               in the client. The client can figure out which and how many blockers to put up to block the user
-  #               from interacting with the app in the meantime. After that, a single notification to the server
-  #               should be enough.
-  # TODO(miguel): Discuss the two comments above with the team. Maybe collapse them into an architectural comment.
-
   folder_IO_plan <- list()
   append_IO_action <- function(action) {    
     folder_IO_plan <<- c(folder_IO_plan, list(action))
+  }
+  
+  connect_id <- Sys.getenv("CONNECT_CONTENT_GUID")
+  if (nchar(connect_id) > 0) {
+    append_IO_action(
+      list(
+        type = "write_file",
+        mode = "bin",
+        path = "./",
+        fname = paste0(REV$ID$APP_ID_suffix, connect_id),
+        contents = raw(0)
+      )
+    )
   }
   
   for (dataset_lists_name in names(dataset_lists)) {
@@ -515,9 +517,9 @@ REV_compute_storage_folder_error_message <- function(folder_name, folder_listing
         "The selected storage folder is a subfolder of the target folder.",
         "Please select its parent instead."
       )
-    } else if (any(startsWith(item_names, "APP_ID-"))) {
-      storage_app_id_fname <- item_names[startsWith(item_names, "APP_ID-")][[1]]
-      storage_app_id <- gsub("^APP_ID-", "", storage_app_id_fname)
+    } else if (any(startsWith(item_names, REV$ID$APP_ID_suffix))) {
+      storage_app_id_fname <- item_names[startsWith(item_names, REV$ID$APP$ID_suffix)][[1]]
+      storage_app_id <- gsub(paste0("^", REV$ID$APP_ID_suffix), "", storage_app_id_fname)
       if (nchar(app_id) > 0 && # This check allows users that run the application locally to skip this test
           !identical(storage_app_id, app_id)) {
         error_message <- shiny::HTML(
