@@ -518,7 +518,7 @@ REV_compute_storage_folder_error_message <- function(folder_name, folder_listing
         "Please select its parent instead."
       )
     } else if (any(startsWith(item_names, REV$ID$APP_ID_suffix))) {
-      storage_app_id_fname <- item_names[startsWith(item_names, REV$ID$APP$ID_suffix)][[1]]
+      storage_app_id_fname <- item_names[startsWith(item_names, REV$ID$APP_ID_suffix)][[1]]
       storage_app_id <- gsub(paste0("^", REV$ID$APP_ID_suffix), "", storage_app_id_fname)
       if (nchar(app_id) > 0 && # This check allows users that run the application locally to skip this test
           !identical(storage_app_id, app_id)) {
