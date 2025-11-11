@@ -503,6 +503,42 @@ REV_load_annotation_info <- function(folder_contents, review, dataset_lists) {
 
   return(res)
 }
+
+REV_compute_storage_folder_error_message <- function(folder_name, folder_listing, app_id) {
+  error_message <- character(0)
+
+  if (is.null(folder_listing[["error"]])) {
+    item_names <- names(folder_listing[["list"]])
+    if (any(endsWith(item_names, ".base")) || any(endsWith(item_names, ".review")) || 
+        any(endsWith(item_names, ".codes"))) {
+      error_message <- paste(
+        "The selected storage folder is a subfolder of the target folder.",
+        "Please select its parent instead."
+      )
+    } else if (any(startsWith(item_names, "APP_ID-"))) {
+      storage_app_id_fname <- item_names[startsWith(item_names, "APP_ID-")][[1]]
+      storage_app_id <- gsub("^APP_ID-", "", storage_app_id_fname)
+      if (nchar(app_id) > 0 && # This check allows users that run the application locally to skip this test
+          !identical(storage_app_id, app_id)) {
+        error_message <- shiny::HTML(
+          paste(
+            "This storage folder seems to belong to a different application.<br>",
+            sprintf("The ID of the <b>current running application</b> is: <tt>%s</tt>.<br>", app_id),
+            sprintf("The ID of the <b>application that created that storage folder</b> is: <tt>%s</tt>.<br>", storage_app_id),
+            "<small>If the ID of the application as been accidentally updated, you can",
+            "ask the application administrator to restore it to its old value.</small>"
+          )
+        )
+      }
+    }
+  } else {
+    error_message <- shiny::HTML(
+      sprintf("Error listing the contents of folder <t>%s</t>: <q>%s</q>.", folder_name, folder_listing[["error"]])
+    )
+  }
+  
+  return(error_message)
+}
     
 REV_main_logic <- function(state, input, review, datasets, fs_client, fs_callbacks) {
   state[["connected"]] <- shiny::reactiveVal(FALSE)
@@ -534,38 +570,9 @@ REV_main_logic <- function(state, input, review, datasets, fs_client, fs_callbac
     folder_listing <- fs_callbacks[["list"]]()
     shiny::req(is.list(folder_listing))
     
-    error_message <- character(0)
-    
-    if (is.null(folder_listing[["error"]])) {
-      item_names <- names(folder_listing[["list"]])
-      if (any(endsWith(item_names, ".base")) || any(endsWith(item_names, ".review")) || 
-         any(endsWith(item_names, ".codes"))) {
-        error_message <- paste(
-          "The selected storage folder is a subfolder of the target folder.",
-          "Please select its parent instead."
-        )
-      } else if (any(startsWith(item_names, "APP_ID-"))) {
-        app_id <- Sys.getenv("CONNECT_CONTENT_GUID")
-        storage_app_id_fname <- item_names[startsWith(item_names, "APP_ID-")][[1]]
-        storage_app_id <- gsub("^APP_ID-", "", storage_app_id_fname)
-        if (nchar(app_id) && # This check allows users that run the application locally to skip this test
-           !identical(storage_app_id, app_id)) {
-          error_message <- shiny::HTML(
-            paste(
-              "This storage folder seems to belong to a different application.<br>",
-              sprintf("The ID of the <b>current running application</b> is: <tt>%s</tt>.<br>", app_id),
-              sprintf("The ID of the <b>application that created that storage folder</b> is: <tt>%s</tt>.<br>", storage_app_id),
-              "<small>If the ID of the application as been accidentally updated, you can",
-              "ask the application administrator to restore it to its old value.</small>"
-            )
-          )
-        }
-      }
-    } else {
-      error_message <- shiny::HTML(
-        sprintf("Error listing the contents of folder <t>%s</t>: <q>%s</q>.", state[["folder"]], folder_listing[["error"]])
-      )
-    }
+    error_message <- REV_compute_storage_folder_error_message(
+      folder_name = state[["folder"]], folder_listing = folder_listing, app_id = Sys.getenv("CONNECT_CONTENT_GUID")
+    )
     
     if (length(error_message) == 0) {
       fs_client[["read_folder"]](names(datasets))

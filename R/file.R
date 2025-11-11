@@ -140,7 +140,7 @@ fs_init <- function(callbacks, path) {
         file_and_dir_names <- list.files(path, all.files = TRUE, include.dirs = TRUE, no.. = TRUE)
         info <- file.info(file.path(path, file_and_dir_names))
         
-        listing <- list()
+        listing <- setNames(list(), character(0))
         for (i in seq_len(nrow(info))){
           row <- info[i, ]
           name <- basename(rownames(row))
