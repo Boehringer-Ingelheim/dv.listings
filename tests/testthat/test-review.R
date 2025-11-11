@@ -118,7 +118,7 @@ local({
   build_folder_listing <- function(file_names = character(0), error = NULL){
     folder_contents <- setNames(list(), character(0))
     for(name in file_names) folder_contents[[name]] <- list(kind = 'file', size = 0L, time = 0)
-    return(list(list = folder_contents, error = NULL))
+    return(list(list = folder_contents, error = error))
   }
   
   test_that("review feature accepts empty folders" |> vdoc[["add_spec"]](specs$review), {
@@ -130,14 +130,21 @@ local({
   
   test_that("review feature rejects selection of child storage subfolders" |> vdoc[["add_spec"]](specs$review, specs$review_reject_storage_subfolders), {
     error_message <- REV_compute_storage_folder_error_message(
-      'folder_name',  build_folder_listing('foo.base'), '9396a1d5-58dc-47c7-b7ce-4b5a43404a1e'
+      'folder_name',  build_folder_listing('foo.base'), ''
     )
     expect_length(error_message, 1)
   })
   
   test_that("review feature rejects selection of storage folder initially created by a different Posit Connect app" |> vdoc[["add_spec"]](specs$review, specs$review_reject_conflicting_connect_app_storage), {
     error_message <- REV_compute_storage_folder_error_message(
-      'folder_name',  build_folder_listing('APP_ID-00000000-0000-0000-0000-000000000000'), '11111111-1111-1111-1111-111111111111'
+      'folder_name',  build_folder_listing(paste0(REV$ID$APP_ID_suffix, '00000000-0000-0000-0000-000000000000')), '11111111-1111-1111-1111-111111111111'
+    )
+    expect_length(error_message, 1)
+  })
+  
+  test_that("review feature passes through error signalled by the listing action of the filesystem API" |> vdoc[["add_spec"]](specs$review, specs$review_reject_conflicting_connect_app_storage), {
+    error_message <- REV_compute_storage_folder_error_message(
+      'folder_name',  build_folder_listing(error = 'error text'), ''
     )
     expect_length(error_message, 1)
   })
