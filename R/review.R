@@ -526,6 +526,7 @@ REV_main_logic <- function(state, input, review, datasets, fs_client, fs_callbac
     } else {
       if (!is.null(attach_status[["error"]])) shiny::showNotification(attach_status[["error"]], type = "error")
       state[["annotation_info"]] <- NULL
+      state[["contents_ready"]](FALSE) # Edge case where a correct folder was chosen before
     }
   })
   
