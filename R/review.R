@@ -512,7 +512,7 @@ REV_main_logic <- function(state, input, review, datasets, fs_client, fs_callbac
 
   shiny::observeEvent(input[[REV$ID$CONNECT_STORAGE]], {    
     fs_client[["attach"]]()    
-  }, ignoreNULL = FALSE, ignoreInit = TRUE) # TODO: Remove
+  }, ignoreNULL = FALSE, ignoreInit = TRUE)
 
   shiny::observeEvent(fs_callbacks[["attach"]](), {
     attach_status <- fs_callbacks[["attach"]]()
@@ -522,12 +522,62 @@ REV_main_logic <- function(state, input, review, datasets, fs_client, fs_callbac
     shiny::updateActionButton(inputId = REV$ID$CONNECT_STORAGE, label = paste("Storage:", state[["folder"]]))        
 
     if (attach_status[["connected"]] == TRUE) {
-      fs_client[["read_folder"]](names(datasets))      
+      fs_client[["list"]]()
     } else {
       if (!is.null(attach_status[["error"]])) shiny::showNotification(attach_status[["error"]], type = "error")
       state[["annotation_info"]] <- NULL
     }
-  }, ignoreNULL = FALSE, ignoreInit = TRUE) # TODO: Remove
+  })
+  
+  shiny::observeEvent(fs_callbacks[["list"]](), {
+    folder_listing <- fs_callbacks[["list"]]()
+    shiny::req(is.list(folder_listing))
+    
+    error_message <- character(0)
+    
+    if (is.null(folder_listing[["error"]])) {
+      item_names <- names(folder_listing[["list"]])
+      if (any(endsWith(item_names, ".base")) || any(endsWith(item_names, ".review")) || 
+         any(endsWith(item_names, ".codes"))) {
+        error_message <- paste(
+          "The selected storage folder is a subfolder of the target folder.",
+          "Please select its parent instead."
+        )
+      } else if (any(startsWith(item_names, "APP_ID-"))) {
+        app_id <- Sys.getenv("CONNECT_CONTENT_GUID")
+        storage_app_id_fname <- item_names[startsWith(item_names, "APP_ID-")][[1]]
+        storage_app_id <- gsub("^APP_ID-", "", storage_app_id_fname)
+        if (nchar(app_id) && # This check allows users that run the application locally to skip this test
+           !identical(storage_app_id, app_id)) {
+          error_message <- shiny::HTML(
+            paste(
+              "This storage folder seems to belong to a different application.<br>",
+              sprintf("The ID of the <b>current running application</b> is: <tt>%s</tt>.<br>", app_id),
+              sprintf("The ID of the <b>application that created that storage folder</b> is: <tt>%s</tt>.<br>", storage_app_id),
+              "<small>If the ID of the application as been accidentally updated, you can",
+              "ask the application administrator to restore it to its old value.</small>"
+            )
+          )
+        }
+      }
+    } else {
+      error_message <- shiny::HTML(
+        sprintf("Error listing the contents of folder <t>%s</t>: <q>%s</q>.", state[["folder"]], folder_listing[["error"]])
+      )
+    }
+    
+    if (length(error_message) == 0) {
+      fs_client[["read_folder"]](names(datasets))
+    } else {
+      shiny::showNotification(error_message, duration = NULL, closeButton = TRUE, type = "error")
+      state[["annotation_info"]] <- NULL
+      state[["folder"]] <- NULL
+      shiny::updateActionButton(inputId = REV$ID$CONNECT_STORAGE, label = "Storage:")
+      # If we leave the original attach value and the user selects the same folder, the reactiveVal 
+      # will optimize the change away and the user will not see the error message a second time.
+      fs_callbacks[["attach"]](0)
+    }
+  })
 
   shiny::observeEvent(fs_callbacks[["read_folder"]](), {
     folder_contents <- fs_callbacks[["read_folder"]]()
@@ -550,7 +600,7 @@ REV_main_logic <- function(state, input, review, datasets, fs_client, fs_callbac
       state[["annotation_info"]] <- load_results[["loaded_annotation_info"]]
       fs_client[["execute_IO_plan"]](IO_plan = load_results[["folder_IO_plan"]], is_init = TRUE)
     }
-  }, ignoreNULL = FALSE, ignoreInit = TRUE) # TODO: Remove
+  })
 
   # TODO: fs_client[["execute_IO_plan"]][["v"]] if we use the execute IO plan in more places this observer will run
   # more times than it should. Check how this can be avoided, including extra element in status, create a new input?
