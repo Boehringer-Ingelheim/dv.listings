@@ -135,7 +135,28 @@ fs_init <- function(callbacks, path) {
       callbacks[["attach"]](v)
     },
     list = function() {
-      callbacks[["list"]](error = "Not implemented")
+      error <- NULL
+      res <- try({
+        file_and_dir_names <- list.files(path, all.files = TRUE, include.dirs = TRUE, no.. = TRUE)
+        info <- file.info(file.path(path, file_and_dir_names))
+        
+        listing <- list()
+        for (i in seq_len(nrow(info))){
+          row <- info[i, ]
+          name <- basename(rownames(row))
+          if (row[["isdir"]]) listing[[name]] <- list(kind = "directory")
+          else listing[[name]] <- list(kind = "file", size = row[["size"]], time = as.numeric(row[["mtime"]]))
+        }
+      })
+      
+      if (inherits(res, "try-error")) {
+        error <- attr(res, "condition")[["message"]]
+        listing <- NULL
+      }
+      
+      v <- list(list = listing, error = error)
+      
+      callbacks[["list"]](v)
     },
     read = function(file_name, contents) {
       callbacks[["read"]](error = "Not implemented")
