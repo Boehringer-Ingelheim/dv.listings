@@ -12,7 +12,7 @@ REV <- pack_of_constants(
     ROLE = "rev_role",
     CONNECT_STORAGE = "connect_storage",
     HIGHLIGHT_SUFFIX = "_highlight__",
-    APP_ID_suffix = "APP_ID-"
+    APP_ID_prefix = "APP_ID-"
   ),
   LABEL = pack_of_constants(
     DROPDOWN = "Annotation",
@@ -148,8 +148,8 @@ REV_load_annotation_info <- function(folder_contents, review, dataset_lists) {
       list(
         type = "write_file",
         mode = "bin",
-        path = "./",
-        fname = paste0(REV$ID$APP_ID_suffix, connect_id),
+        path = ".",
+        fname = paste0(REV$ID$APP_ID_prefix, connect_id),
         contents = raw(0)
       )
     )
@@ -517,9 +517,9 @@ REV_compute_storage_folder_error_message <- function(folder_name, folder_listing
         "The selected storage folder is a subfolder of the target folder.",
         "Please select its parent instead."
       )
-    } else if (any(startsWith(item_names, REV$ID$APP_ID_suffix))) {
-      storage_app_id_fname <- item_names[startsWith(item_names, REV$ID$APP_ID_suffix)][[1]]
-      storage_app_id <- gsub(paste0("^", REV$ID$APP_ID_suffix), "", storage_app_id_fname)
+    } else if (any(startsWith(item_names, REV$ID$APP_ID_prefix))) {
+      storage_app_id_fname <- item_names[startsWith(item_names, REV$ID$APP_ID_prefix)][[1]]
+      storage_app_id <- gsub(paste0("^", REV$ID$APP_ID_prefix), "", storage_app_id_fname)
       if (nchar(app_id) > 0 && # This check allows users that run the application locally to skip this test
           !identical(storage_app_id, app_id)) {
         error_message <- shiny::HTML(
@@ -623,6 +623,7 @@ REV_main_logic <- function(state, input, review, datasets, fs_client, fs_callbac
         for (entry in plan_status) {
           if (!is.null(entry[["error"]])) {
             error <- TRUE
+            error_message <- entry[["error"]]
             break
           }
         }
@@ -631,7 +632,7 @@ REV_main_logic <- function(state, input, review, datasets, fs_client, fs_callbac
           state[["contents_ready"]](TRUE)
         } else {
           shiny::showNotification("Error in initial read and write operation", type = "error")
-          stop("Error reading and writing")
+          stop(sprintf("Error reading and writing: %s", error_message))
         }
       }
     },

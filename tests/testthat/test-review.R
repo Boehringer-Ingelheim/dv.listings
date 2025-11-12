@@ -137,7 +137,7 @@ local({
   
   test_that("review feature rejects selection of storage folder initially created by a different Posit Connect app" |> vdoc[["add_spec"]](c(specs$review, specs$review_reject_conflicting_connect_app_storage)), {
     error_message <- REV_compute_storage_folder_error_message(
-      'folder_name',  build_folder_listing(paste0(REV$ID$APP_ID_suffix, '00000000-0000-0000-0000-000000000000')), '11111111-1111-1111-1111-111111111111'
+      'folder_name',  build_folder_listing(paste0(REV$ID$APP_ID_prefix, '00000000-0000-0000-0000-000000000000')), '11111111-1111-1111-1111-111111111111'
     )
     expect_length(error_message, 1)
   })
