@@ -27,16 +27,16 @@ export <- specs_list(
   "export_pdf" = "For downloading in .pdf format, users can select one or multiple reference column(s), which will be displayed on all document pages."
 )
 review <- specs_list(
-  "review" = "dv.listings offers data review functionality",
-  "review_per_row" = "review feature offers per-row reviews",
-  "review_per_role" = "review feature offers per-role reviews",
-  "review_delta_detection" = "review feature detects changes in tracked variables across dataset updates",
-  "review_reject_empty_dataset" = "review feature refuses to review empty datasets",
-  "review_hash_no_false_negatives" = "review hash function catches all cell changes up to four changes per row",
-  "review_change_attribution" = "review hash function changes can be attributed to specific modified cells",
-  "review_accept_removal_of_rows" = "review feature tolerates the removal of rows",
-  "review_reject_storage_subfolders" = "review feature rejects selection of child storage subfolders",
-  "review_reject_conflicting_connect_app_storage" = "review feature rejects selection of storage folder initially created by a different Posit Connect app"
+  review = "dv.listings offers data review functionality"
+  , review_per_row = "review feature offers per-row reviews"
+  , review_per_role = "review feature offers per-role reviews"
+  , review_delta_detection = "review feature detects changes in tracked variables across dataset updates"
+  , review_reject_empty_dataset = "review feature refuses to review empty datasets"
+  , review_hash_no_false_negatives = "review hash function catches all cell changes up to four changes per row"
+  , review_change_attribution = "review hash function changes can be attributed to specific modified cells"
+  , review_accept_removal_of_rows = "review feature tolerates the removal of rows"
+  , review_reject_storage_subfolders = "review feature rejects selection of child storage subfolders"
+  , review_reject_conflicting_connect_app_storage = "review feature rejects selection of storage folder initially created by a different Posit Connect app"
 )
 # nolint end line_length_linter
 
