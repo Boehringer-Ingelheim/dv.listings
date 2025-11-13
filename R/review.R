@@ -142,19 +142,6 @@ REV_load_annotation_info <- function(folder_contents, review, dataset_lists) {
     folder_IO_plan <<- c(folder_IO_plan, list(action))
   }
   
-  connect_id <- Sys.getenv("CONNECT_CONTENT_GUID")
-  if (nchar(connect_id) > 0) {
-    append_IO_action(
-      list(
-        type = "write_file",
-        mode = "bin",
-        path = ".",
-        fname = paste0(REV$ID$APP_ID_prefix, connect_id),
-        contents = raw(0)
-      )
-    )
-  }
-  
   for (dataset_lists_name in names(dataset_lists)) {
     sub_res <- list()
     dataset_list <- dataset_lists[[dataset_lists_name]]
@@ -607,6 +594,18 @@ REV_main_logic <- function(state, input, review, datasets, fs_client, fs_callbac
       )
       # NOTE: We remain in this state while we wait for the user to select an appropriate alternative folder
     } else {
+      # extend `folder_IO_plan` to write the APP_ID file if necessary
+      connect_id <- Sys.getenv("CONNECT_CONTENT_GUID")
+      if (nchar(connect_id) > 0) {
+        file_name_listing <- names(fs_callbacks[["list"]]()[["list"]]) # Available from previous listing step
+        app_id_fname <- paste0(REV$ID$APP_ID_prefix, connect_id)
+        if (!(app_id_fname %in% file_name_listing)) {
+          load_results[["folder_IO_plan"]][[length(load_results[["folder_IO_plan"]]) + 1]] <- list(
+            type = "write_file", mode = "bin", path = ".", fname = app_id_fname, contents = raw(0)
+          )
+        }
+      }
+      
       state[["annotation_info"]] <- load_results[["loaded_annotation_info"]]
       fs_client[["execute_IO_plan"]](IO_plan = load_results[["folder_IO_plan"]], is_init = TRUE)
     }
