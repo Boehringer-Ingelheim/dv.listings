@@ -43,7 +43,10 @@ REV_include_review_info <- function(annotation_info, data, col_names) {
     annotation_info <- annotation_info[filter_mask, ]
   }
 
-  if (nrow(data) > nrow(annotation_info)) return(NULL)
+  if (nrow(data) > nrow(annotation_info)) 
+    return(
+      simpleCondition("Internal error in `REV_include_review_info`: Annotation info has fewer rows than data listing.")
+    )
   
   reviews <- annotation_info[["review"]]
   roles <- annotation_info[["role"]]
@@ -758,7 +761,13 @@ REV_respond_to_user_review <- function(ns, state, input, review, selected_datase
     annotation_info <- state[["annotation_info"]][[dataset_list_name]][[dataset_name]]
     
     changes <- REV_include_review_info(annotation_info = annotation_info, data = new_data, col_names = list())
-    shiny::req(!is.null(changes))
+    if (inherits(changes, "simpleCondition")) {
+      shiny::showNotification(changes[["message"]], type = "warning")
+      warning(changes[["message"]])
+      shiny::req(FALSE)
+    }
+    
+    
     new_data <- changes[["data"]]
     timestamp <- SH$get_UTC_time_in_seconds()
     choice_index <- as.integer(info[["option"]])
