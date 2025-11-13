@@ -525,9 +525,9 @@ REV_compute_storage_folder_error_message <- function(folder_name, folder_listing
         error_message <- shiny::HTML(
           paste(
             "This storage folder seems to belong to a different application.<br>",
-            sprintf("The ID of the <b>current running application</b> is: <tt>%s</tt>.<br>", app_id),
+            sprintf("<small>The ID of the <b>current running application</b> is: <tt>%s</tt>.<br>", app_id),
             sprintf("The ID of the <b>application that created that storage folder</b> is: <tt>%s</tt>.<br>", storage_app_id),
-            "<small>If the ID of the application as been accidentally updated, you can",
+            "If the ID of the application as been accidentally updated, you can",
             "ask the application administrator to restore it to its old value.</small>"
           )
         )
