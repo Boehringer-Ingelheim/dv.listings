@@ -438,7 +438,8 @@ RS_compute_review_reviews_memory <- function(role, dataset) {
 }
 
 RS_parse_review_reviews <- function(contents, row_count, expected_role, expected_domain) {
-  res <- data.frame(review = rep(0L, row_count), timestamp = rep(0., row_count))
+  res_reviews <- rep(0L, row_count)
+  res_timestamps <- rep(0., row_count)
   
   con <- rawConnection(contents, open = "r")
   file_magic_code <- readBin(con, raw(), 8L) |> rawToChar()
@@ -451,21 +452,36 @@ RS_parse_review_reviews <- function(contents, row_count, expected_role, expected
   domain <- SH$read_string_from_con(con)
   ; if (!identical(domain, expected_domain)) return(simpleCondition(sprintf("Expected domain `%s`", expected_domain)))
   
-  f_cur <- seek(con, where = 0, origin = "end", rw = "read")
-  f_end <- seek(con, where = f_cur, origin = "start", rw = "read")
+  f_after_header <- seek(con, where = 0L, origin = "end", rw = "read")
+  f_end <- seek(con, where = f_after_header, origin = "start", rw = "read")
   
-  record_count <- (f_end - f_cur) / (4 + 4 + 8) # sizes correspond to integer+integer+numeric
-  for (i in seq_len(record_count)){
-    row_index <- readBin(con, integer(), 1L, endian = "little")
-    review <- readBin(con, integer(), 1L, endian = "little")
-    timestamp <- readBin(con, numeric(), 1L, endian = "little")
-    # NOTE: timestamp increases monotonically with each new row, so not checking it
-    # TODO: Possibly expensive. Could be the case that having two separate lists (one for `review` and one for `timestamp` and combine them after the fact into a data.frame is much cheaper
-    res[["review"]][[row_index]] <- review
-    res[["timestamp"]][[row_index]] <- timestamp
-  }
+  integer_size <- 4L
+  numeric_size <- 8L
+  record_count <- (f_end - f_after_header) / (integer_size + integer_size + numeric_size)
+  remainder <- (f_end - f_after_header) %% (integer_size + integer_size + numeric_size)
+  ; if (remainder != 0) return(simpleCondition(sprintf("Wrong `.review` file size")))
+ 
+  # Interpret the whole file as an array of 32-bit integers and extract all canonical and review indices
+  integers <- readBin(con, integer(), record_count * 4L, endian = "little")
+  dim(integers) <- c(4L, record_count)
+  canonical_indices <- integers[1, ]
+  review_indices <- integers[2, ]
+  ; if (!(all(0 < canonical_indices & canonical_indices <= row_count)))
+    return(simpleCondition("Invalid `.review` canonical indices"))
+  
+  # Interpret the whole file as an array of 64-bit real values and extract all timestamps
+  seek(con, where = f_after_header, origin = "start", rw = "read")
+  doubles <- readBin(con, numeric(), record_count * 2L, endian = "little")
+  dim(doubles) <- c(2L, record_count)
+  timestamps <- doubles[2, ]
+  ; if (any(diff(timestamps) < 0)) return(simpleCondition("Non-monotonically increasing `.review` timestamps"))
   
   close(con)
+  
+  res_reviews[canonical_indices] <- review_indices
+  res_timestamps[canonical_indices] <- timestamps
+  
+  res <- data.frame(review = res_reviews, timestamp = res_timestamps)
   
   return(res)
 }

@@ -440,6 +440,12 @@ REV_load_annotation_info <- function(folder_contents, review, dataset_lists) {
         row_count <- ncol(base_info[["id_hashes"]])
         role_review_st <- RS_parse_review_reviews(contents, row_count = row_count,
                                                   expected_role = role, expected_domain = dataset_review_name)
+        if (inherits(role_review_st, "simpleCondition")) {
+          # If there's something wrong with prior reviews, we can't add further reviews on top. So, we stop.
+          error <- c(error, sprintf("Error while processing `%s`: %s", fname, role_review_st[["message"]]))
+          return(list(error = error))
+        }
+        
         role_review_df <- map_canonical_data_into_current_order(role_review_st)
         
         # Progressive update of all roles through the mask
