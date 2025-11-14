@@ -1,6 +1,6 @@
-# dv.listings 4.3.0-9000
+# dv.listings 4.3.0-9001
 
-- Nothing of note, yet. Better tests, but users won't care.
+- Guard against selection of nested or conflicting review storage location.
 
 # dv.listings 4.3.0
 

@@ -591,6 +591,7 @@ listings_server <- function(module_id,
           data = table_data[["data"]],
           col_names = table_data[["col_names"]]
         )
+        shiny::validate(shiny::need(!inherits(changes, "simpleCondition"), changes[["message"]]))
 
         changes[["data"]][[REV$ID$STATUS_COL]] <- REV_compute_status(changes[["data"]], role)
         changes[["data"]][[REV$ID$LATEST_REVIEW_COL]] <- REV_review_var_to_json(changes[["data"]][[REV$ID$LATEST_REVIEW_COL]])        

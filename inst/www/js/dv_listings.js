@@ -550,7 +550,9 @@ const dv_fsa = (function() {
         if(entry.mode === "bin"){
           try {
             const buffer = await _base64_to_buffer(entry.contents);
-            const dir_handle = await g_directory.handle.getDirectoryHandle(entry.path, {create: false});
+            let dir_handle = null;
+            if(entry.path === ".") dir_handle = g_directory.handle;
+            else dir_handle = await g_directory.handle.getDirectoryHandle(entry.path, {create: false});
             const file_handle = await dir_handle.getFileHandle(entry.fname, {create: true});
   
             const writable = await file_handle.createWritable();
