@@ -186,10 +186,25 @@ If we take a hypothetical "xyz" domain, `dv.listings` will store the following f
 
 <details><summary>`xyz_<ROLE>.review` (one per domain and ROLE)</summary>
 - 1 file magic code ("LISTREVI")
-- 1 format version number (0)
+- 1 format version number (1)
 - 1 role string
 - 1 domain string ("xyz")
-- n reviews: row index + `review_index` + delta timestamp
+- n reviews: 
+  - `[4-byte integer]` (+)canonical row index / (-)review action index
+  - `[4-byte integer]` `review_index` 
+  - `[8-byte numeric]` delta timestamp
+
+<b>New in version 1 of the `.review` format:</b>
+
+Reviews can be undone. The interpretation of each review record depends on the sign of its first field:
+
+- If positive, that value represents the _canonical row index_ that is under review. 
+- If negative, the absolute value of the field refers to the _index of the review action_ that is to be undone.
+  In this second scenario, the value of the `review_index` field has to match that of the action to undo (this 
+  information is used as a redundancy check). The timestamp field records the time at which the "undo" action happened.
+  
+This behavior is backwards-compatible with that of version 0, as it imbues the unused negative value range of the first
+field with new meaning.
 </details>
 
 <details><summary>`review.codes` (one per app):</summary>
