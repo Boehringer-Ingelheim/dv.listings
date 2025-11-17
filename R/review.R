@@ -434,14 +434,30 @@ REV_load_annotation_info <- function(folder_contents, review, dataset_lists) {
 
         # NOTE: each role keeps their own decisions and we combine them to display the latest one
         row_count <- ncol(base_info[["id_hashes"]])
-        role_review_st <- RS_parse_review_reviews(contents, row_count = row_count,
-                                                  expected_role = role, expected_domain = dataset_review_name)
-        if (inherits(role_review_st, "simpleCondition")) {
+        role_review_st_v_data <- RS_parse_review_reviews(contents, row_count = row_count,
+                                                         expected_role = role, expected_domain = dataset_review_name)
+        if (inherits(role_review_st_v_data, "simpleCondition")) {
           # If there's something wrong with prior reviews, we can't add further reviews on top. So, we stop.
-          error <- c(error, sprintf("Error while processing `%s`: %s", fname, role_review_st[["message"]]))
+          error <- c(error, sprintf("Error while processing `%s`: %s", fname, role_review_st_v_data[["message"]]))
           return(list(error = error))
         }
         
+        # Upgrade review files from version 0 to version 1 so to support undoing actions
+        version_number <- role_review_st_v_data[["format_version_number"]]
+        if (version_number == 0L) {
+          append_IO_action(
+            list(
+              type = "patch_file",
+              path = dataset_lists_name,
+              fname = fname,
+              offset = 0L,
+              old_contents = c(charToRaw("LISTREVI"), as.raw(0)),
+              new_contents = c(charToRaw("LISTREVI"), as.raw(1))
+            )
+          )
+        }
+        
+        role_review_st <- role_review_st_v_data[["data"]]
         role_review_df <- map_canonical_data_into_current_order(role_review_st)
         
         # Progressive update of all roles through the mask
@@ -635,8 +651,10 @@ REV_main_logic <- function(state, input, review, datasets, fs_client, fs_callbac
         if (!error) {
           state[["contents_ready"]](TRUE)
         } else {
-          shiny::showNotification("Error in initial read and write operation", type = "error")
-          stop(sprintf("Error reading and writing: %s", error_message))
+          shiny::showNotification(
+            sprintf("Error in initial read and write operation: %s", error_message), type = "error"
+          )
+          shiny::req(FALSE)
         }
       }
     },

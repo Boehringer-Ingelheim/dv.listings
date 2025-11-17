@@ -429,7 +429,7 @@ RS_compute_review_reviews_memory <- function(role, dataset) {
   
   res <- c(
     charToRaw("LISTREVI"),     # file magic code
-    as.raw(0),                 # format version number
+    as.raw(1),                 # format version number
     prole,                     # role string
     SH$string_to_raw(dataset)  # domain
   )
@@ -444,8 +444,9 @@ RS_parse_review_reviews <- function(contents, row_count, expected_role, expected
   con <- rawConnection(contents, open = "r")
   file_magic_code <- readBin(con, raw(), 8L) |> rawToChar()
   ; if (!identical(file_magic_code, "LISTREVI")) return(simpleCondition("Wrong magic code"))
-  format_version_number <- readBin(con, raw(), 1L)
-  ; if (!identical(format_version_number, as.raw(0))) return(simpleCondition("Wrong format version number"))
+  format_version_number <- as.integer(readBin(con, raw(), 1L))
+  ; if (format_version_number > 1) # Version 1 introduces review undo actions and is backwards compatible with v0
+    return(simpleCondition("Wrong format version number"))
   
   role <- SH$read_string_from_con(con)
   ; if (!identical(role, expected_role)) return(simpleCondition(sprintf("Expected role `%s`", expected_role)))
@@ -481,7 +482,10 @@ RS_parse_review_reviews <- function(contents, row_count, expected_role, expected
   res_reviews[canonical_indices] <- review_indices
   res_timestamps[canonical_indices] <- timestamps
   
-  res <- data.frame(review = res_reviews, timestamp = res_timestamps)
+  res <- list(
+    format_version_number = format_version_number,
+    data = data.frame(review = res_reviews, timestamp = res_timestamps)
+  )
   
   return(res)
 }

@@ -218,13 +218,38 @@ fs_init <- function(callbacks, path) {
           dname <- dirname(fname)
           dir.create(dname, showWarnings = FALSE, recursive = TRUE)
           writeBin(command[["contents"]], fname) # TODO: Checks
+          # TODO: write to temp + rename dance
         } else if (command[["type"]] == "append_file") {
           fname <- file.path(path, command[["path"]], command[["fname"]])
           con <- file(fname, open = "ab")
           on.exit(close(con))
           writeBin(command[["contents"]], con) # TODO: Checks
+          # TODO: write to temp + rename dance
+        } else if (command[["type"]] == "patch_file") {
+          # Check that `old_contents` happen at `offset` and overwrite with `new_contents`
+          if (command[["offset"]] != 0) {
+            first_error_message <- "Command 'patch_file' with offset > 0 not supported yet"
+            break
+          }
+          if (length(command[["old_contents"]]) != length(command[["new_contents"]])) {
+            first_error_message <- "Command 'patch_file' requires old and new contents of equal size"
+            break
+          }
+          
+          n <- length(command[["old_contents"]])
+          fname <- file.path(path, command[["path"]], command[["fname"]])
+          con <- file(description = fname, open = "r+b")
+          on.exit(close(con))
+          seek(con, where = command[["offset"]], origin = "start")
+          old_contents <- readBin(con, raw(0), n = n, endian = "little")
+          if (!identical(old_contents, command[["old_contents"]])) {
+            first_error_message <- "Command 'patch_file' found contents to patch to be different than those specified"
+            break
+          }
+          seek(con, where = command[["offset"]], origin = "start", rw = "write")
+          writeBin(object = command[["new_contents"]], con = con, endian = "little")
         } else {
-          first_error_message <- sprintf("Command type '%s' not supported yet", command[["type"]])
+          first_error_message <- sprintf("Command '%s' not supported yet", command[["type"]])
           break
         }
       }
