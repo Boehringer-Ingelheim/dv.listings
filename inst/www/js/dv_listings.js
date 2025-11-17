@@ -224,7 +224,7 @@ const dv_listings = (function () {
     }
   }
 
-  const render_bulk_menu = function(id, choices, input_id) {    
+  const render_bulk_menu_and_undo_button = function(id, choices, bulk_input_id, undo_input_id) {
     const container = $("#" + id).find('.top');
 
     let choices_menu = '';
@@ -242,7 +242,7 @@ const dv_listings = (function () {
     const apply_bulk_split = `
     <div class="btn-group" style = "display:inline-flex">
     <button type="button" class="btn btn-outline-primary" 
-            onclick="dv_listings.apply_bulk_visible('${id}', '${input_id}')">
+            onclick="dv_listings.apply_bulk_visible('${id}', '${bulk_input_id}')">
       Apply selected
     </button>
     <button type="button" class="btn btn-primary dropdown-toggle dropdown-toggle-split" data-bs-toggle="dropdown" data-toggle="dropdown" aria-expanded="false">
@@ -251,12 +251,18 @@ const dv_listings = (function () {
     </button>
     <ul class="dropdown-menu" role="menu">
       <li>
-        <a href="#" onclick="dv_listings.apply_bulk_filtered('${id}', '${input_id}'); return false;">
+        <a href="#" onclick="dv_listings.apply_bulk_filtered('${id}', '${bulk_input_id}'); return false;">
           Apply full table
         </a>
       </li>
     </ul>
-  </div>    
+    </div>    
+    `;
+
+    const undo_element = `
+    <div class="btn-group" style = "display:inline-flex">
+    <button type="button" class="btn btn-outline-primary" onclick="dv_listings.apply_undo('${undo_input_id}')">Undo</button>
+    </div>    
     `;
 
     const html = `
@@ -264,8 +270,11 @@ const dv_listings = (function () {
         ${select_all_visible}
         ${choices_menu}
         ${apply_bulk_split}
-        
-      </div>`;
+      </div>
+      <div class='undo-button-wrapper'>
+        ${undo_element}
+      </div>
+      `;
     container.prepend(html);
   }
 
@@ -349,17 +358,22 @@ const dv_listings = (function () {
     Shiny.setInputValue(input_id, {row:null, option:choice_value, bulk:'filtered'}, {priority: 'event'})
   };
 
+  const apply_undo = function(input_id) {
+    Shiny.setInputValue(input_id, {contents:'dummy'}, {priority: 'event'})
+  };
+
   const res = {
     review_column_render: review_column_render,
     render_selection: render_selection,
     render_identity: render_identity,
     render_status: render_status,
-    render_bulk_menu: render_bulk_menu,
+    render_bulk_menu_and_undo_button: render_bulk_menu_and_undo_button,
     refresh_bulk_select_all_checkbox: refresh_bulk_select_all_checkbox,
     on_change_select_all_checkbox: on_change_select_all_checkbox,
     on_change_table_checkbox: on_change_table_checkbox,
     apply_bulk_visible: apply_bulk_visible,
     apply_bulk_filtered: apply_bulk_filtered,
+    apply_undo: apply_undo,
     show_child: show_child
   }
   return (res)

@@ -624,11 +624,11 @@ listings_server <- function(module_id,
 
         # TODO: find a place for this if
         if (checkmate::test_string(input[[REV$ID$ROLE]], min.chars = 1)) {
-          bulk_render <- sprintf(
-            "dv_listings.render_bulk_menu(settings.sTableId + \"_wrapper\", [%s], '%s');",
-            paste(paste0("'", review[["choices"]], "'"), collapse = ", "), ns(REV$ID$REVIEW_SELECT)
+          bulk_and_undo_render <- sprintf(
+            "dv_listings.render_bulk_menu_and_undo_button(settings.sTableId + \"_wrapper\", [%s], '%s', '%s');",
+            paste(paste0("'", review[["choices"]], "'"), collapse = ", "), ns(REV$ID$REVIEW_SELECT), ns(REV$ID$UNDO)
           )
-          init_complete_payloads <- c(init_complete_payloads, bulk_render)
+          init_complete_payloads <- c(init_complete_payloads, bulk_and_undo_render)
         }
       }
       

@@ -9,6 +9,7 @@ REV <- pack_of_constants(
     DATA_TIMESTAMP_COL = "__data_timestamp__",
     LATEST_REVIEW_COL = "__latest_review__",
     REVIEW_SELECT = "rev_id",
+    UNDO = "undo",
     ROLE = "rev_role",
     CONNECT_STORAGE = "connect_storage",
     HIGHLIGHT_SUFFIX = "_highlight__",
@@ -790,16 +791,16 @@ REV_respond_to_user_review <- function(ns, state, input, review, selected_datase
     timestamp <- SH$get_UTC_time_in_seconds()
     choice_index <- as.integer(info[["option"]])
     
-    subres <- REV_compute_review_changes(
+    changes <- REV_compute_review_changes(
       data = new_data, row_indices = i_rows, annotation_info = annotation_info, 
       choices = review[["choices"]], choice_index = choice_index,  role = role, 
       timestamp = timestamp, dataset_list_name = dataset_list_name, dataset_name = dataset_name
     )
     
-    new_data <- subres[["data"]]
-    annotation_info <- subres[["annotation_info"]]
+    new_data <- changes[["data"]]
+    annotation_info <- changes[["annotation_info"]]
     state[["annotation_info"]][[dataset_list_name]][[dataset_name]] <- annotation_info
-    IO_plan <- subres[["IO_plan"]]
+    IO_plan <- changes[["IO_plan"]]
 
     # TODO: Benchmark to decide if this is a bottleneck for bigger datasets
     new_data[[REV$ID$STATUS_COL]] <- REV_compute_status(new_data, role)
@@ -824,6 +825,11 @@ REV_respond_to_user_review <- function(ns, state, input, review, selected_datase
     DT::replaceData(dt_proxy, new_data, resetPaging = FALSE, clearSelection = "none")    
     
     fs_execute_IO_plan(IO_plan, is_init = FALSE)
+  })
+  
+  
+  shiny::observeEvent(input[[REV$ID$UNDO]], {
+    message("Received request to undo")
   })
   
   return(NULL)
