@@ -596,6 +596,40 @@ const dv_fsa = (function() {
         } finally {
           entry.contents = null;
         }
+      } else if(entry.type === "patch_file") {
+        // FIXME(miguel)? This abstraction sits unnaturally close to the FSA API.
+        //                The `entry` could just use the full_path to the file; no need for dir+fname
+        try {
+          const old_contents = new Uint8Array(await _base64_to_buffer(entry.old_contents));
+          const new_contents = new Uint8Array(await _base64_to_buffer(entry.new_contents));
+          const dir_handle = await g_directory.handle.getDirectoryHandle(entry.path, {create: false});
+          const file_handle = await dir_handle.getFileHandle(entry.fname, {create: false});
+          const file = await file_handle.getFile();
+          const file_contents = new Uint8Array(await file.arrayBuffer());
+          
+          // Compare and patch contents in memory
+          for(let i = 0; i < old_contents.length; i+=1){
+            if(old_contents[i] != file_contents[entry.offset+i]){
+              throw new Error("Old contents provided to 'patch_file' operation don't match original");
+            }
+            file_contents[entry.offset+i] = new_contents[i];
+          }
+          
+          const temp_file_name = entry.fname + "_" + crypto.randomUUID() + ".tmp"  
+          const temp_handle = await dir_handle.getFileHandle(temp_file_name, {create: true});
+          const writable = await temp_handle.createWritable();
+          await writable.write(file_contents);
+          await writable.close();
+          
+          await temp_handle.move(dir_handle, entry.fname);
+          
+          entry.error = null;
+        } catch (error) {
+          entry.error = "Error patching " + entry.path + "/" + entry.fname;
+          console.error(entry.error);
+        } finally {
+          entry.contents = null;
+        }
       } else {        
         console.error("Uknown type: " + entry.type)
       }
