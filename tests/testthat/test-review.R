@@ -59,24 +59,22 @@ local({
   
   test_that("Review routines produce a descriptive error when asked to review an empty dataset" |>
               vdoc[["add_spec"]](specs$review_reject_empty_dataset), {
-    folder_contents <- NULL
     dataset_lists <- list(
       dataset_list = list(
         ae = head(safetyData::sdtm_ae, 0)
       )
     )
-    info <- REV_load_annotation_info(folder_contents, review, dataset_lists)
+    info <- REV_load_annotation_info(folder_contents = NULL, review, dataset_lists)
     expect_equal(info[["error"]], "Refusing to review 0-row dataset")
   })
   
   test_that("Review routines cope with 1-row datasets", {
-    folder_contents <- NULL
     dataset_lists <- list(
       dataset_list = list(
         ae = head(safetyData::sdtm_ae, 1)
       )
     )
-    info <- REV_load_annotation_info(folder_contents, review, dataset_lists)
+    info <- REV_load_annotation_info(folder_contents = NULL, review, dataset_lists)
     expect_length(info[["error"]], 0)
   })
   
@@ -110,6 +108,41 @@ local({
     delta <- RS_parse_delta(info[['contents']], length(tracked_vars))
     expect_true(
       delta[["new_row_count"]] == 1 && delta[["modified_row_count"]] == 1 && delta[["modified_row_indices"]] == 1,
+    )
+  })
+  
+  test_that("REV_load_annotation_info updates .review files automatically from version 0 of the format to version 1", {
+    dataset_lists <- list(
+      dataset_list = list(
+        ae = safetyData::sdtm_ae[1:2,]
+      )
+    )
+    
+    version_byte_pos <- 9
+    
+    info <- REV_load_annotation_info(NULL, review, dataset_lists)
+    expect_length(info[["error"]], 0)
+    
+    fs_client[["execute_IO_plan"]](IO_plan = info[["folder_IO_plan"]], is_init = TRUE)
+    fs_client[["read_folder"]](subfolder_candidates = "dataset_list")
+    
+    role_A_review_file_path <- file.path(store_path, 'dataset_list', 'ae_roleA.review')
+    file_size <- file.size(role_A_review_file_path)
+    v1_contents <- readBin(con = role_A_review_file_path, what = raw(0), n = file_size)
+    expect_equal(v1_contents[[version_byte_pos]], as.raw(1)) # NOTE: This will break next time this file format changes
+    v0_contents <- v1_contents
+    v0_contents[[version_byte_pos]] <- as.raw(0)
+    writeBin(v0_contents, role_A_review_file_path, endian = 'little')
+    
+    fs_client[["read_folder"]](subfolder_candidates = "dataset_list")
+    info <- REV_load_annotation_info(folder_contents, review, dataset_lists)
+    
+    expect_length(info[["folder_IO_plan"]], 1)
+    action <- info[["folder_IO_plan"]][[1]]
+    expect_true(
+      action[["type"]] == 'patch_file' && action[["fname"]] == 'ae_roleA.review' &&
+        identical(action[["old_contents"]], head(v0_contents, version_byte_pos)) &&
+        identical(action[["new_contents"]], head(v1_contents, version_byte_pos))
     )
   })
 })
