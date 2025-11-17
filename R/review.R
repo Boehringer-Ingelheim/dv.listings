@@ -181,7 +181,6 @@ REV_load_annotation_info <- function(folder_contents, review, dataset_lists) {
       append_IO_action(
         list(
           type = "write_file",
-          mode = "bin",
           path = dataset_lists_name,
           fname = fname,
           contents = contents
@@ -340,7 +339,6 @@ REV_load_annotation_info <- function(folder_contents, review, dataset_lists) {
               append_IO_action(
                 list(
                   type = "write_file",
-                  mode = "bin",
                   path = dataset_lists_name,
                   fname = fname,
                   contents = new_delta
@@ -358,7 +356,6 @@ REV_load_annotation_info <- function(folder_contents, review, dataset_lists) {
           append_IO_action(
             list(
               type = "write_file",
-              mode = "bin",
               path = dataset_lists_name,
               fname = fname,
               contents = contents
@@ -428,7 +425,6 @@ REV_load_annotation_info <- function(folder_contents, review, dataset_lists) {
           append_IO_action(
             list(
               type = "write_file",
-              mode = "bin",
               path = dataset_lists_name,
               fname = fname,
               contents = contents
@@ -610,7 +606,7 @@ REV_main_logic <- function(state, input, review, datasets, fs_client, fs_callbac
         app_id_fname <- paste0(REV$ID$APP_ID_prefix, connect_id)
         if (!(app_id_fname %in% file_name_listing)) {
           load_results[["folder_IO_plan"]][[length(load_results[["folder_IO_plan"]]) + 1]] <- list(
-            type = "write_file", mode = "bin", path = ".", fname = app_id_fname, contents = raw(0)
+            type = "write_file", path = ".", fname = app_id_fname, contents = raw(0)
           )
         }
       }
@@ -665,7 +661,6 @@ REV_produce_IO_plan_for_review_action <- function(
   IO_plan <- list(
     list(
       type = "append_file",
-      mode = "bin",
       path = dataset_list_name,
       fname = paste0(dataset_name, "_", role, ".review"),
       contents = contents
@@ -737,7 +732,6 @@ REV_compute_review_changes <- function(data, row_indices, annotation_info, choic
   return(res)
 }
   
-
 REV_respond_to_user_review <- function(ns, state, input, review, selected_dataset_list_name, selected_dataset_name, data,
                                        dt_proxy, fs_execute_IO_plan, table_data_rw) {
   shiny::observeEvent(input[[REV$ID$REVIEW_SELECT]], {

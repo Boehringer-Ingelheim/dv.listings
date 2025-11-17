@@ -546,61 +546,56 @@ const dv_fsa = (function() {
         }
       } else if (entry.type === "write_file") {
         // FIXME(miguel)? This abstraction sits unnaturally close to the FSA API.
-        //                The `entry` could be simply {full_path + contents}; no need for dir+fname or mode
-        if(entry.mode === "bin"){
-          try {
-            const buffer = await _base64_to_buffer(entry.contents);
-            let dir_handle = null;
-            if(entry.path === ".") dir_handle = g_directory.handle;
-            else dir_handle = await g_directory.handle.getDirectoryHandle(entry.path, {create: false});
-            const file_handle = await dir_handle.getFileHandle(entry.fname, {create: true});
-  
-            const writable = await file_handle.createWritable();
-            await writable.write(buffer);
-            await writable.close();
-            entry.error = null;
-          } catch (error) {
-            debugger;
-            entry.error = "Error writing: " + entry.path + "/" + entry.fname;
-            console.error(entry.error);
-          } finally {
-            entry.contents = null;
-          }
-        } else {
-          console.error("Uknown mode: " + entry.mode)
-        }        
+        //                The `entry` could be simply {full_path + contents}; no need for dir+fname
+        try {
+          const buffer = await _base64_to_buffer(entry.contents);
+          let dir_handle = null;
+          if(entry.path === ".") dir_handle = g_directory.handle;
+          else dir_handle = await g_directory.handle.getDirectoryHandle(entry.path, {create: false});
+          const file_handle = await dir_handle.getFileHandle(entry.fname, {create: true});
+
+          // TODO? - Make it so that write_file is also atomic and you get the benefit of being able to replace
+          //         part of the contents of a file atomically
+
+          const writable = await file_handle.createWritable();
+          await writable.write(buffer);
+          await writable.close();
+          entry.error = null;
+        } catch (error) {
+          debugger;
+          entry.error = "Error writing: " + entry.path + "/" + entry.fname;
+          console.error(entry.error);
+        } finally {
+          entry.contents = null;
+        }
       } else if(entry.type === "append_file") {
         // FIXME(miguel)? This abstraction sits unnaturally close to the FSA API.
-        //                The `entry` could be simply {full_path + contents}; no need for dir+fname or mode
-        if(entry.mode === "bin"){
-          try {
-            const buffer = await _base64_to_buffer(entry.contents);
-            const dir_handle = await g_directory.handle.getDirectoryHandle(entry.path, {create: false});
-            const file_handle = await dir_handle.getFileHandle(entry.fname, {create: false});
-            const file = await file_handle.getFile();
-            const file_contents = new Uint8Array(await file.arrayBuffer());
+        //                The `entry` could be simply {full_path + contents}; no need for dir+fname
+        try {
+          const buffer = await _base64_to_buffer(entry.contents);
+          const dir_handle = await g_directory.handle.getDirectoryHandle(entry.path, {create: false});
+          const file_handle = await dir_handle.getFileHandle(entry.fname, {create: false});
+          const file = await file_handle.getFile();
+          const file_contents = new Uint8Array(await file.arrayBuffer());
 
-            const combined_contents = new Uint8Array(file_contents.length + buffer.byteLength);
-            combined_contents.set(file_contents, 0);
-            combined_contents.set(new Uint8Array(buffer), file_contents.length);
+          const combined_contents = new Uint8Array(file_contents.length + buffer.byteLength);
+          combined_contents.set(file_contents, 0);
+          combined_contents.set(new Uint8Array(buffer), file_contents.length);
 
-            const temp_file_name = entry.fname + "_" + crypto.randomUUID() + ".tmp"  
-            const temp_handle = await dir_handle.getFileHandle(temp_file_name, {create: true});
-            const writable = await temp_handle.createWritable();
-            await writable.write(combined_contents);
-            await writable.close();
-            await temp_handle.move(dir_handle, entry.fname);
+          const temp_file_name = entry.fname + "_" + crypto.randomUUID() + ".tmp"  
+          const temp_handle = await dir_handle.getFileHandle(temp_file_name, {create: true});
+          const writable = await temp_handle.createWritable();
+          await writable.write(combined_contents);
+          await writable.close();
+          await temp_handle.move(dir_handle, entry.fname);
 
-            entry.error = null;
-          } catch (error) {
-            entry.error = "Error writing: " + entry.path + "/" + entry.fname;
-            console.error(entry.error);
-          } finally {
-            entry.contents = null;
-          }
-        } else {
-          console.error("Uknown mode: " + entry.mode)
-        }        
+          entry.error = null;
+        } catch (error) {
+          entry.error = "Error writing: " + entry.path + "/" + entry.fname;
+          console.error(entry.error);
+        } finally {
+          entry.contents = null;
+        }
       } else {        
         console.error("Uknown type: " + entry.type)
       }

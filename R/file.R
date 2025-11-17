@@ -214,19 +214,11 @@ fs_init <- function(callbacks, path) {
         command <- IO_plan[[i_command]]
         IO_plan[[i_command]][["error"]] <- NULL
         if (command[["type"]] == "write_file") {
-          if (command[["mode"]] != "bin") {
-            first_error_message <- "The only supported write mode is `bin`"
-            break
-          }
           fname <- file.path(path, command[["path"]], command[["fname"]])
           dname <- dirname(fname)
           dir.create(dname, showWarnings = FALSE, recursive = TRUE)
           writeBin(command[["contents"]], fname) # TODO: Checks
         } else if (command[["type"]] == "append_file") {
-          if (command[["mode"]] != "bin") {
-            first_error_message <- "The only supported append mode is `bin`"
-            break
-          }
           fname <- file.path(path, command[["path"]], command[["fname"]])
           con <- file(fname, open = "ab")
           on.exit(close(con))
