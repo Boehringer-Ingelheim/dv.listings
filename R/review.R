@@ -10,6 +10,8 @@ REV <- pack_of_constants(
     LATEST_REVIEW_COL = "__latest_review__",
     REVIEW_SELECT = "rev_id",
     UNDO = "undo",
+    UNDO_DESCRIPTION_ANCHOR = "undo_description_anchor",
+    UNDO_DESCRIPTION = "undo_description",
     ROLE = "rev_role",
     CONNECT_STORAGE = "connect_storage",
     HIGHLIGHT_SUFFIX = "_highlight__",
@@ -750,6 +752,19 @@ REV_compute_review_changes <- function(data, row_indices, annotation_info, choic
   
   return(res)
 }
+
+REV_describe_undo_action <- function(selected_dataset_list_name, selected_dataset_name, role){
+  res <- paste(c(selected_dataset_list_name, selected_dataset_name, role), collapse = ', ')
+  return(res)
+}
+
+REV_replace_undo_description <- function(ns, contents){
+  shiny::removeUI(selector = paste0("#", ns(REV$ID$UNDO_DESCRIPTION)))
+  shiny::insertUI(selector = paste0('#', ns(REV$ID$UNDO_DESCRIPTION_ANCHOR)), where = 'afterEnd', 
+                  ui = shiny::p(contents, id = ns(REV$ID$UNDO_DESCRIPTION))
+  )
+}
+
   
 REV_respond_to_user_review <- function(ns, state, input, review, selected_dataset_list_name, selected_dataset_name, data,
                                        dt_proxy, fs_execute_IO_plan, table_data_rw) {
@@ -786,7 +801,6 @@ REV_respond_to_user_review <- function(ns, state, input, review, selected_datase
       shiny::req(FALSE)
     }
     
-    
     new_data <- changes[["data"]]
     timestamp <- SH$get_UTC_time_in_seconds()
     choice_index <- as.integer(info[["option"]])
@@ -822,14 +836,22 @@ REV_respond_to_user_review <- function(ns, state, input, review, selected_datase
     # > table.columns()[0].length;
     # > tmp[9] = '2';
     # > table.row(5).data(tmp).invalidate();
-    DT::replaceData(dt_proxy, new_data, resetPaging = FALSE, clearSelection = "none")    
+    DT::replaceData(dt_proxy, new_data, resetPaging = FALSE, clearSelection = "none")
+   
+     
+    undo_desc <- REV_describe_undo_action(selected_dataset_list_name, selected_dataset_name, role)
+    undo_desc <- "New action" # TODO: Remove
+    REV_replace_undo_description(ns, undo_desc)
     
     fs_execute_IO_plan(IO_plan, is_init = FALSE)
   })
   
-  
   shiny::observeEvent(input[[REV$ID$UNDO]], {
-    message("Received request to undo")
+    role <- input[[REV$ID$ROLE]]
+    message("Received request to undo") # TODO: Act on it
+    undo_desc <- REV_describe_undo_action(selected_dataset_list_name, selected_dataset_name, role)
+    undo_desc <- "Undid action" # TODO: Remove
+    REV_replace_undo_description(ns, undo_desc)
   })
   
   return(NULL)

@@ -190,7 +190,7 @@ If we take a hypothetical "xyz" domain, `dv.listings` will store the following f
 - 1 role string
 - 1 domain string ("xyz")
 - n reviews: 
-  - `[4-byte integer]` (+)canonical row index / (-)review action index
+  - `[4-byte integer]` (`+`)canonical row index / (`-`)review action index
   - `[4-byte integer]` `review_index` 
   - `[8-byte numeric]` delta timestamp
 

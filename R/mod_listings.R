@@ -624,9 +624,15 @@ listings_server <- function(module_id,
 
         # TODO: find a place for this if
         if (checkmate::test_string(input[[REV$ID$ROLE]], min.chars = 1)) {
+          initial_undo_description <- shiny::p(
+            REV_describe_undo_action(selected_dataset_list_name, selected_dataset_name, role), 
+            id = sprintf("%s", ns(REV$ID$UNDO_DESCRIPTION))
+          )
+          
           bulk_and_undo_render <- sprintf(
-            "dv_listings.render_bulk_menu_and_undo_button(settings.sTableId + \"_wrapper\", [%s], '%s', '%s');",
-            paste(paste0("'", review[["choices"]], "'"), collapse = ", "), ns(REV$ID$REVIEW_SELECT), ns(REV$ID$UNDO)
+            "dv_listings.render_bulk_menu_and_undo_button(settings.sTableId + \"_wrapper\", [%s], '%s', '%s', '%s', '%s');",
+            paste(paste0("'", review[["choices"]], "'"), collapse = ", "), ns(REV$ID$REVIEW_SELECT), 
+            ns(REV$ID$UNDO), ns(REV$ID$UNDO_DESCRIPTION_ANCHOR), initial_undo_description
           )
           init_complete_payloads <- c(init_complete_payloads, bulk_and_undo_render)
         }

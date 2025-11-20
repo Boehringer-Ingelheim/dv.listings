@@ -224,7 +224,7 @@ const dv_listings = (function () {
     }
   }
 
-  const render_bulk_menu_and_undo_button = function(id, choices, bulk_input_id, undo_input_id) {
+  const render_bulk_menu_and_undo_button = function(id, choices, bulk_input_id, undo_input_id, undo_description_anchor_id, initial_undo_description) {
     const container = $("#" + id).find('.top');
 
     let choices_menu = '';
@@ -262,6 +262,14 @@ const dv_listings = (function () {
     const undo_element = `
     <div class="btn-group" style = "display:inline-flex">
     <button type="button" class="btn btn-outline-primary" onclick="dv_listings.apply_undo('${undo_input_id}')">Undo</button>
+    <button type="button" class="btn btn-primary dropdown-toggle dropdown-toggle-split" data-bs-toggle="dropdown" data-toggle="dropdown" aria-expanded="false">
+      <span class="caret"></span>
+      <span class="sr-only">Toggle Dropdown</span>
+    </button>
+    <ul class="dropdown-menu" role="menu">
+        <div id='${undo_description_anchor_id}'></div>
+        ${initial_undo_description}
+    </ul>
     </div>    
     `;
 
