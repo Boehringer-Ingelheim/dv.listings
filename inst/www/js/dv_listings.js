@@ -770,13 +770,12 @@ const dv_fsa = (function() {
     hide_overlay("Writing file...");
   };
 
-  const execute_IO_plan = async function({status_input_id, plan, is_init}) {
+  const execute_IO_plan = async function({status_input_id, plan}) {
     _assert_init_and_attached();
     const status = await _execute_IO_plan(plan);
     const res = {
-      status: status,
-      is_init: is_init
-    }    
+      status: status
+    };
     Shiny.setInputValue(status_input_id, res, {priority: 'event'});
   }
 

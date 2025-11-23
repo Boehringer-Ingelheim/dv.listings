@@ -19,19 +19,14 @@ test_that(sprintf("Running random review tests with seed: %dL", int_seed) |>
               
   # _R_eview _T_est
   RT <- local({
-    folder_contents <- NULL
-    fs_callbacks <- list(
-      attach = function(arg) NULL, list = function(arg) NULL, read = function(arg) NULL, write = function(arg) NULL,
-      append = function(arg) NULL, execute_IO_plan = function(arg) NULL,
-      read_folder = function(arg) folder_contents <<- arg
-    )
-    
     store_path <- file.path(tempdir(), "random_data_test")
     unlink(store_path, recursive = TRUE, force = TRUE)
     dir.create(store_path)
     
-    fs_client <- fs_init(callbacks = fs_callbacks, store_path)
-    fs_client[["read_folder"]](subfolder_candidates = "dataset_list")
+    fs_client <- fs_init(store_path)
+    fs_state <- fs_client[["state"]]
+    fs_contents <- fs_state[["contents"]]
+    fs_client[["list"]]()
     
     # Review folder contents initialized here
     review_param = list(
@@ -47,29 +42,25 @@ test_that(sprintf("Running random review tests with seed: %dL", int_seed) |>
     # Reviews are always returned, however.
     track <- function(df){
       dataset_lists <- list(dataset_list = list(df = df))
-      
-      fs_client[["read_folder"]](subfolder_candidates = "dataset_list") # Refreshes potentially new review info
      
       # TODO: This initial `_load_` is here to load reviews through a side channel. It would be preferable to 
       #       load them explicitly through a separate function (both inside the module and in this oracle-like test)
-      info <- REV_load_annotation_info(folder_contents, review_param, dataset_lists)
+      info <- REV_load_annotation_info(fs_contents, review_param, dataset_lists)
       stopifnot(length(info[["error"]]) == 0)
      
       base_and_delta_change_count <- 0L
-      for(action in info[["folder_IO_plan"]]) {
-        if(action[["type"]] == "write_file" && (endsWith(action[["fname"]], '.base') ||
-                                                endsWith(action[["fname"]], '.delta'))){
+      for(action in info[["IO_plan"]]) {
+        if(action[["kind"]] == "write" && (endsWith(action[["path"]], '.base') ||
+                                           endsWith(action[["path"]], '.delta'))){
           base_and_delta_change_count <- base_and_delta_change_count + 1
         }
       }
-      fs_client[["execute_IO_plan"]](IO_plan = info[["folder_IO_plan"]], is_init = TRUE)
-      fs_client[["read_folder"]](subfolder_candidates = "dataset_list")
+      fs_client[["execute_IO_plan"]](IO_plan = info[["IO_plan"]])
       
-      contents <- folder_contents[["dataset_list"]]
-      fnames <- names(contents)
+      fnames <- names(fs_contents)
       base_fname <- fnames[endsWith(fnames, '.base')]
       stopifnot(length(base_fname) == 1)
-      base_info <- RS_parse_base(contents[[base_fname]][["contents"]])
+      base_info <- RS_parse_base(fs_contents[[base_fname]])
       total_row_count <- base_info[["row_count"]]
       
       res <- list(
@@ -78,9 +69,9 @@ test_that(sprintf("Running random review tests with seed: %dL", int_seed) |>
         missing = integer(0)
       )
       
-      delta_fnames <- fnames[endsWith(fnames, '.delta')]
-      for(delta_fname in delta_fnames){
-        delta_info <- RS_parse_delta(contents[[delta_fname]][["contents"]], 
+      sorted_delta_fnames <- sort(fnames[endsWith(fnames, '.delta')])
+      for(delta_fname in sorted_delta_fnames){
+        delta_info <- RS_parse_delta(fs_contents[[delta_fname]], 
                                      tracked_var_count = length(base_info[["tracked_vars"]]))
         
         added_count <- delta_info[["new_row_count"]]
@@ -169,7 +160,6 @@ test_that(sprintf("Running random review tests with seed: %dL", int_seed) |>
       recover_mask <- missing[["ID"]] %in% row_ids
       res <- rbind(df, missing[recover_mask, , drop = FALSE])
       attr(res, 'missing') <- missing[!recover_mask, , drop = FALSE]
-      
       return(res)
     }
     
@@ -192,7 +182,7 @@ test_that(sprintf("Running random review tests with seed: %dL", int_seed) |>
         canonical_row_indices = row_ids, role = role, choice_index, timestamp, dataset_list_name, dataset_name
       )
       
-      fs_client[["execute_IO_plan"]](IO_plan = IO_plan, is_init = FALSE)
+      fs_client[["execute_IO_plan"]](IO_plan = IO_plan)
       
       return(res)
     }
@@ -227,7 +217,7 @@ test_that(sprintf("Running random review tests with seed: %dL", int_seed) |>
   rand_0_to_max <- function(max) ssample(0:max, 1)
   max_review_action_count <- 3L
 
-  iteration_count <- 100
+  iteration_count <- 100L
   max_delta_count <- 3L
   
   # TODO: Add operations that add and remove non-tracked columns

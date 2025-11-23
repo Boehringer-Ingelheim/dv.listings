@@ -1,18 +1,19 @@
+FS <- pack_of_constants(
+  WRITE_OFFSET_APPEND = -1L,
+  EMPTY_LISTING = data.frame(isdir = logical(0), size = integer(0), mtime = as.POSIXct(numeric(0)))
+)
+
 # Web browser File System Access abstraction.
 # Client-side coarse-grained file system API. The server sends file system commands as custom messages to the browser.
 # The browser uses the (Chrome-specific, experimental) File System Access API 
 #          (Intro: https://developer.chrome.com/docs/capabilities/web-apis/file-system-access,
 #           Spec: https://wicg.github.io/file-system-access/)
 # to perform the requested actions. It reports the results back through pre-allocated shiny inputs.
-fsa_init <- function(input, input_id, callbacks, session = shiny::getDefaultReactiveDomain()) {
-
+fsa_init <- function(input, input_id, session = shiny::getDefaultReactiveDomain()) {
   checkmate::assert_string(input_id, min.chars = 1)
-
-  checkmate::assert_list(callbacks, types = "function") # in shiny apps, members will likely be reactiveVals
-  checkmate::assert_set_equal(
-    names(callbacks), c("attach", "list", "read", "write", "append", "read_folder", "execute_IO_plan")
-  )
   
+  browser() # TODO: Adapt to have the same behavior as ther server-side `fs_init`
+
   ns <- session[["ns"]]
 
   attach_id <- paste0(input_id, "_attach")
@@ -82,11 +83,11 @@ fsa_init <- function(input, input_id, callbacks, session = shiny::getDefaultReac
     callbacks[["read_folder"]](decoded_folder_contents)
   })
 
-  .execute_IO_plan <- function(IO_plan, is_init = FALSE) {
+  .execute_IO_plan <- function(IO_plan) {
     IO_plan_base64_encode <- function(plan) {  
       encoded_plan <- plan
       for (idx in seq_along(plan)) {
-        if (encoded_plan[[idx]][["type"]] == "write_file") {
+        if (encoded_plan[[idx]][["kind"]] == "write_file") {
           encoded_plan[[idx]][["contents"]] <- base64enc::base64encode(encoded_plan[[idx]][["contents"]])
         }
       }
@@ -97,7 +98,7 @@ fsa_init <- function(input, input_id, callbacks, session = shiny::getDefaultReac
 
     session$sendCustomMessage(
       "dv_fsa_execute_io_plan",
-      list(status_input_id = ns(execute_IO_plan_id), plan = IO_plan_base64, is_init = is_init)
+      list(status_input_id = ns(execute_IO_plan_id), plan = IO_plan_base64)
     )
   }
   shiny::observe(callbacks[["execute_IO_plan"]](input[[execute_IO_plan_id]]))
@@ -120,152 +121,210 @@ fsa_init <- function(input, input_id, callbacks, session = shiny::getDefaultReac
 # Server-side File System Access abstraction.
 # Pure R implementation of the `fsa_init` file system API. It allows to:
 # - Test the module end to end without user intervention.
-# - Provide a server-only implementation for shiny hosting services that offer app-specific storage.
-fs_init <- function(callbacks, path) {
-  checkmate::assert_list(callbacks, types = "function") # in shiny apps, these will likely be reactiveVals
-  checkmate::assert_set_equal(
-    names(callbacks), c("attach", "list", "read", "write", "append", "read_folder", "execute_IO_plan")
-  )
+# - Provide a server-only implementation for shiny hosting platforms that offer app-specific storage.
+fs_init <- function(path) {
+  path <- normalizePath(path, mustWork = FALSE)
   
-  path <- normalizePath(path) # remove trailing slash, etc.
+  state <- list(
+    path = path,
+    listing = FS$EMPTY_LISTING,
+    contents = new.env(parent = emptyenv()),
+    error = "Not listed yet"
+  ) |> list2env(parent = emptyenv())
   
-  res <- list(
-    attach = function() {
-      v <- list(connected = TRUE, name = basename(path), error = NULL)
-      callbacks[["attach"]](v)
-    },
-    list = function() {
-      error <- NULL
+  fs_list_paths <- function(base_path, paths) {
+    res <- file.info(file.path(base_path, paths))
+    rownames(res) <- paths 
+    return(res[c("isdir", "size", "mtime")])
+  }
+  
+  callback_count <- 0L
+  
+  fs_list <- function(callback = function(v) NULL) {
+    callback_count <<- callback_count + 1L
+    on.exit(callback(callback_count))
+    state[["listing"]] <- FS$EMPTY_LISTING
+   
+    # TODO: Remove content from entries not present instead of clearing.
+    #       Not useful for this module yet, so not implemented.
+    rm(list = ls(state[["contents"]], all.names = TRUE), envir = state[["contents"]])
+    
+    error <- character(0)
+    if (!is.character(path) || length(path) != 1) {
+      error <- "List error: `path` argument must be character(1)"
+    } else if (!dir.exists(path)) {
+      error <- sprintf("List error: Path `%s` does not exist", path) 
+    } else {
       res <- try({
-        file_and_dir_names <- list.files(path, all.files = TRUE, include.dirs = TRUE, no.. = TRUE)
-        info <- file.info(file.path(path, file_and_dir_names))
-        
-        listing <- setNames(list(), character(0))
-        for (i in seq_len(nrow(info))){
-          row <- info[i, ]
-          name <- basename(rownames(row))
-          if (row[["isdir"]]) listing[[name]] <- list(kind = "directory")
-          else listing[[name]] <- list(kind = "file", size = row[["size"]], time = as.numeric(row[["mtime"]]))
-        }
+        file_and_dir_names <- list.files(path, all.files = TRUE, include.dirs = TRUE, recursive = TRUE, no.. = TRUE)
+        state[["listing"]] <- fs_list_paths(path, file_and_dir_names)
       })
       
       if (inherits(res, "try-error")) {
-        error <- attr(res, "condition")[["message"]]
-        listing <- NULL
+        error <- sprintf("List error: %s", attr(res, "condition")[["message"]])
       }
-      
-      v <- list(list = listing, error = error)
-      
-      callbacks[["list"]](v)
-    },
-    read = function(file_name, contents) {
-      callbacks[["read"]](error = "Not implemented")
-    },
-    write = function(file_name, contents) {
-      callbacks[["write"]](error = "Not implemented")
-    },
-    append = function(file_name, contents) {
-      callbacks[["append"]](error = "Not implemented")
-    },
-    read_folder = function(subfolder_candidates) {
-      # NOTE: Adapted from:
-      # https://github.com/dull-systems/yours_truelib/blob/441740eb02fc9a9029c63c6e3c1d56c5ad638d97/YT.R#L153-L166
-      read_file_set <- function(paths) {
-        # Provides a consistent view of a set of files by checking that they don't change while we read them.
-        # Gets their mtimes and sizes; reads their contents; asserts that mtimes and sizes have not changed;
-        # returns contents, mtimes and sizes.
-        res <- list()
-        file_info <- file.info(paths)
-        no_size <- paths[!is.finite(file_info$size)]
-        if (length(no_size) > 0) 
-          return(simpleCondition(sprintf("Could not get file size for: `%s`.", paste(no_size, collapse = ", "))))
-        
-        for (path in paths){ 
-          res[[basename(path)]] <- list(
-            size = file_info[path, "size"], 
-            time = as.numeric(file_info[path, "mtime"]),
-            contents = readBin(con = path, what = raw(), n = file_info[path, "size"]),
-            error = NULL
-          )
-        }
-        file_info_after <- file.info(paths)
-        altered <- paths[rowSums(file_info[c("size", "mtime")] != file_info_after[c("size", "mtime")]) != 0]
-        if (length(altered) > 0)
-          return(simpleCondition(sprintf("Files changed while reading them: %s", paste(altered, collapse = ", "))))
-        return(res)
-      }
-        
-      v <- list()
-      subfolders <- file.path(path, subfolder_candidates)
-      for (subfolder in subfolders) {
-        contents <- read_file_set(list.files(subfolder, full.names = TRUE, recursive = FALSE))
-        if (inherits(contents, "condition")) {
-          # NOTE: early out
-          callbacks[["read_folder"]](list(error = contents[["message"]]))
-          return()
-        }
-        v[[basename(subfolder)]] <- contents
-      }
-      callbacks[["read_folder"]](v)
-    },
-    execute_IO_plan = function(IO_plan, is_init = FALSE) {
-      first_error_message <- NULL
-      for (i_command in seq_along(IO_plan)) {
-        command <- IO_plan[[i_command]]
-        IO_plan[[i_command]][["error"]] <- NULL
-        if (command[["type"]] == "write_file") {
-          fname <- file.path(path, command[["path"]], command[["fname"]])
-          dname <- dirname(fname)
-          dir.create(dname, showWarnings = FALSE, recursive = TRUE)
-          writeBin(command[["contents"]], fname) # TODO: Checks
-          # TODO: write to temp + rename dance
-        } else if (command[["type"]] == "append_file") {
-          fname <- file.path(path, command[["path"]], command[["fname"]])
-          con <- file(fname, open = "ab")
-          on.exit(close(con))
-          writeBin(command[["contents"]], con) # TODO: Checks
-          # TODO: write to temp + rename dance
-        } else if (command[["type"]] == "patch_file") {
-          # Check that `old_contents` happen at `offset` and overwrite with `new_contents`
-          if (command[["offset"]] != 0) {
-            first_error_message <- "Command 'patch_file' with offset > 0 not supported yet"
-            break
-          }
-          if (length(command[["old_contents"]]) != length(command[["new_contents"]])) {
-            first_error_message <- "Command 'patch_file' requires old and new contents of equal size"
-            break
-          }
-          
-          n <- length(command[["old_contents"]])
-          fname <- file.path(path, command[["path"]], command[["fname"]])
-          con <- file(description = fname, open = "r+b")
-          on.exit(close(con))
-          seek(con, where = command[["offset"]], origin = "start")
-          old_contents <- readBin(con, raw(0), n = n, endian = "little")
-          if (!identical(old_contents, command[["old_contents"]])) {
-            first_error_message <- "Command 'patch_file' found contents to patch to be different than those specified"
-            break
-          }
-          seek(con, where = command[["offset"]], origin = "start", rw = "write")
-          writeBin(object = command[["new_contents"]], con = con, endian = "little")
-        } else {
-          first_error_message <- sprintf("Command '%s' not supported yet", command[["type"]])
-          break
-        }
-      }
-      
-      if (is.character(first_error_message)) {
-        IO_plan[[i_command]][["error"]] <- first_error_message
-        # we ignore commands following the one that failed, in case they depend on its correct execution
-        i_command <- i_command + 1
-        while (i_command <= length(IO_plan)) {
-          IO_plan[[i_command]][["error"]] <- sprintf("Ignored command due to previous error")
-          i_command <- i_command + 1
-        }
-      }
-      
-      callbacks[["execute_IO_plan"]](list(status = IO_plan, is_init = is_init))
     }
+    state[["error"]] <- error
+    return()
+  }
+ 
+  fs_read <- function(paths, callback = function(v) NULL) {
+    callback_count <<- callback_count + 1L
+    on.exit(callback(callback_count))
+    if (length(state[["error"]]) > 0) return()
+    
+    allowed_paths <- rownames(state[["listing"]])[!state[["listing"]][["isdir"]]]
+    invalid_paths <- setdiff(paths, allowed_paths)
+    if (length(invalid_paths) > 0) {
+      state[["error"]] <- paste(
+        "Read error: Paths", paste(sprintf('"%s"', invalid_paths), collapse = ", "), "are invalid"
+      )
+      return()
+    }
+    
+    for (rel_path in paths){
+      index <- which(rownames(state[["listing"]]) == rel_path)
+      size_in_bytes <- state[["listing"]][["size"]][[index]]
+      contents <- try(readBin(con = file.path(path, rel_path), what = raw(0), n = size_in_bytes))
+      if (inherits(contents, "try-error")) {
+        state[["error"]] <- sprintf("Read error for file `%s`: %s", rel_path, attr(res, "condition")[["message"]])
+        return()
+      }
+      
+      if (length(contents) != size_in_bytes) {
+        state[["error"]] <- sprintf("Expected %d bytes from file `%s` and got %d instead.", size_in_bytes, rel_path, 
+                                    length(contents))
+        return()
+      }
+      
+      state[["contents"]][[rel_path]] <- contents
+    }
+    
+    file_info_before <- state[["listing"]][rownames(state[["listing"]]) %in% paths, ]
+    file_info_after <- file.info(file.path(path, paths))
+    altered <- paths[rowSums(file_info_before[c("size", "mtime")] != file_info_after[c("size", "mtime")]) != 0]
+    if (length(altered) > 0) {
+      state[["error"]] <- sprintf("Files changed while reading them: %s", paste(altered, collapse = ", "))
+      return()
+    }
+    
+    return()
+  }
+  
+  read_range <- function(contents, beg, one_past_end) {
+    if (length(contents) == 0) return(contents[0])
+    beg <- min(beg, length(contents))
+    one_past_end <- min(one_past_end, length(contents))
+    
+    if (beg >= one_past_end) return(contents[0])
+    
+    res <- contents[beg:(one_past_end - 1L)]
+    return(res)
+  }
+  
+  fs_write <- function(path, contents, offset, callback = function(v) NULL) {
+    callback_count <<- callback_count + 1L
+    on.exit(callback(callback_count))
+    fname_path <- file.path(state[["path"]], path)
+    
+    # FIXME? File offsets are zero-based and `raw` offsets are one based. Should we make that clearer through
+    #        more carefully chosen variable names?
+    
+    res <- try({
+      # ensure folder exists
+      dname <- dirname(fname_path)
+      dir.create(dname, showWarnings = FALSE, recursive = TRUE)
+    
+      # write to temp file in the same folder, because we rely on `file.rename to move the file to its Final Destination
+      tmp_fname <- tempfile(tmpdir = dname, fileext = ".tmp")
+      
+      if (file.exists(fname_path)) file.copy(fname_path, tmp_fname)
+      else writeBin(con = tmp_fname, raw(0))
+      
+      con <- file(tmp_fname, open = "r+b")
+      seek(con, where = 0L, origin = "end", rw = "read")
+      file_size <- seek(con, where = 0L, origin = "start", rw = "read")
+     
+      if (offset == FS$WRITE_OFFSET_APPEND) offset <- file_size # append without checking offset
+      
+      if (offset > file_size) stop(sprintf("Write operation to offset %d would create a hole in `%s`.", offset, path))
+      
+      cached_contents <- state[["contents"]][[path]] %||% raw(0)
+      range_contents_old <- read_range(cached_contents, 1L + offset, 1L + offset + length(contents))
+      
+      seek(con, where = offset, origin = "start", rw = "read")
+      range_contents_new <- readBin(con = con, what = raw(0), n = length(contents))
+      
+      if (!identical(range_contents_new, range_contents_old))
+        stop(sprintf("Write operation to `%s` would overwrite contents of unknown origin", path))
+      
+      seek(con, where = offset, origin = "start", rw = "write")
+      
+      writeBin(contents, con, endian = "little")
+     
+      close(con)
+      
+      file.rename(tmp_fname, fname_path)
+     
+      # Update local cached contents 
+      if (length(contents) > 0) {
+        cached_contents[(offset + 1L):(offset + length(contents))] <- contents
+        state[["contents"]][[path]] <- cached_contents
+      }
+     
+      # Update local cached listing 
+      fs_listing <- state[["listing"]]
+      listing_row <- fs_list_paths(state[["path"]], path)
+      if (path %in% rownames(fs_listing)) {
+        listing_index <- which(path == rownames(fs_listing))[[1]]
+        state[["listing"]][listing_index, ]  <- listing_row
+      } else {
+        state[["listing"]] <- rbind(fs_listing, listing_row)
+      }
+    })
+    
+    if (inherits(res, "try-error")) {
+      state[["error"]] <- sprintf("Write error: %s", attr(res, "condition")[["message"]])
+      return()
+    }
+  }
+  
+  fs_execute_IO_plan <- function(IO_plan, callback = function(v) NULL) {
+    callback_count <<- callback_count + 1L
+    on.exit(callback(callback_count))
+    
+    first_error_message <- NULL
+    for (i_command in seq_along(IO_plan)) {
+      command <- IO_plan[[i_command]]
+      IO_plan[[i_command]][["error"]] <- NULL
+      
+      if (command[["kind"]] == "write") {
+        fs_write(path = command[["path"]], contents = command[["contents"]], offset = command[["offset"]])
+      } else {
+        first_error_message <- sprintf("Command '%s' not supported yet", command[["kind"]])
+        break
+      }
+    }
+    
+    if (is.character(first_error_message)) {
+      IO_plan[[i_command]][["error"]] <- first_error_message
+      # we ignore commands following the one that failed, in case they depend on its correct execution
+      i_command <- i_command + 1
+      while (i_command <= length(IO_plan)) {
+        IO_plan[[i_command]][["error"]] <- sprintf("Ignored command due to previous error")
+        i_command <- i_command + 1
+      }
+      
+      state[["error"]] <- sprintf("Error during I/O operation: %s", first_error_message)
+    }
+  }
+   
+  res <- list(
+    state = state,
+    list = fs_list,
+    read = fs_read,
+    write = fs_write,
+    execute_IO_plan = fs_execute_IO_plan
   )
   
   return(res)

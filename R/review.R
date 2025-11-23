@@ -143,29 +143,19 @@ REV_load_annotation_info <- function(folder_contents, review, dataset_lists) {
 
   error <- character()
 
-  folder_IO_plan <- list()
+  IO_plan <- list()
   append_IO_action <- function(action) {    
-    folder_IO_plan <<- c(folder_IO_plan, list(action))
+    IO_plan <<- c(IO_plan, list(action))
   }
   
   for (dataset_lists_name in names(dataset_lists)) {
     sub_res <- list()
     dataset_list <- dataset_lists[[dataset_lists_name]]
-
-    if (!dataset_lists_name %in% names(folder_contents)) {      
-      append_IO_action(
-        list(
-          type = "create_dir",
-          dname = dataset_lists_name
-        )
-      )
-      folder_contents[[dataset_lists_name]] <- list()
-    }
-
+    
     # review.codes (common to all datasets)
-    fname <- "review.codes"
-    if (fname %in% names(folder_contents[[dataset_lists_name]])) {
-      contents <- folder_contents[[dataset_lists_name]][[fname]][["contents"]]
+    file_path <- file.path(dataset_lists_name, "review.codes")
+    if (file_path %in% names(folder_contents)) {
+      contents <- folder_contents[[file_path]]
       review_info <- RS_parse_review_codes(contents)
       if (!identical(review_info, review[["choices"]])) {
         error <- c(
@@ -181,14 +171,7 @@ REV_load_annotation_info <- function(folder_contents, review, dataset_lists) {
       }
     } else {
       contents <- RS_compute_review_codes_memory(review[["choices"]])
-      append_IO_action(
-        list(
-          type = "write_file",
-          path = dataset_lists_name,
-          fname = fname,
-          contents = contents
-        )
-      )                  
+      append_IO_action(list(kind = "write", path = file_path, contents = contents, offset = 0L))
     }
       
     for (dataset_review_name in names(review[["datasets"]])){
@@ -215,21 +198,20 @@ REV_load_annotation_info <- function(folder_contents, review, dataset_lists) {
       base_timestamp <- NA_real_
       data_timestamps_st <- rep(NA_real_, row_count)
       # <domain>_000.base
-      fname <- paste0(dataset_review_name, "_000.base")
-      if (fname %in% names(folder_contents[[dataset_lists_name]])) {
-        contents <- folder_contents[[dataset_lists_name]][[fname]][["contents"]]        
+      file_path <- file.path(dataset_lists_name, paste0(dataset_review_name, "_000.base"))
+      if (file_path %in% names(folder_contents)) {
+        contents <- folder_contents[[file_path]]        
 
-        delta_fnames <- local({
-          dataset_fnames <- names(folder_contents[[dataset_lists_name]])
-          pattern <- sprintf("^%s_[0-9]*.delta", dataset_review_name)
-          sort(grep(pattern, dataset_fnames, value = TRUE))
+        sorted_delta_file_paths <- local({
+          pattern <- sprintf("^%s_[0-9]*.delta", file.path(dataset_lists_name, dataset_review_name))
+          sort(grep(pattern, names(folder_contents), value = TRUE))
         })        
         
         deltas <- local({
           res <- list()
-          for (fname in delta_fnames){            
+          for (file_path in sorted_delta_file_paths){            
             # TODO: Control for file errors?
-            res[[length(res) + 1]] <- folder_contents[[dataset_lists_name]][[fname]][["contents"]]
+            res[[length(res) + 1]] <- folder_contents[[file_path]]
           }
           return(res)
         })
@@ -332,21 +314,14 @@ REV_load_annotation_info <- function(folder_contents, review, dataset_lists) {
             if (length(error_strings)) { # Error conditions prevent generation of delta files
               error <- c(error, paste0("[", dataset_review_name, "] ", error_strings))
             } else {
-              new_delta <- new_delta_and_errors[["contents"]]
+              new_delta_contents <- new_delta_and_errors[["contents"]]
               
-              deltas[[length(deltas) + 1]] <- new_delta
+              deltas[[length(deltas) + 1]] <- new_delta_contents
               base_info <- RS_load(contents, deltas)
               
-              delta_number <- length(delta_fnames) + 1
-              fname <- sprintf("%s_%03d.delta", dataset_review_name, delta_number)
-              append_IO_action(
-                list(
-                  type = "write_file",
-                  path = dataset_lists_name,
-                  fname = fname,
-                  contents = new_delta
-                )
-              )
+              delta_number <- length(sorted_delta_file_paths) + 1
+              file_path <- file.path(dataset_lists_name, sprintf("%s_%03d.delta", dataset_review_name, delta_number))
+              append_IO_action(list(kind = "write", path = file_path, contents = new_delta_contents, offset = 0L))
             }
         }
       } else {
@@ -356,14 +331,7 @@ REV_load_annotation_info <- function(folder_contents, review, dataset_lists) {
           return(list(error = c(error, contents[["message"]])))
         } else {
           base_info <- RS_load(base = contents, deltas = list())
-          append_IO_action(
-            list(
-              type = "write_file",
-              path = dataset_lists_name,
-              fname = fname,
-              contents = contents
-            )
-          )  
+          append_IO_action(list(kind = "write", path = file_path, contents = contents, offset = 0L))
         }
       }
       
@@ -420,19 +388,12 @@ REV_load_annotation_info <- function(folder_contents, review, dataset_lists) {
       })
 
       for (role in review[["roles"]]){
-        fname <- paste0(dataset_review_name, "_", role, ".review")
-        if (fname %in% names(folder_contents[[dataset_lists_name]])) {          
-          contents <- folder_contents[[dataset_lists_name]][[fname]][["contents"]]          
+        file_path <- file.path(dataset_lists_name, paste0(dataset_review_name, "_", role, ".review"))
+        if (file_path %in% names(folder_contents)) {          
+          contents <- folder_contents[[file_path]]
         } else { 
           contents <- RS_compute_review_reviews_memory(role, dataset_review_name)
-          append_IO_action(
-            list(
-              type = "write_file",
-              path = dataset_lists_name,
-              fname = fname,
-              contents = contents
-            )
-          )
+          append_IO_action(list(kind = "write", path = file_path, contents = contents, offset = 0L))
         }
 
         # NOTE: each role keeps their own decisions and we combine them to display the latest one
@@ -441,7 +402,7 @@ REV_load_annotation_info <- function(folder_contents, review, dataset_lists) {
                                                          expected_role = role, expected_domain = dataset_review_name)
         if (inherits(role_review_st_v_data, "simpleCondition")) {
           # If there's something wrong with prior reviews, we can't add further reviews on top. So, we stop.
-          error <- c(error, sprintf("Error while processing `%s`: %s", fname, role_review_st_v_data[["message"]]))
+          error <- c(error, sprintf("Error while processing `%s`: %s", file_path, role_review_st_v_data[["message"]]))
           return(list(error = error))
         }
         
@@ -449,14 +410,7 @@ REV_load_annotation_info <- function(folder_contents, review, dataset_lists) {
         version_number <- role_review_st_v_data[["format_version_number"]]
         if (version_number == 0L) {
           append_IO_action(
-            list(
-              type = "patch_file",
-              path = dataset_lists_name,
-              fname = fname,
-              offset = 0L,
-              old_contents = c(charToRaw("LISTREVI"), as.raw(0)),
-              new_contents = c(charToRaw("LISTREVI"), as.raw(1))
-            )
+            list(kind = "write", path = file_path, offset = 0L, new_contents = c(charToRaw("LISTREVI"), as.raw(1)))
           )
         }
         
@@ -510,85 +464,86 @@ REV_load_annotation_info <- function(folder_contents, review, dataset_lists) {
 
   res <- list(
     loaded_annotation_info = loaded_annotation_info,
-    folder_IO_plan = folder_IO_plan,
+    IO_plan = IO_plan,
     error = error
   )
 
   return(res)
 }
 
-REV_compute_storage_folder_error_message <- function(folder_name, folder_listing, app_id) {
+REV_compute_storage_folder_error_message <- function(paths, app_id) {
   error_message <- character(0)
 
-  if (is.null(folder_listing[["error"]])) {
-    item_names <- names(folder_listing[["list"]])
-    if (any(endsWith(item_names, ".base")) || any(endsWith(item_names, ".review")) || 
-        any(endsWith(item_names, ".codes"))) {
-      error_message <- paste(
-        "The selected storage folder is a subfolder of the target folder.",
-        "Please select its parent instead."
-      )
-    } else if (any(startsWith(item_names, REV$ID$APP_ID_prefix))) {
-      storage_app_id_fname <- item_names[startsWith(item_names, REV$ID$APP_ID_prefix)][[1]]
-      storage_app_id <- gsub(paste0("^", REV$ID$APP_ID_prefix), "", storage_app_id_fname)
-      if (nchar(app_id) > 0 && # This check allows users that run the application locally to skip this test
-          !identical(storage_app_id, app_id)) {
-        error_message <- shiny::HTML(
-          paste(
-            "This storage folder seems to belong to a different application.<br>",
-            sprintf("<small>The ID of the <b>current running application</b> is: <tt>%s</tt>.<br>", app_id),
-            sprintf("The ID of the <b>application that created that storage folder</b> is: <tt>%s</tt>.<br>", storage_app_id),
-            "If the ID of the application as been accidentally updated, you can",
-            "ask the application administrator to restore it to its old value.</small>"
-          )
-        )
-      }
-    }
-  } else {
-    error_message <- shiny::HTML(
-      sprintf("Error listing the contents of folder <t>%s</t>: <q>%s</q>.", folder_name, folder_listing[["error"]])
+  direct_children_mask <- (dirname(paths) == ".")
+  direct_children_names <- paths[direct_children_mask]
+  if (any(endsWith(direct_children_names, ".base")) || any(endsWith(direct_children_names, ".review")) || 
+      any(endsWith(direct_children_names, ".codes"))) {
+    error_message <- paste(
+      "The selected storage folder is a subfolder of the target folder.",
+      "Please select its parent instead."
     )
+  } else if (any(startsWith(paths, REV$ID$APP_ID_prefix))) {
+    storage_app_id_fname <- paths[startsWith(paths, REV$ID$APP_ID_prefix)][[1]]
+    storage_app_id <- gsub(paste0("^", REV$ID$APP_ID_prefix), "", storage_app_id_fname)
+    if (nchar(app_id) > 0 && # This check allows users that run the application locally to skip this test
+        !identical(storage_app_id, app_id)) {
+      error_message <- shiny::HTML(
+        paste(
+          "This storage folder seems to belong to a different application.<br>",
+          sprintf("<small>The ID of the <b>current running application</b> is: <tt>%s</tt>.<br>", app_id),
+          sprintf("The ID of the <b>application that created that storage folder</b> is: <tt>%s</tt>.<br>", storage_app_id),
+          "If the ID of the application as been accidentally updated, you can",
+          "ask the application administrator to restore it to its old value.</small>"
+        )
+      )
+    }
   }
   
   return(error_message)
 }
     
-REV_main_logic <- function(state, input, review, datasets, fs_client, fs_callbacks) {
+REV_main_logic <- function(state, input, review, datasets, fs_client) {
   state[["connected"]] <- shiny::reactiveVal(FALSE)
   state[["contents_ready"]] <- shiny::reactiveVal(FALSE)
   state[["folder"]] <- NULL
   state[["annotation_info"]] <- NULL
 
+  fs_state <- fs_client[["state"]]
+  fs_contents <- fs_state[["contents"]]
+  
   shiny::observeEvent(input[[REV$ID$CONNECT_STORAGE]], {    
-    fs_client[["attach"]]()    
+    fs_client[["list"]](callback = list_callback)
   }, ignoreNULL = FALSE, ignoreInit = TRUE)
 
-  shiny::observeEvent(fs_callbacks[["attach"]](), {
-    attach_status <- fs_callbacks[["attach"]]()
-    shiny::req(is.list(attach_status))
-    state[["connected"]](attach_status[["connected"]])
-    state[["folder"]] <- attach_status[["name"]]    
+  list_callback <- shiny::reactiveVal(0L)
+  shiny::observeEvent(list_callback(), {
+    shiny::req(list_callback() > 0L)
+    
+    connected <- (length(fs_state[["error"]]) == 0)
+    state[["connected"]](connected)
+    state[["folder"]] <- fs_state[["path"]]
     shiny::updateActionButton(inputId = REV$ID$CONNECT_STORAGE, label = paste("Storage:", state[["folder"]]))        
 
-    if (attach_status[["connected"]] == TRUE) {
-      fs_client[["list"]]()
-    } else {
-      if (!is.null(attach_status[["error"]])) shiny::showNotification(attach_status[["error"]], type = "error")
+    if (!isTRUE(connected)) {
+      error_message <- "Could not connect to storage"
+      if (length(fs_state[["error"]]) > 0) error_message <- paste0(error_message, ": ", fs_state[["error"]][[1]])
+      shiny::showNotification(error_message, type = "error")
       state[["annotation_info"]] <- NULL
       state[["contents_ready"]](FALSE) # Edge case where a correct folder was chosen before
+      shiny::req(FALSE)
     }
-  })
-  
-  shiny::observeEvent(fs_callbacks[["list"]](), {
-    folder_listing <- fs_callbacks[["list"]]()
-    shiny::req(is.list(folder_listing))
     
     error_message <- REV_compute_storage_folder_error_message(
-      folder_name = state[["folder"]], folder_listing = folder_listing, app_id = Sys.getenv("CONNECT_CONTENT_GUID")
+      paths = rownames(fs_state[["listing"]]), app_id = Sys.getenv("CONNECT_CONTENT_GUID")
     )
     
     if (length(error_message) == 0) {
-      fs_client[["read_folder"]](names(datasets))
+      listing <- fs_state[["listing"]]
+      paths <- rownames(listing[!listing[["isdir"]], ])
+      paths_to_read_mask <- (endsWith(paths, ".base") | endsWith(paths, ".delta") | 
+                               endsWith(paths, ".review") | endsWith(paths, ".codes"))
+      paths_to_read <- paths[paths_to_read_mask]
+      fs_client[["read"]](paths = paths_to_read, callback = read_callback)
     } else {
       shiny::showNotification(error_message, duration = NULL, closeButton = TRUE, type = "error")
       state[["annotation_info"]] <- NULL
@@ -596,21 +551,28 @@ REV_main_logic <- function(state, input, review, datasets, fs_client, fs_callbac
       shiny::updateActionButton(inputId = REV$ID$CONNECT_STORAGE, label = "Storage:")
       # If we leave the original attach value and the user selects the same folder, the reactiveVal 
       # will optimize the change away and the user will not see the error message a second time.
-      fs_callbacks[["attach"]](0)
+      list_callback(0L)
     }
   })
 
-  shiny::observeEvent(fs_callbacks[["read_folder"]](), {
-    folder_contents <- fs_callbacks[["read_folder"]]()
-    shiny::req(is.list(folder_contents))
-    load_results <- REV_load_annotation_info(folder_contents, review, datasets)
-    if (length(load_results[["error"]])) {
+  read_callback <- shiny::reactiveVal(0L)
+  shiny::observeEvent(read_callback(), {
+    shiny::req(read_callback() > 0L)
+
+    load_results <- NULL
+    error_messages <- fs_state[["error"]]
+    if (length(error_messages) == 0) {
+      load_results <- REV_load_annotation_info(fs_contents, review, datasets)
+      error_messages <- load_results[["error"]]
+    }
+      
+    if (length(error_messages) > 0) {
       showNotification(
         ui = shiny::HTML(
           paste(
             "<h4>FAILED TO START REVIEW INTERFACE</h4>",
             paste(
-              paste("\u2022", load_results[["error"]]), 
+              paste("\u2022", error_messages), 
               collapse = "<br>")
           )
         ),
@@ -618,52 +580,44 @@ REV_main_logic <- function(state, input, review, datasets, fs_client, fs_callbac
       )
       # NOTE: We remain in this state while we wait for the user to select an appropriate alternative folder
     } else {
-      # extend `folder_IO_plan` to write the APP_ID file if necessary
+      # extend `IO_plan` to write the APP_ID file if necessary
       connect_id <- Sys.getenv("CONNECT_CONTENT_GUID")
       if (nchar(connect_id) > 0) {
-        file_name_listing <- names(fs_callbacks[["list"]]()[["list"]]) # Available from previous listing step
+        file_name_listing <- rownames(fs_state[["listing"]])
         app_id_fname <- paste0(REV$ID$APP_ID_prefix, connect_id)
         if (!(app_id_fname %in% file_name_listing)) {
-          load_results[["folder_IO_plan"]][[length(load_results[["folder_IO_plan"]]) + 1]] <- list(
-            type = "write_file", path = ".", fname = app_id_fname, contents = raw(0)
+          load_results[["IO_plan"]][[length(load_results[["IO_plan"]]) + 1]] <- list(
+            kind = "write", path = app_id_fname, offset = 0L, contents = raw(0)
           )
         }
       }
       
       state[["annotation_info"]] <- load_results[["loaded_annotation_info"]]
-      fs_client[["execute_IO_plan"]](IO_plan = load_results[["folder_IO_plan"]], is_init = TRUE)
+      fs_client[["execute_IO_plan"]](IO_plan = load_results[["IO_plan"]], callback = execute_IO_plan_callback)
     }
   })
 
-  # TODO: fs_client[["execute_IO_plan"]][["v"]] if we use the execute IO plan in more places this observer will run
-  # more times than it should. Check how this can be avoided, including extra element in status, create a new input?
-  shiny::observeEvent(fs_callbacks[["execute_IO_plan"]](),
-    {
-      plan_result <- fs_callbacks[["execute_IO_plan"]]()
-      if (isTRUE(plan_result[["is_init"]])) {
-        plan_status <- plan_result[["status"]]
-        error <- FALSE
-        for (entry in plan_status) {
-          if (!is.null(entry[["error"]])) {
-            error <- TRUE
-            error_message <- entry[["error"]]
-            break
-          }
-        }
-
-        if (!error) {
-          state[["contents_ready"]](TRUE)
-        } else {
-          shiny::showNotification(
-            sprintf("Error in initial read and write operation: %s", error_message), type = "error"
+  execute_IO_plan_callback <- shiny::reactiveVal(0L)
+  shiny::observeEvent(execute_IO_plan_callback(), {
+    shiny::req(execute_IO_plan_callback() > 0L)
+    
+    error_messages <- fs_state[["error"]]
+    if (length(error_messages) > 0) {
+      showNotification(
+        ui = shiny::HTML(
+          paste(
+            "<h4>ERROR IN INITIAL READ AND WRITE OPERATION</h4>",
+            paste(
+              paste("\u2022", error_messages), 
+              collapse = "<br>")
           )
-          shiny::req(FALSE)
-        }
-      }
-    },
-    ignoreNULL = FALSE,
-    ignoreInit = TRUE
-  )
+        ),
+        duration = NULL, closeButton = TRUE, type = "error"
+      )
+    } else {
+      state[["contents_ready"]](TRUE)
+    }
+  })
 }
 
 REV_produce_IO_plan_for_review_action <- function(
@@ -681,10 +635,10 @@ REV_produce_IO_plan_for_review_action <- function(
   
   IO_plan <- list(
     list(
-      type = "append_file",
-      path = dataset_list_name,
-      fname = paste0(dataset_name, "_", role, ".review"),
-      contents = contents
+      kind = "write",
+      path = file.path(dataset_list_name, paste0(dataset_name, "_", role, ".review")),
+      contents = contents,
+      offset = FS$WRITE_OFFSET_APPEND
     )
   )
   
@@ -753,14 +707,14 @@ REV_compute_review_changes <- function(data, row_indices, annotation_info, choic
   return(res)
 }
 
-REV_describe_undo_action <- function(selected_dataset_list_name, selected_dataset_name, role){
-  res <- paste(c(selected_dataset_list_name, selected_dataset_name, role), collapse = ', ')
+REV_describe_undo_action <- function(selected_dataset_list_name, selected_dataset_name, role) {
+  res <- paste(c(selected_dataset_list_name, selected_dataset_name, role), collapse = ", ")
   return(res)
 }
 
-REV_replace_undo_description <- function(ns, contents){
+REV_replace_undo_description <- function(ns, contents) {
   shiny::removeUI(selector = paste0("#", ns(REV$ID$UNDO_DESCRIPTION)))
-  shiny::insertUI(selector = paste0('#', ns(REV$ID$UNDO_DESCRIPTION_ANCHOR)), where = 'afterEnd', 
+  shiny::insertUI(selector = paste0("#", ns(REV$ID$UNDO_DESCRIPTION_ANCHOR)), where = "afterEnd", 
                   ui = shiny::p(contents, id = ns(REV$ID$UNDO_DESCRIPTION))
   )
 }
@@ -843,7 +797,7 @@ REV_respond_to_user_review <- function(ns, state, input, review, selected_datase
     undo_desc <- "New action" # TODO: Remove
     REV_replace_undo_description(ns, undo_desc)
     
-    fs_execute_IO_plan(IO_plan, is_init = FALSE)
+    fs_execute_IO_plan(IO_plan)
   })
   
   shiny::observeEvent(input[[REV$ID$UNDO]], {

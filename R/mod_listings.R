@@ -416,22 +416,11 @@ listings_server <- function(module_id,
     show_review_columns <- function() FALSE
     REV_state <- new.env(parent = emptyenv())
     if (enable_review) {
-
-      fs_callbacks <- list(
-        attach = shiny::reactiveVal(NULL),
-        list = shiny::reactiveVal(NULL),
-        read = shiny::reactiveVal(NULL),
-        write = shiny::reactiveVal(NULL),
-        append = shiny::reactiveVal(NULL),
-        read_folder = shiny::reactiveVal(NULL),
-        execute_IO_plan = shiny::reactiveVal(NULL)
-      )
-     
       fs_client <- NULL 
       if (is.null(review[["store_path"]])) {
-        fs_client <- fsa_init(input, TBL$FSA_CLIENT, fs_callbacks)
+        fs_client <- fsa_init(input, TBL$FSA_CLIENT)
       } else {
-        fs_client <- fs_init(fs_callbacks, review[["store_path"]])
+        fs_client <- fs_init(review[["store_path"]])
       }
       
       # Overly restrictive sanitization of role strings, as they will be used for file names:
@@ -462,7 +451,7 @@ listings_server <- function(module_id,
 
       shiny::outputOptions(output, TBL$REVIEW_UI_ID, suspendWhenHidden = FALSE)
 
-      REV_main_logic(REV_state, input, review, review[["data"]], fs_client, fs_callbacks)
+      REV_main_logic(REV_state, input, review, review[["data"]], fs_client)
       show_review_columns <- REV_state[["contents_ready"]]
     }
 
