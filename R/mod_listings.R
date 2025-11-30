@@ -421,6 +421,8 @@ listings_server <- function(module_id,
         fs_client <- fsa_init(input, TBL$FSA_CLIENT)
       } else {
         fs_client <- fs_init(review[["store_path"]])
+        # NOTE: It's possible for the app creator to configure a folder that does not exist yet, so we create it here
+        dir.create(review[["store_path"]], showWarnings = FALSE, recursive = TRUE)
       }
       
       # Overly restrictive sanitization of role strings, as they will be used for file names:
@@ -428,14 +430,12 @@ listings_server <- function(module_id,
       review[["roles"]] <- gsub("[^a-zA-Z0-9 _.-]", "", review[["roles"]]) # Accepts alpha+num+space+'.'+'_'+'-'
 
       output[[TBL$REVIEW_UI_ID]] <- shiny::renderUI({
-
         review_ui <- shinyWidgets::dropdownButton(
           inputId = ns(TBL$REVIEW_DROPDOWN_ID), label = shiny::textOutput(ns("review_label"), inline = TRUE), circle = FALSE,
           REV_UI(ns = ns, roles = review[["roles"]])[["ui"]]
         )
 
         review_ui
-
       })
 
       review_button_label <- shiny::reactive({
@@ -544,7 +544,8 @@ listings_server <- function(module_id,
         selected_dataset_name = shiny::reactive(input[[TBL$DATASET_ID]]),
         data = shiny::reactive(output_table_data()[["data"]]),
         dt_proxy = dt_proxy,
-        fs_execute_IO_plan = fs_client[["execute_IO_plan"]]
+        fs_execute_IO_plan = fs_client[["execute_IO_plan"]],
+        fs_contents = fs_client[["state"]][["contents"]]
       )
     }
     
@@ -611,11 +612,13 @@ listings_server <- function(module_id,
           )
         )
 
-        # TODO: find a place for this if
+        # TODO: find a place for this if # TODO(miguel): figure out purpose of this TODO
         if (checkmate::test_string(input[[REV$ID$ROLE]], min.chars = 1)) {
-          initial_undo_description <- shiny::p(
-            REV_describe_undo_action(selected_dataset_list_name, selected_dataset_name, role), 
-            id = sprintf("%s", ns(REV$ID$UNDO_DESCRIPTION))
+          fs_contents <- fs_client[["state"]][["contents"]]
+          initial_undo_description <- shiny::div(
+            REV_describe_undo_action(
+              review, REV_state, fs_contents, selected_dataset_list_name, selected_dataset_name, role
+            )[["text"]], id = sprintf("%s", ns(REV$ID$UNDO_DESCRIPTION))
           )
           
           bulk_and_undo_render <- sprintf(

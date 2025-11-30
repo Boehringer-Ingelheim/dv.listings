@@ -707,21 +707,96 @@ REV_compute_review_changes <- function(data, row_indices, annotation_info, choic
   return(res)
 }
 
-REV_describe_undo_action <- function(selected_dataset_list_name, selected_dataset_name, role) {
-  res <- paste(c(selected_dataset_list_name, selected_dataset_name, role), collapse = ", ")
+REV_describe_undo_action <- function(
+    review, REV_state, # TODO? Narrow down to what's explictly needed
+    fs_contents, dataset_list_name, dataset_name, role) {
+  review_path <- file.path(dataset_list_name, sprintf("%s_%s.review", dataset_name, role))
+  contents <- fs_contents[[review_path]]
+ 
+  internal_res <- RS_parse_review_reviews_and_apply_undo(contents, expected_role = role, expected_domain = dataset_name)
+  canonical_indices <- internal_res[["canonical_indices"]]
+  review_indices <- internal_res[["review_indices"]]
+  timestamps  <- internal_res[["timestamps"]]
+ 
+  res <- list(
+    text = "No action to undo",
+    info = list(count = 0, first_review_record = NULL)
+  )
+  
+  if (length(timestamps) > 0) {
+    current_row_index_from_canonical_row_index <- attr(
+      REV_state[["annotation_info"]][[dataset_list_name]][[dataset_name]], "map_canonical_indices_into_current_order"
+    )
+    
+    last_timestamp <- timestamps[[length(timestamps)]]
+    last_review_index <- review_indices[[length(timestamps)]]
+    last_action_indices <- which(timestamps == last_timestamp & review_indices == last_review_index)
+    
+    ; if (length(last_action_indices) > 1) {
+      contiguous <- (all(diff(last_action_indices)) == 1)
+      if (!isTRUE(contiguous)) {
+        res[["text"]] <- shiny::HTML(
+          paste0("Found several actions to undo, but they are not contiguous.<br>",
+                 "This is somewhat unexpected, so the undo functionality has been disabled.<br>",
+                 "If you believe this is a problem, please contact the package maintainer.")
+        )
+        return(res) # NOTE: Early out
+      }
+    }
+    
+    current_row_indices <- current_row_index_from_canonical_row_index(canonical_indices[last_action_indices])
+    
+    if (any(is.na(current_row_indices))) {
+      browser() # TODO: Not all indices are necessarily present. We can't show those that are not because we no longer
+      # have access to the original data, so we should filter them out
+      
+    }
+    
+    data <- review[["data"]][[dataset_list_name]][[dataset_name]]
+    id_vars <- review[["datasets"]][[dataset_name]][["id_vars"]]
+    
+    target_data <- data[current_row_indices, ]
+    
+    undo_table <- target_data[id_vars]
+    #> undo_table[["Previous review"]] <- second_to_last_review_choices # TODO? Would be nice to see the old values, but not mandatory
+    
+    undo_table_s <- capture.output(print(undo_table, row.names = FALSE))
+    undo_table_s <- sprintf("<pre>%s</pre>", paste(undo_table_s, collapse = "<br>"))
+    
+    # TODO: Replace ID column names with labels if available
+    
+    last_review_choice <- review[["choices"]][last_review_index]
+    time <- structure(last_timestamp, class = c("POSIXct", "POSIXt"), tzone = "UTC")
+    undo_header <- paste('<p style="margin:10px">', "Marked as <b>", last_review_choice, 
+                         "</b> on <b>", time, "UTC</b></p>")
+    
+    text <- shiny::HTML(paste(undo_header, undo_table_s))
+    
+    res <- list(
+      text = text,
+      info = list(
+        count = length(current_row_indices), 
+        first_review_record = list(
+          canonical_index = canonical_indices[[last_action_indices[[1]]]],
+          review_decision = last_review_index,
+          timestamp = last_timestamp
+        )
+      )
+    )
+  }
+  
   return(res)
 }
 
 REV_replace_undo_description <- function(ns, contents) {
   shiny::removeUI(selector = paste0("#", ns(REV$ID$UNDO_DESCRIPTION)))
   shiny::insertUI(selector = paste0("#", ns(REV$ID$UNDO_DESCRIPTION_ANCHOR)), where = "afterEnd", 
-                  ui = shiny::p(contents, id = ns(REV$ID$UNDO_DESCRIPTION))
+                  ui = shiny::div(contents, id = ns(REV$ID$UNDO_DESCRIPTION))
   )
 }
 
-  
 REV_respond_to_user_review <- function(ns, state, input, review, selected_dataset_list_name, selected_dataset_name, data,
-                                       dt_proxy, fs_execute_IO_plan, table_data_rw) {
+                                       dt_proxy, fs_execute_IO_plan, fs_contents) {
   shiny::observeEvent(input[[REV$ID$REVIEW_SELECT]], {
     role <- input[[REV$ID$ROLE]]
 
@@ -792,20 +867,79 @@ REV_respond_to_user_review <- function(ns, state, input, review, selected_datase
     # > table.row(5).data(tmp).invalidate();
     DT::replaceData(dt_proxy, new_data, resetPaging = FALSE, clearSelection = "none")
    
-     
-    undo_desc <- REV_describe_undo_action(selected_dataset_list_name, selected_dataset_name, role)
-    undo_desc <- "New action" # TODO: Remove
-    REV_replace_undo_description(ns, undo_desc)
-    
     fs_execute_IO_plan(IO_plan)
+   
+    undo_desc <- REV_describe_undo_action(review, REV_state = state, fs_contents, 
+                                          selected_dataset_list_name(), selected_dataset_name(), role)
+    
+    REV_replace_undo_description(ns, undo_desc[["text"]])
   })
   
   shiny::observeEvent(input[[REV$ID$UNDO]], {
     role <- input[[REV$ID$ROLE]]
-    message("Received request to undo") # TODO: Act on it
-    undo_desc <- REV_describe_undo_action(selected_dataset_list_name, selected_dataset_name, role)
-    undo_desc <- "Undid action" # TODO: Remove
-    REV_replace_undo_description(ns, undo_desc)
+    
+    dataset_list_name <- selected_dataset_list_name()
+    dataset_name <- selected_dataset_name()
+   
+    undo_desc <- REV_describe_undo_action(review, REV_state = state, fs_contents, dataset_list_name, dataset_name, role)
+    
+    action_count <- undo_desc[["info"]][["count"]]
+    review_record <- undo_desc[["info"]][["first_review_record"]]
+    
+    shiny::req(!is.null(review_record))
+    
+    UNDO_MARKER <- 0L 
+    timestamp <- SH$get_UTC_time_in_seconds()
+    
+    contents <- c(
+      # FIRST HALF
+      SH$integer_to_raw(UNDO_MARKER),
+      SH$integer_to_raw(action_count),
+      SH$double_to_raw(timestamp),
+      # SECOND HALF
+      SH$integer_to_raw(-review_record[["canonical_index"]]),
+      SH$integer_to_raw(review_record[["review_decision"]]),
+      SH$double_to_raw(review_record[["timestamp"]])
+    )
+    
+    IO_plan <- list(
+      list(
+        kind = "write",
+        path = file.path(dataset_list_name, paste0(dataset_name, "_", role, ".review")),
+        contents = contents,
+        offset = FS$WRITE_OFFSET_APPEND
+      )
+    )
+    
+    fs_execute_IO_plan(IO_plan)
+    
+    # NOTE: compute data and reload through proxy
+    if (TRUE) { # FIXME: Partially repeats #weilae 
+      datasets <- review[["data"]]
+      load_results <- REV_load_annotation_info(fs_contents, review, datasets)
+      state[["annotation_info"]] <- load_results[["loaded_annotation_info"]]
+      annotation_info <- state[["annotation_info"]][[dataset_list_name]][[dataset_name]]
+      
+      data <- data()
+      changes <- REV_include_review_info(annotation_info = annotation_info, data = data, col_names = list())
+      shiny::validate(shiny::need(!inherits(changes, "simpleCondition"), changes[["message"]]))
+      
+      changes[["data"]][[REV$ID$STATUS_COL]] <- REV_compute_status(changes[["data"]], role)
+      changes[["data"]][[REV$ID$LATEST_REVIEW_COL]] <- REV_review_var_to_json(changes[["data"]][[REV$ID$LATEST_REVIEW_COL]])        
+      
+      data <- changes[["data"]]
+      
+      # TODO: rewrite REV_include_highlight_info to avoid this clumsy wrapper
+      table_data <- list(data = data, col_names = character(0))
+      table_data <- REV_include_highlight_info(
+        table_data, annotation_info, tracked_vars = review[["datasets"]][[dataset_name]][["tracked_vars"]]
+      )
+      
+      DT::replaceData(dt_proxy, table_data[["data"]], resetPaging = FALSE, clearSelection = "none")
+    }
+    
+    undo_desc <- REV_describe_undo_action(review, REV_state = state, fs_contents, dataset_list_name, dataset_name, role)
+    REV_replace_undo_description(ns, undo_desc[["text"]])
   })
   
   return(NULL)

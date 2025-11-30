@@ -230,8 +230,10 @@ RS_compute_base_memory <- function(df_id, df, id_vars, tracked_vars) {
   return(res)
 }
 
-RS_parse_base <- function(contents) {
+RS_parse_base <- function(contents, only_header = FALSE) {
   con <- rawConnection(contents, open = "r")
+  on.exit(close(con))
+  
   file_magic_code <- readBin(con, raw(), 8L) |> rawToChar()
   ; if (!identical(file_magic_code, "LISTBASE")) return(simpleCondition("Wrong magic code"))
   format_version_number <- readBin(con, raw(), 1L)
@@ -249,15 +251,18 @@ RS_parse_base <- function(contents) {
   tracked_vars <- SH$read_character_vector_from_con(con)
   tracked_var_types <- readBin(con, raw(), length(tracked_vars))
   row_count <- readBin(con, integer(), 1L)
- 
-  id_hashes <- SH$read_hashes_from_con(con, row_count, 16L)
-  tracked_hashes <- SH$read_hashes_from_con(con, row_count, BYTES_PER_TRACKED_HASH * length(tracked_vars))
-  
-  empty_read <- readBin(con, raw(), 1L)
-  ; if (length(empty_read) > 0) return(simpleCondition("Too much hash data"))
-  close(con)
+
+  id_hashes <- tracked_hashes <- row_timestamps <- NULL 
+  if(!isTRUE(only_header)){
+    id_hashes <- SH$read_hashes_from_con(con, row_count, 16L)
+    tracked_hashes <- SH$read_hashes_from_con(con, row_count, BYTES_PER_TRACKED_HASH * length(tracked_vars))
+    row_timestamps <- rep(timestamp, row_count)
+    empty_read <- readBin(con, raw(), 1L)
+    ; if (length(empty_read) > 0) return(simpleCondition("Too much hash data"))
+  }
   
   res <- list(
+    # HEADER
     domain = domain_string,
     generation = generation,
     id_vars = id_vars,
@@ -267,9 +272,10 @@ RS_parse_base <- function(contents) {
     contents_hash = contents_hash,
     row_count = row_count,
     timestamp = timestamp,
+    # CONTENTS
     id_hashes = id_hashes,
     tracked_hashes = tracked_hashes,
-    row_timestamps = rep(timestamp, row_count)
+    row_timestamps = row_timestamps
   )
   
   return(res)
@@ -349,8 +355,10 @@ RS_compute_delta_memory <- function(state, df) {
   return(res)
 }
 
-RS_parse_delta <- function(contents, tracked_var_count) {
+RS_parse_delta <- function(contents, tracked_var_count, only_header = FALSE) {
   con <- rawConnection(contents, open = "r")
+  on.exit(close(con))
+  
   file_magic_code <- readBin(con, raw(), 8L) |> rawToChar()
   ; if (!identical(file_magic_code, "LISTDELT")) return(simpleCondition("Wrong magic code"))
   format_version_number <- readBin(con, raw(), 1L)
@@ -361,22 +369,33 @@ RS_parse_delta <- function(contents, tracked_var_count) {
   contents_hash <- readBin(con, raw(), 16L)
   domain <- SH$read_string_from_con(con)
   new_row_count <- readBin(con, integer(), 1L)
-  new_id_hashes <- SH$read_hashes_from_con(con, new_row_count, 16L)
-  new_tracked_hashes <- SH$read_hashes_from_con(con, new_row_count, BYTES_PER_TRACKED_HASH * tracked_var_count)
-  modified_row_count <- NA_integer_
-  modified_row_indices <- SH$read_integer_vector_from_con(con)
-  modified_row_count <- length(modified_row_indices)
-  modified_tracked_hashes <- SH$read_hashes_from_con(con, modified_row_count, BYTES_PER_TRACKED_HASH * tracked_var_count)
-
-  empty_read <- readBin(con, raw(), 1L)
-  ; if (length(empty_read) > 0) return(simpleCondition("Too much hash data"))
-  close(con)
+  
+  new_id_hashes <- new_tracked_hashes <- modified_row_count <- modified_row_indices <- modified_tracked_hashes <- NULL
+  
+  if(!isTRUE(only_header)){
+    new_id_hashes <- SH$read_hashes_from_con(con, new_row_count, 16L)
+    new_tracked_hashes <- SH$read_hashes_from_con(con, new_row_count, BYTES_PER_TRACKED_HASH * tracked_var_count)
+  
+    # FIXME? It would have been better to make `modified_row_count` part of the header (before `new_id_hashes`)
+    modified_row_count <- NA_integer_
+    modified_row_indices <- SH$read_integer_vector_from_con(con)
+    modified_row_count <- length(modified_row_indices) # TODO? Skip over indices to make this part of the header
+    modified_tracked_hashes <- SH$read_hashes_from_con(con, modified_row_count, BYTES_PER_TRACKED_HASH * tracked_var_count)
+    
+    empty_read <- readBin(con, raw(), 1L)
+    ; if (length(empty_read) > 0) return(simpleCondition("Too much hash data"))
+  } else {
+    # TODO: Skip over new hashes and return the modified_row_count
+  }
 
   res <- list(
+    # HEADER
     domain = domain,
     generation = generation,
     contents_hash = contents_hash,
     new_row_count = new_row_count,
+    
+    # CONTENTS
     new_id_hashes = new_id_hashes,
     new_tracked_hashes = new_tracked_hashes,
     modified_row_count = modified_row_count,
@@ -437,11 +456,11 @@ RS_compute_review_reviews_memory <- function(role, dataset) {
   return(res)
 }
 
-RS_parse_review_reviews <- function(contents, row_count, expected_role, expected_domain) {
-  res_reviews <- rep(0L, row_count)
-  res_timestamps <- rep(0., row_count)
-  
+
+RS_parse_review_reviews_and_apply_undo <- function(contents, expected_role, expected_domain) {
   con <- rawConnection(contents, open = "r")
+  on.exit(close(con))
+  
   file_magic_code <- readBin(con, raw(), 8L) |> rawToChar()
   ; if (!identical(file_magic_code, "LISTREVI")) return(simpleCondition("Wrong magic code"))
   format_version_number <- as.integer(readBin(con, raw(), 1L))
@@ -467,18 +486,72 @@ RS_parse_review_reviews <- function(contents, row_count, expected_role, expected
   dim(integers) <- c(4L, record_count)
   canonical_indices <- integers[1, ]
   review_indices <- integers[2, ]
-  ; if (!(all(0 < canonical_indices & canonical_indices <= row_count)))
-    return(simpleCondition("Invalid `.review` canonical indices"))
   
   # Interpret the whole file as an array of 64-bit real values and extract all timestamps
   seek(con, where = f_after_header, origin = "start", rw = "read")
   doubles <- readBin(con, numeric(), record_count * 2L, endian = "little")
   dim(doubles) <- c(2L, record_count)
   timestamps <- doubles[2, ]
+ 
+  # Review action undo. Introduced in version 1 of the LISTREVI file format
+  undo_indices <- which(canonical_indices == 0L)
+  if(length(undo_indices)){
+    ; if(length(canonical_indices) %in% undo_indices) # No space left for second half of 32-bit-wide undo action
+      return(error_cond <- simpleCondition("Invalid encoding of undo action in `.review` file"))
+    
+    indices_to_remove <- integer(0)
+    for(i in undo_indices) {
+      undo_action_count <- review_indices[[i]]
+      ; if(length(undo_action_count) < 1) return(simpleCondition("Undo action targets non-positive amount of records"))
+      
+      undo_action_timestamp <- timestamps[[i]]
+      
+      target_canonical_row_index <- -canonical_indices[[i+1]]
+      target_review_index <- review_indices[[i+1]]
+      target_timestamp <- timestamps[[i+1]]
+      ; if(undo_action_timestamp < target_timestamp) 
+        return(simpleCondition("Undo action timestamp lower than that of target action"))
+      
+      first_index_to_undo <- which(target_canonical_row_index == canonical_indices & 
+                                     target_review_index == review_indices & 
+                                     target_timestamp == timestamps)
+      ; if(length(first_index_to_undo) != 1) return(simpleCondition("Undo action found no target action"))
+      
+      indices_to_undo <- seq_len(undo_action_count)-1 + first_index_to_undo
+      ; if(any(indices_to_undo > i)) return(simpleCondition("Undo action precedes target action"))
+      
+      indices_to_remove <- c(indices_to_remove, indices_to_undo, i, i+1)
+    }
+    
+    canonical_indices <- canonical_indices[-c(indices_to_remove, i, i+1)]
+    review_indices <- review_indices[-c(indices_to_remove, i, i+1)]
+    timestamps <- timestamps[-c(indices_to_remove, i, i+1)]
+  }
+  
+  return(
+    list(
+      format_version_number = format_version_number,
+      canonical_indices = canonical_indices,
+      review_indices = review_indices,
+      timestamps = timestamps
+    )
+  )
+}
+
+RS_parse_review_reviews <- function(contents, row_count, expected_role, expected_domain) {
+  internal_res <- RS_parse_review_reviews_and_apply_undo(contents, expected_role, expected_domain)
+  format_version_number = internal_res[["format_version_number"]]
+  canonical_indices <- internal_res[["canonical_indices"]]
+  review_indices <- internal_res[["review_indices"]]
+  timestamps <- internal_res[["timestamps"]]
+    
+  ; if (!(all(0 < canonical_indices & canonical_indices <= row_count)))
+    return(simpleCondition("Invalid `.review` canonical indices"))
+  
   ; if (any(diff(timestamps) < 0)) return(simpleCondition("Non-monotonically increasing `.review` timestamps"))
   
-  close(con)
-  
+  res_reviews <- rep(0L, row_count)
+  res_timestamps <- rep(0., row_count)
   res_reviews[canonical_indices] <- review_indices
   res_timestamps[canonical_indices] <- timestamps
   
@@ -544,12 +617,4 @@ RS_load <- function(base, deltas) {
   }
   
   return(res)
-}
-
-RS_append <- function(path, contents) {
-  # TODO: Copy file, append to copy, rename back
-  f <- file(path, open = "r+b", raw = TRUE)
-  seek(f, where = 0, origin = "end", rw = "write")
-  writeBin(contents, f)
-  close(f)
 }
