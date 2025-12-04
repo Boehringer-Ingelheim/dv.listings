@@ -253,7 +253,7 @@ RS_parse_base <- function(contents, only_header = FALSE) {
   row_count <- readBin(con, integer(), 1L)
 
   id_hashes <- tracked_hashes <- row_timestamps <- NULL 
-  if(!isTRUE(only_header)){
+  if (!isTRUE(only_header)) {
     id_hashes <- SH$read_hashes_from_con(con, row_count, 16L)
     tracked_hashes <- SH$read_hashes_from_con(con, row_count, BYTES_PER_TRACKED_HASH * length(tracked_vars))
     row_timestamps <- rep(timestamp, row_count)
@@ -372,7 +372,7 @@ RS_parse_delta <- function(contents, tracked_var_count, only_header = FALSE) {
   
   new_id_hashes <- new_tracked_hashes <- modified_row_count <- modified_row_indices <- modified_tracked_hashes <- NULL
   
-  if(!isTRUE(only_header)){
+  if (!isTRUE(only_header)) {
     new_id_hashes <- SH$read_hashes_from_con(con, new_row_count, 16L)
     new_tracked_hashes <- SH$read_hashes_from_con(con, new_row_count, BYTES_PER_TRACKED_HASH * tracked_var_count)
   
@@ -495,37 +495,37 @@ RS_parse_review_reviews_and_apply_undo <- function(contents, expected_role, expe
  
   # Review action undo. Introduced in version 1 of the LISTREVI file format
   undo_indices <- which(canonical_indices == 0L)
-  if(length(undo_indices)){
-    ; if(length(canonical_indices) %in% undo_indices) # No space left for second half of 32-bit-wide undo action
-      return(error_cond <- simpleCondition("Invalid encoding of undo action in `.review` file"))
+  if (length(undo_indices)) {
+    ; if (length(canonical_indices) %in% undo_indices) # No space left for second half of 32-bit-wide undo action
+      return(simpleCondition("Invalid encoding of undo action in `.review` file"))
     
     indices_to_remove <- integer(0)
-    for(i in undo_indices) {
+    for (i in undo_indices) {
       undo_action_count <- review_indices[[i]]
-      ; if(length(undo_action_count) < 1) return(simpleCondition("Undo action targets non-positive amount of records"))
+      ; if (length(undo_action_count) < 1) return(simpleCondition("Undo action targets non-positive amount of records"))
       
       undo_action_timestamp <- timestamps[[i]]
       
-      target_canonical_row_index <- -canonical_indices[[i+1]]
-      target_review_index <- review_indices[[i+1]]
-      target_timestamp <- timestamps[[i+1]]
-      ; if(undo_action_timestamp < target_timestamp) 
+      target_canonical_row_index <- -canonical_indices[[i + 1]]
+      target_review_index <- review_indices[[i + 1]]
+      target_timestamp <- timestamps[[i + 1]]
+      ; if (undo_action_timestamp < target_timestamp) 
         return(simpleCondition("Undo action timestamp lower than that of target action"))
       
       first_index_to_undo <- which(target_canonical_row_index == canonical_indices & 
                                      target_review_index == review_indices & 
                                      target_timestamp == timestamps)
-      ; if(length(first_index_to_undo) != 1) return(simpleCondition("Undo action found no target action"))
+      ; if (length(first_index_to_undo) != 1) return(simpleCondition("Undo action found no target action"))
       
-      indices_to_undo <- seq_len(undo_action_count)-1 + first_index_to_undo
-      ; if(any(indices_to_undo > i)) return(simpleCondition("Undo action precedes target action"))
+      indices_to_undo <- seq_len(undo_action_count) - 1 + first_index_to_undo
+      ; if (any(indices_to_undo > i)) return(simpleCondition("Undo action precedes target action"))
       
-      indices_to_remove <- c(indices_to_remove, indices_to_undo, i, i+1)
+      indices_to_remove <- c(indices_to_remove, indices_to_undo, i, i + 1)
     }
     
-    canonical_indices <- canonical_indices[-c(indices_to_remove, i, i+1)]
-    review_indices <- review_indices[-c(indices_to_remove, i, i+1)]
-    timestamps <- timestamps[-c(indices_to_remove, i, i+1)]
+    canonical_indices <- canonical_indices[-c(indices_to_remove, i, i + 1)]
+    review_indices <- review_indices[-c(indices_to_remove, i, i + 1)]
+    timestamps <- timestamps[-c(indices_to_remove, i, i + 1)]
   }
   
   return(
@@ -540,7 +540,7 @@ RS_parse_review_reviews_and_apply_undo <- function(contents, expected_role, expe
 
 RS_parse_review_reviews <- function(contents, row_count, expected_role, expected_domain) {
   internal_res <- RS_parse_review_reviews_and_apply_undo(contents, expected_role, expected_domain)
-  format_version_number = internal_res[["format_version_number"]]
+  format_version_number <- internal_res[["format_version_number"]]
   canonical_indices <- internal_res[["canonical_indices"]]
   review_indices <- internal_res[["review_indices"]]
   timestamps <- internal_res[["timestamps"]]
