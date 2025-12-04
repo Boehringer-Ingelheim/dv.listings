@@ -187,9 +187,23 @@ test_that(sprintf("Running random review tests with seed: %dL", int_seed) |>
       return(res)
     }
     
+    undo_review <- function(role){
+      review_path <- file.path('dataset_list', sprintf("df_%s.review", role))
+      info <- REV_compute_undo_action_info(contents = fs_contents[[review_path]], role = role, domain = 'df')
+      
+      action_count <- length(info[["canonical_indices"]])
+      if(action_count > 0){
+        timestamp <- SH$get_UTC_time_in_seconds()
+        IO_plan <- REV_produce_IO_plan_for_review_undo_action(info, timestamp, role, 'dataset_list', 'df')
+        fs_client[["execute_IO_plan"]](IO_plan = IO_plan)
+      }
+      
+      return(NULL)
+    }
+    
     return(list(
       track = track, create = create, append = append, shuffle = shuffle, remove = remove, recover = recover,
-      mutate = mutate, review = review, store_path = store_path, review_param = review_param
+      mutate = mutate, review = review, undo_review = undo_review, store_path = store_path, review_param = review_param
     ))
   })
   
@@ -213,9 +227,12 @@ test_that(sprintf("Running random review tests with seed: %dL", int_seed) |>
   )
   info <- RT$track(df)
   expect_identical(info, oracle_expected, info = paste('Iteration:', i_iteration))
+ 
+  review_history <- list() # each element a tuple of (role, row_ids, choice)
   
   rand_0_to_max <- function(max) ssample(0:max, 1)
   max_review_action_count <- 3L
+  max_undo_count <- 3L
 
   iteration_count <- 100L
   max_delta_count <- 3L
@@ -224,7 +241,7 @@ test_that(sprintf("Running random review tests with seed: %dL", int_seed) |>
   for(i_iteration in seq_len(iteration_count)){
     oracle_expected[["added"]] <- integer(0)
     oracle_expected[["modified"]] <- integer(0)
-    oracle_expected[["reviews"]] <- NULL # appended at the end of this `for` loop
+    oracle_expected[["reviews"]] <- NULL # computed at the end of this `for` loop
     # "missing" field preserved
     # "reviews"
 
@@ -232,9 +249,9 @@ test_that(sprintf("Running random review tests with seed: %dL", int_seed) |>
     #
     # REVIEW PHASE --> <------------------ DATASET UPDATE PHASE --------------------------------> <--- CHECK PHASE
     # 
-    #                    recover                                               shuffle
-    #    review   -->       +       -->    mutate   -->    append   -->           +            -->   oracle check
-    #                    remove                                            sort newly appended
+    #    review          recover                                               shuffle
+    #      +      -->       +       -->    mutate   -->    append   -->           +            -->   oracle check
+    #     undo           remove                                            sort newly appended
     #
     # We start each iteration with a dataset that has just been updated and loaded in the app. The `.base` and `.delta`
     # files are up to date.
@@ -244,7 +261,6 @@ test_that(sprintf("Running random review tests with seed: %dL", int_seed) |>
     # It's important to allow interleaved reviews of at least two different roles (e.g. A, B, A), 
     # so `max_review_action_count` should be at least three:
     stopifnot(max_review_action_count >= 3L)
-    
     
     # NOTE: Review
     review_action_count <- rand_0_to_max(max_review_action_count)
@@ -256,6 +272,32 @@ test_that(sprintf("Running random review tests with seed: %dL", int_seed) |>
       choice <- ssample(RT$review_param[['choices']], 1)
       df <- RT$review(df, row_ids, role, choice)
       reviews_oracle[row_ids] <- choice
+      
+      # push new review as latest
+      if(row_count > 0) {
+        review_history[[length(review_history)+1]] <- list(role = role, row_ids = row_ids, choice = choice)
+      }
+    }
+    
+    stopifnot(max_undo_count >= 3L)
+    
+    # NOTE: Undo review
+    #       The fact that the undo step follows the review step should not impact the generality of the oracle, as the
+    #       review step can be a no-op if review_action_count == 0. Undoing can also rewind back into reviews preceding
+    #       the current dataset update
+    undo_count <- rand_0_to_max(max_undo_count)
+    for(i in seq_len(undo_count)){
+      role <- ssample(RT$review_param[['roles']], 1)
+      RT$undo_review(role)
+      
+      # pop last review by `role`
+      for(i_rev in rev(seq_along(review_history))){
+        review_node <- review_history[[i_rev]]
+        if(review_node[["role"]] == role){
+          review_history[[i_rev]] <- NULL
+          break
+        }
+      }
     }
     
     # - DATASET UPDATE PHASE
@@ -326,6 +368,16 @@ test_that(sprintf("Running random review tests with seed: %dL", int_seed) |>
       subdf <- subdf[order(subdf[['ID']]),]
       df[newly_appended_row_mask,] <- subdf
     }
+    
+    
+    reviews_oracle <- local({
+      default_choice <- RT$review_param[['choices']][[1]]
+      res <- rep(default_choice, attr(df, 'max_id')) # reviews for present and absent rows, in canonical order
+      for(review in review_history){
+        res[review$row_ids] <- review$choice
+      }
+      return(res)
+    })
     
     oracle_expected[['reviews']] <- reviews_oracle[df[["ID"]]]
     

@@ -707,26 +707,16 @@ REV_compute_review_changes <- function(data, row_indices, annotation_info, choic
   return(res)
 }
 
-REV_describe_undo_action <- function(
-    review, REV_state, # TODO? Narrow down to what's explictly needed
-    fs_contents, dataset_list_name, dataset_name, role) {
-  review_path <- file.path(dataset_list_name, sprintf("%s_%s.review", dataset_name, role))
-  contents <- fs_contents[[review_path]]
- 
-  internal_res <- RS_parse_review_reviews_and_apply_undo(contents, expected_role = role, expected_domain = dataset_name)
+REV_compute_undo_action_info <- function(contents, role, domain) {
+  internal_res <- RS_parse_review_reviews_and_apply_undo(contents, expected_role = role, expected_domain = domain)
   canonical_indices <- internal_res[["canonical_indices"]]
   review_indices <- internal_res[["review_indices"]]
   timestamps  <- internal_res[["timestamps"]]
- 
-  res <- list(
-    text = "No action to undo",
-    info = list(count = 0, first_review_record = NULL)
-  )
   
+  res <- list(canonical_indices = integer(0), review_decision = NULL, timestamp = NULL)
   if (length(timestamps) > 0) {
-    current_row_index_from_canonical_row_index <- attr(
-      REV_state[["annotation_info"]][[dataset_list_name]][[dataset_name]], "map_canonical_indices_into_current_order"
-    )
+    last_review_index <- review_indices[[length(timestamps)]]
+    last_timestamp <- timestamps[[length(timestamps)]]
     
     last_timestamp <- timestamps[[length(timestamps)]]
     last_review_index <- review_indices[[length(timestamps)]]
@@ -735,28 +725,53 @@ REV_describe_undo_action <- function(
     ; if (length(last_action_indices) > 1) {
       contiguous <- (all(diff(last_action_indices)) == 1)
       if (!isTRUE(contiguous)) {
-        res[["text"]] <- shiny::HTML(
-          paste0("Found several actions to undo, but they are not contiguous.<br>",
-                 "This is somewhat unexpected, so the undo functionality has been disabled.<br>",
-                 "If you believe this is a problem, please contact the package maintainer.")
-        )
-        return(res) # NOTE: Early out
+        error_message <-  paste0("Found several actions to undo, but they are not contiguous.<br>",
+                                 "This is somewhat unexpected, so the undo functionality has been disabled.<br>",
+                                 "If you believe this is a problem, please contact the package maintainer.")
+        return(simpleCondition(error_message)) # NOTE: Early out
       }
     }
     
-    current_row_indices <- current_row_index_from_canonical_row_index(canonical_indices[last_action_indices])
-    
+    res <- list(
+      canonical_indices = canonical_indices[last_action_indices],
+      review_decision = last_review_index,
+      timestamp = last_timestamp
+    )
+  }
+  
+  return(res)
+}
+
+REV_describe_undo_action <- function(
+    review, REV_state, # TODO? Narrow down to what's explicitly needed
+    fs_contents, dataset_list_name, dataset_name, role) {
+  
+  review_path <- file.path(dataset_list_name, sprintf("%s_%s.review", dataset_name, role))
+  contents <- fs_contents[[review_path]]
+  
+  res <- list(
+    text = character(0),
+    info = REV_compute_undo_action_info(contents = contents, role = role, domain = dataset_name)
+  )
+  
+  if (inherits(res[["info"]], "simpleCondition")) {
+    res[["text"]] <- shiny::HTML(res[["info"]][["message"]])
+  } else if (length(res[["info"]][["canonical_indices"]]) == 0) {
+    res[["text"]] <- "No action to undo"
+  } else {
+    canonical_indices <- res[["info"]][["canonical_indices"]]
+    current_row_index_from_canonical_row_index <- attr(
+      REV_state[["annotation_info"]][[dataset_list_name]][[dataset_name]], "map_canonical_indices_into_current_order"
+    )
+    current_row_indices <- current_row_index_from_canonical_row_index(canonical_indices)
     if (any(is.na(current_row_indices))) {
       browser() # TODO: Not all indices are necessarily present. We can't show those that are not because we no longer
       # have access to the original data, so we should filter them out
-      
     }
     
     data <- review[["data"]][[dataset_list_name]][[dataset_name]]
     id_vars <- review[["datasets"]][[dataset_name]][["id_vars"]]
-    
     target_data <- data[current_row_indices, ]
-    
     undo_table <- target_data[id_vars]
     #> undo_table[["Previous review"]] <- second_to_last_review_choices # TODO? Would be nice to see the old values, but not mandatory
     
@@ -765,28 +780,56 @@ REV_describe_undo_action <- function(
     
     # TODO: Replace ID column names with labels if available
     
-    last_review_choice <- review[["choices"]][last_review_index]
+    last_review_choice <- review[["choices"]][[res[["info"]][["review_decision"]]]]
+    last_timestamp <- res[["info"]][["timestamp"]]
     time <- structure(last_timestamp, class = c("POSIXct", "POSIXt"), tzone = "UTC")
-    undo_header <- paste('<p style="margin:10px">', "Marked as <b>", last_review_choice, 
+    undo_header <- paste('<p style="margin:10px">', "Marked as <b>", last_review_choice,
                          "</b> on <b>", time, "UTC</b></p>")
     
     text <- shiny::HTML(paste(undo_header, undo_table_s))
-    
-    res <- list(
-      text = text,
-      info = list(
-        count = length(current_row_indices), 
-        first_review_record = list(
-          canonical_index = canonical_indices[[last_action_indices[[1]]]],
-          review_decision = last_review_index,
-          timestamp = last_timestamp
-        )
-      )
-    )
+    res[["text"]] <- text
   }
   
   return(res)
 }
+
+REV_serialize_undo_action <- function(undo_info, timestamp) {
+  UNDO_MARKER <- 0L 
+  action_count <- length(undo_info[["canonical_indices"]])
+ 
+  canonical_indices <- undo_info[["canonical_indices"]][[1]]
+  review_decision <- undo_info[["review_decision"]]
+  original_timestamp <- undo_info[["timestamp"]]
+  
+  contents <- c(
+    # FIRST HALF
+    SH$integer_to_raw(UNDO_MARKER),
+    SH$integer_to_raw(action_count),
+    SH$double_to_raw(timestamp),
+    # SECOND HALF
+    SH$integer_to_raw(-canonical_indices[[1]]),
+    SH$integer_to_raw(review_decision),
+    SH$double_to_raw(original_timestamp)
+  )
+  
+  return(contents)
+}
+
+REV_produce_IO_plan_for_review_undo_action <- function(undo_info, timestamp, role, dataset_list_name, dataset_name) {
+  contents <- REV_serialize_undo_action(undo_info = undo_info, timestamp)
+  
+  IO_plan <- list(
+    list(
+      kind = "write",
+      path = file.path(dataset_list_name, paste0(dataset_name, "_", role, ".review")),
+      contents = contents,
+      offset = FS$WRITE_OFFSET_APPEND
+    )
+  )
+    
+  return(IO_plan)
+}
+
 
 REV_replace_undo_description <- function(ns, contents) {
   shiny::removeUI(selector = paste0("#", ns(REV$ID$UNDO_DESCRIPTION)))
@@ -883,24 +926,13 @@ REV_respond_to_user_review <- function(ns, state, input, review, selected_datase
    
     undo_desc <- REV_describe_undo_action(review, REV_state = state, fs_contents, dataset_list_name, dataset_name, role)
     
-    action_count <- undo_desc[["info"]][["count"]]
-    review_record <- undo_desc[["info"]][["first_review_record"]]
+    action_count <- length(undo_desc[["info"]][["canonical_indices"]])
     
-    shiny::req(!is.null(review_record))
+    shiny::req(action_count > 0)
     
-    UNDO_MARKER <- 0L 
     timestamp <- SH$get_UTC_time_in_seconds()
     
-    contents <- c(
-      # FIRST HALF
-      SH$integer_to_raw(UNDO_MARKER),
-      SH$integer_to_raw(action_count),
-      SH$double_to_raw(timestamp),
-      # SECOND HALF
-      SH$integer_to_raw(-review_record[["canonical_index"]]),
-      SH$integer_to_raw(review_record[["review_decision"]]),
-      SH$double_to_raw(review_record[["timestamp"]])
-    )
+    contents <- REV_serialize_undo_action(undo_info = undo_desc[["info"]], timestamp)
     
     IO_plan <- list(
       list(
