@@ -511,9 +511,9 @@ REV_main_logic <- function(state, input, review, datasets, fs_client) {
   fs_state <- fs_client[["state"]]
   fs_contents <- fs_state[["contents"]]
   
-  shiny::observeEvent(input[[REV$ID$CONNECT_STORAGE]], {    
+  shiny::observeEvent(input[[REV$ID$CONNECT_STORAGE]], {
     fs_client[["list"]](callback = list_callback)
-  }, ignoreNULL = FALSE, ignoreInit = TRUE)
+  }, ignoreNULL = TRUE, ignoreInit = TRUE)
 
   list_callback <- shiny::reactiveVal(0L)
   shiny::observeEvent(list_callback(), {
@@ -743,7 +743,7 @@ REV_compute_undo_action_info <- function(contents, role, domain) {
 }
 
 REV_describe_undo_action <- function(
-    review, REV_state, # TODO? Narrow down to what's explicitly needed
+    review, REV_state, # TODO? Narrow down to what's explicitly needed instead of using the whole `REV_state`
     fs_contents, dataset_list_name, dataset_name, role) {
   
   review_path <- file.path(dataset_list_name, sprintf("%s_%s.review", dataset_name, role))
@@ -830,7 +830,6 @@ REV_produce_IO_plan_for_review_undo_action <- function(undo_info, timestamp, rol
   return(IO_plan)
 }
 
-
 REV_replace_undo_description <- function(ns, contents) {
   shiny::removeUI(selector = paste0("#", ns(REV$ID$UNDO_DESCRIPTION)))
   shiny::insertUI(selector = paste0("#", ns(REV$ID$UNDO_DESCRIPTION_ANCHOR)), where = "afterEnd", 
@@ -839,7 +838,9 @@ REV_replace_undo_description <- function(ns, contents) {
 }
 
 REV_respond_to_user_review <- function(ns, state, input, review, selected_dataset_list_name, selected_dataset_name, data,
-                                       dt_proxy, fs_execute_IO_plan, fs_contents) {
+                                       dt_proxy, fs_execute_IO_plan, fs_state) {
+  fs_contents <- fs_state[["contents"]]
+  
   shiny::observeEvent(input[[REV$ID$REVIEW_SELECT]], {
     role <- input[[REV$ID$ROLE]]
 
@@ -909,13 +910,41 @@ REV_respond_to_user_review <- function(ns, state, input, review, selected_datase
     # > tmp[9] = '2';
     # > table.row(5).data(tmp).invalidate();
     DT::replaceData(dt_proxy, new_data, resetPaging = FALSE, clearSelection = "none")
-   
-    fs_execute_IO_plan(IO_plan)
-   
-    undo_desc <- REV_describe_undo_action(review, REV_state = state, fs_contents, 
-                                          selected_dataset_list_name(), selected_dataset_name(), role)
     
-    REV_replace_undo_description(ns, undo_desc[["text"]])
+    expected_rv_value <- update_undo_description_rv() + 1L
+    fs_execute_IO_plan(IO_plan, callback = function(unused) update_undo_description_rv(expected_rv_value))
+    
+    update_undo_resolved_reactives <<- list(
+      dataset_list_name = dataset_list_name, dataset_name = dataset_name,
+      role = role, expected_rv_value = expected_rv_value
+    )
+    
+    REV_replace_undo_description(ns, "Computing undo description...") # overwritten by #deihee
+  })
+  
+  update_undo_description_rv <- shiny::reactiveVal(0L)
+  update_undo_resolved_reactives <- list()
+  shiny::observeEvent(update_undo_description_rv(), {
+    shiny::req(
+      identical(update_undo_description_rv(), update_undo_resolved_reactives[["expected_rv_value"]])
+    )
+    
+    error_messages <- fs_state[["error"]]
+    if (length(error_messages) > 0) {
+      showNotification(
+        ui = shiny::HTML(
+          paste("<h4>ERROR DURING REVIEW</h4>", paste(paste("\u2022", error_messages), collapse = "<br>"))
+        ), duration = NULL, closeButton = TRUE, type = "error"
+      )
+    }
+
+    undo_desc <- REV_describe_undo_action(
+      review = review, REV_state = state, fs_contents = fs_contents,
+      dataset_list_name = update_undo_resolved_reactives[["dataset_list_name"]], 
+      dataset_name = update_undo_resolved_reactives[["dataset_name"]],
+      role = update_undo_resolved_reactives[["role"]]
+    )
+    REV_replace_undo_description(ns, undo_desc[["text"]]) # overwrites #deihee
   })
   
   shiny::observeEvent(input[[REV$ID$UNDO]], {
@@ -943,11 +972,40 @@ REV_respond_to_user_review <- function(ns, state, input, review, selected_datase
       )
     )
     
-    fs_execute_IO_plan(IO_plan)
+    expected_rv_value <- update_table_and_undo_description_rv() + 1L
+    fs_execute_IO_plan(IO_plan, callback = function(unused) update_table_and_undo_description_rv(expected_rv_value))
+    
+    update_table_and_undo_resolved_reactives <<- list(
+      dataset_list_name = dataset_list_name, dataset_name = dataset_name, role = role,
+      expected_rv_value = expected_rv_value
+    )
+    REV_replace_undo_description(ns, "Computing undo description...") # overwritten by #eegega
+  })
+  
+  update_table_and_undo_description_rv <- shiny::reactiveVal(0L)
+  update_table_and_undo_resolved_reactives <- list()
+  shiny::observeEvent(update_table_and_undo_description_rv(), {
+    shiny::req(
+      identical(update_table_and_undo_description_rv(), update_table_and_undo_resolved_reactives[["expected_rv_value"]])
+    )
+    
+    error_messages <- fs_state[["error"]]
+    if (length(error_messages) > 0) {
+      showNotification(
+        ui = shiny::HTML(
+          paste("<h4>ERROR DURING UNDO</h4>", paste(paste("\u2022", error_messages), collapse = "<br>"))
+        ), duration = NULL, closeButton = TRUE, type = "error"
+      )
+    }
     
     # NOTE: compute data and reload through proxy
     if (TRUE) { # FIXME: Partially repeats #weilae 
       datasets <- review[["data"]]
+      
+      dataset_list_name <- update_table_and_undo_resolved_reactives[["dataset_list_name"]]
+      dataset_name <- update_table_and_undo_resolved_reactives[["dataset_name"]]
+      role <- update_table_and_undo_resolved_reactives[["role"]]
+      
       load_results <- REV_load_annotation_info(fs_contents, review, datasets)
       state[["annotation_info"]] <- load_results[["loaded_annotation_info"]]
       annotation_info <- state[["annotation_info"]][[dataset_list_name]][[dataset_name]]
@@ -971,7 +1029,7 @@ REV_respond_to_user_review <- function(ns, state, input, review, selected_datase
     }
     
     undo_desc <- REV_describe_undo_action(review, REV_state = state, fs_contents, dataset_list_name, dataset_name, role)
-    REV_replace_undo_description(ns, undo_desc[["text"]])
+    REV_replace_undo_description(ns, undo_desc[["text"]]) # overwritten by #eegega
   })
   
   return(NULL)

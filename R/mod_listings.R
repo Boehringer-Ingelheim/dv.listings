@@ -545,7 +545,7 @@ listings_server <- function(module_id,
         data = shiny::reactive(output_table_data()[["data"]]),
         dt_proxy = dt_proxy,
         fs_execute_IO_plan = fs_client[["execute_IO_plan"]],
-        fs_contents = fs_client[["state"]][["contents"]]
+        fs_state = fs_client[["state"]]
       )
     }
     

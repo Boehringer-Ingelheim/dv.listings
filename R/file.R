@@ -11,83 +11,90 @@ FS <- pack_of_constants(
 # to perform the requested actions. It reports the results back through pre-allocated shiny inputs.
 fsa_init <- function(input, input_id, session = shiny::getDefaultReactiveDomain()) {
   checkmate::assert_string(input_id, min.chars = 1)
-  
-  browser() # TODO: Adapt to have the same behavior as ther server-side `fs_init`
 
+  state <- list(
+    path = character(0),
+    listing = FS$EMPTY_LISTING,
+    contents = new.env(parent = emptyenv()),
+    error = "Not listed yet"
+  ) |> list2env(parent = emptyenv())
+  
   ns <- session[["ns"]]
 
-  attach_id <- paste0(input_id, "_attach")
   list_id <- paste0(input_id, "_list")
   read_id <- paste0(input_id, "_read")
-  write_id <- paste0(input_id, "_write")
-  append_id <- paste0(input_id, "_append")
-  read_folder_id <- paste0(input_id, "_read_folder")
   execute_IO_plan_id <- paste0(input_id, "_execute_IO_plan")
 
-  .attach <- function() {
-    session$sendCustomMessage("dv_fsa_attach", list(status_input_id = ns(attach_id)))
-  }
-  shiny::observe(callbacks[["attach"]](input[[attach_id]]))
+  callbacks <- list(
+    list = function(v) NULL
+  )
+  latest_IO_plan <- list()
 
-  .list <- function() {
+  callback_count <- 0L
+
+  .list <- function(callback = function(v) NULL) {
+    callbacks[["list"]] <<- callback
     session$sendCustomMessage("dv_fsa_list", list(status_input_id = ns(list_id)))
   }
-  shiny::observe(callbacks[["list"]](input[[list_id]]))
+  shiny::observeEvent(input[[list_id]], {
+    callback_count <<- callback_count + 1L
+    on.exit(callbacks[["list"]](callback_count))
 
-  .read <- function(file_name, contents) {
-    session$sendCustomMessage(
-      "dv_fsa_read",
-      list(status_input_id = ns(read_id), file_name = file_name))
-  }
-  shiny::observe(callbacks[["read"]](input[[read_id]]))
+    state[["error"]] <- character(0)
 
-  .write <- function(file_name, contents) {
-    session$sendCustomMessage(
-      "dv_fsa_write",
-      list(status_input_id = ns(write_id), file_name = file_name, contents = contents))
-  }
-  shiny::observe(callbacks[["write"]](input[[write_id]]))
-
-  .append <- function(file_name, contents) {
-    session$sendCustomMessage(
-      "dv_fsa_append",
-      list(status_input_id = ns(read_id), file_name = file_name, contents = contents))
-  }
-  shiny::observe(callbacks[["append"]](input[[append_id]]))
-
-  .read_folder <- function(subfolder_candidates) {
-    session$sendCustomMessage(
-      "dv_fsa_read_folder",
-      list(status_input_id = ns(read_folder_id), subfolder_candidates = base::I(subfolder_candidates)))
-  }
-  shiny::observe({
-    folder_structure_base64_decode <- function(encoded_struct) {
-      decoded_struct <- encoded_struct
-      for (dataset_nm in names(encoded_struct)) {    
-        for (file_nm in names(encoded_struct[[dataset_nm]])) {
-          encoded_contents <- encoded_struct[[dataset_nm]][[file_nm]][["contents"]]
-          if (!is.null(encoded_contents)) {
-            decoded_contents <- base64enc::base64decode(encoded_contents) 
-          } else {
-            decoded_contents <- NULL
-          }
-          decoded_struct[[dataset_nm]][[file_nm]][["contents"]] <- decoded_contents
-        }
-      }
-      return(decoded_struct)
+    v <- input[[list_id]]
+    if (is.character(v[["error"]])) {
+      state[["error"]] <- v[["error"]][[1]]
+    } else {
+      state[["path"]] <- v[["path"]]
+      
+      isdir <- sapply(v[["list"]], function(x) x[["kind"]] == "directory")
+      size <- sapply(v[["list"]], function(x) x[["size"]] %||% 0L)
+      mtime <- sapply(v[["list"]], function(x) x[["time"]] %||% 0L) |> as.POSIXct(origin = "1970-01-01", tz = "UTC")
+      state[["listing"]] <- data.frame(size, isdir, mtime)
     }
-    
-    encoded_folder_contents <- input[[read_folder_id]]
-    shiny::req(is.list(encoded_folder_contents))
-    decoded_folder_contents <- folder_structure_base64_decode(encoded_folder_contents)
-    callbacks[["read_folder"]](decoded_folder_contents)
   })
 
-  .execute_IO_plan <- function(IO_plan) {
-    IO_plan_base64_encode <- function(plan) {  
+  .read <- function(paths, callback = function(v) NULL) {
+    if (length(state[["error"]]) > 0) {
+      callback_count <<- callback_count + 1L
+      callback(callback_count)
+      return(NULL)
+    }
+    callbacks[["read"]] <<- callback
+    session$sendCustomMessage("dv_fsa_read", list(status_input_id = ns(read_id), paths = paths))
+  }
+  shiny::observeEvent(input[[read_id]], {
+    callback_count <<- callback_count + 1L
+    on.exit(callbacks[["read"]](callback_count))
+
+    v <- input[[read_id]]
+    if (is.character(v[["error"]])) {
+      state[["error"]] <- v[["error"]][[1]]
+    } else {
+      for (fname in names(v[["contents"]])){
+        b64_contents <- v[["contents"]][[fname]]
+        decoded_contents <- base64enc::base64decode(b64_contents)
+        state[["contents"]][[fname]] <- decoded_contents
+      }
+    }
+  })
+
+  .execute_IO_plan <- function(IO_plan, callback = function(v) NULL) {
+    if (length(state[["error"]]) > 0) {
+      callback_count <<- callback_count + 1L
+      callback(callback_count)
+      return(NULL)
+    }
+
+    callbacks[["execute_IO_plan"]] <<- callback
+
+    latest_IO_plan <<- IO_plan # NOTE: Used on the next observeEvent to updated the local content cache
+
+    IO_plan_base64_encode <- function(plan) {
       encoded_plan <- plan
       for (idx in seq_along(plan)) {
-        if (encoded_plan[[idx]][["kind"]] == "write_file") {
+        if (encoded_plan[[idx]][["kind"]] == "write") {
           encoded_plan[[idx]][["contents"]] <- base64enc::base64encode(encoded_plan[[idx]][["contents"]])
         }
       }
@@ -101,18 +108,65 @@ fsa_init <- function(input, input_id, session = shiny::getDefaultReactiveDomain(
       list(status_input_id = ns(execute_IO_plan_id), plan = IO_plan_base64)
     )
   }
-  shiny::observe(callbacks[["execute_IO_plan"]](input[[execute_IO_plan_id]]))
+  shiny::observeEvent(input[[execute_IO_plan_id]], {
+    callback_count <<- callback_count + 1L
+    on.exit(callbacks[["execute_IO_plan"]](callback_count))
+    on.exit(latest_IO_plan <<- list(), add = TRUE)
+    shiny::req(length(state[["error"]]) == 0)
 
-  .show_overlay <- function(message) { # nolint
-    session$sendCustomMessage("dv_fsa_show_overlay", list(message = message))
-  }
 
-  .hide_overlay <- function() { # nolint
-    session$sendCustomMessage("dv_fsa_hide_overlay", list())
-  }
+    v <- input[[execute_IO_plan_id]]
+    if (is.character(v[["error"]])) {
+      state[["error"]] <- v[["error"]][[1]]
+      shiny::req(FALSE)
+    }
+
+    status <- v[["status"]]
+    if (length(status) != length(latest_IO_plan)) {
+      state[["error"]] <- sprintf("Error in IO plan execution. Issued %d actions. Executed %d actions instead",
+                                  length(latest_IO_plan), length(status))
+      shiny::req(FALSE)
+    }
+    
+    for (i in seq_along(status)){
+      if (is.character(status[[i]][["error"]])) {
+        state[["error"]] <- status[[i]][["error"]][[1]]
+        shiny::req(FALSE)
+      }
+      
+      path <- latest_IO_plan[[i]][["path"]]
+      contents <- latest_IO_plan[[i]][["contents"]]
+      offset <- status[[i]][["offset"]] # Effective offset patched by client; important in case of WRITE_OFFSET_APPEND
+
+      # 7 - Update local cached contents # TODO: Partially repeats #eiseil
+      if (length(contents) > 0) {
+        cached_contents <- state[["contents"]][[path]] %||% raw(0)
+        cached_contents[(offset + 1L):(offset + length(contents))] <- contents
+        state[["contents"]][[path]] <- cached_contents
+      }
+
+      # 8 - Update local cached listing # TODO: Repeats #yaisei
+      fs_listing <- state[["listing"]]
+      
+      size <- length(contents)
+      mtime <- status[[i]][["mtime"]] |> as.POSIXct(origin = "1970-01-01", tz = "UTC")
+      
+      listing_row <- data.frame(size = size, isdir = FALSE, mtime = mtime)
+      row.names(listing_row) <- path
+        
+      if (path %in% rownames(fs_listing)) {
+        listing_index <- which(path == rownames(fs_listing))[[1]]
+        state[["listing"]][listing_index, ]  <- listing_row
+      } else {
+        state[["listing"]] <- rbind(fs_listing, listing_row)
+      }
+    }
+  })
 
   res <- list(
-    attach = .attach, list = .list, read = .read, write = .write, append = .append, read_folder = .read_folder,
+    state = state,
+    list = .list,
+    read = .read,
     execute_IO_plan = .execute_IO_plan
   )
   return(res)
@@ -173,6 +227,7 @@ fs_init <- function(path) {
     on.exit(callback(callback_count))
     if (length(state[["error"]]) > 0) return()
     
+    # NOTE: Logic repeats in #thaegh
     allowed_paths <- rownames(state[["listing"]])[!state[["listing"]][["isdir"]]]
     invalid_paths <- setdiff(paths, allowed_paths)
     if (length(invalid_paths) > 0) {
@@ -184,15 +239,15 @@ fs_init <- function(path) {
     
     for (rel_path in paths){
       index <- which(rownames(state[["listing"]]) == rel_path)
-      size_in_bytes <- state[["listing"]][["size"]][[index]]
-      contents <- try(readBin(con = file.path(path, rel_path), what = raw(0), n = size_in_bytes))
+      expected_size_in_bytes <- state[["listing"]][["size"]][[index]]
+      contents <- try(readBin(con = file.path(path, rel_path), what = raw(0), n = expected_size_in_bytes))
       if (inherits(contents, "try-error")) {
         state[["error"]] <- sprintf("Read error for file `%s`: %s", rel_path, attr(res, "condition")[["message"]])
         return()
       }
       
-      if (length(contents) != size_in_bytes) {
-        state[["error"]] <- sprintf("Expected %d bytes from file `%s` and got %d instead.", size_in_bytes, rel_path, 
+      if (length(contents) != expected_size_in_bytes) {
+        state[["error"]] <- sprintf("Expected %d bytes from file `%s` and got %d instead.", expected_size_in_bytes, rel_path, 
                                     length(contents))
         return()
       }
@@ -227,57 +282,59 @@ fs_init <- function(path) {
     on.exit(callback(callback_count))
     fname_path <- file.path(state[["path"]], path)
     
-    # FIXME? File offsets are zero-based and `raw` offsets are one based. Should we make that clearer through
+    # FIXME? File offsets are zero-based and `raw` offsets are one-based. Should we make that clearer through
     #        more carefully chosen variable names?
     
-    res <- try({
-      # ensure folder exists
+    res <- try({ # NOTE: Follows the same logic as #isoaxo
+      # 0 - ensure folder exists
       dname <- dirname(fname_path)
       dir.create(dname, showWarnings = FALSE, recursive = TRUE)
     
-      # write to temp file in the same folder, because we rely on `file.rename to move the file to its Final Destination
+      # 1 - write to temp file in the same folder, because we rely on `file.rename` to place the file on its Final Destination
       tmp_fname <- tempfile(tmpdir = dname, fileext = ".tmp")
       
       if (file.exists(fname_path)) file.copy(fname_path, tmp_fname)
       else writeBin(con = tmp_fname, raw(0))
       
+      # 2 - get file size
       con <- file(tmp_fname, open = "r+b")
       seek(con, where = 0L, origin = "end", rw = "read")
       file_size <- seek(con, where = 0L, origin = "start", rw = "read")
      
+      # 3 - patch and check offset
       if (offset == FS$WRITE_OFFSET_APPEND) offset <- file_size # append without checking offset
-      
       if (offset > file_size) stop(sprintf("Write operation to offset %d would create a hole in `%s`.", offset, path))
       
+      # 4 - compare known cached contents to current contents
       cached_contents <- state[["contents"]][[path]] %||% raw(0)
       range_contents_old <- read_range(cached_contents, 1L + offset, 1L + offset + length(contents))
       
       seek(con, where = offset, origin = "start", rw = "read")
-      range_contents_new <- readBin(con = con, what = raw(0), n = length(contents))
+      range_contents_cur <- readBin(con = con, what = raw(0), n = length(contents))
       
-      if (!identical(range_contents_new, range_contents_old))
+      if (!identical(range_contents_cur, range_contents_old))
         stop(sprintf("Write operation to `%s` would overwrite contents of unknown origin", path))
-      
+
+      # 5 - write proper
       seek(con, where = offset, origin = "start", rw = "write")
-      
       writeBin(contents, con, endian = "little")
-     
       close(con)
       
+      # 6 - overwrite target file with temp contents
       file.rename(tmp_fname, fname_path)
      
-      # Update local cached contents 
+      # 7 - Update local cached contents # TODO: Repeats #eiseil
       if (length(contents) > 0) {
         cached_contents[(offset + 1L):(offset + length(contents))] <- contents
         state[["contents"]][[path]] <- cached_contents
       }
      
-      # Update local cached listing 
+      # 8 - Update local cached listing # TODO: Repeats #yaisei
       fs_listing <- state[["listing"]]
       listing_row <- fs_list_paths(state[["path"]], path)
       if (path %in% rownames(fs_listing)) {
         listing_index <- which(path == rownames(fs_listing))[[1]]
-        state[["listing"]][listing_index, ]  <- listing_row
+        state[["listing"]][listing_index, ] <- listing_row
       } else {
         state[["listing"]] <- rbind(fs_listing, listing_row)
       }
