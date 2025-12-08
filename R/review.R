@@ -410,7 +410,7 @@ REV_load_annotation_info <- function(folder_contents, review, dataset_lists) {
         version_number <- role_review_st_v_data[["format_version_number"]]
         if (version_number == 0L) {
           append_IO_action(
-            list(kind = "write", path = file_path, offset = 0L, new_contents = c(charToRaw("LISTREVI"), as.raw(1)))
+            list(kind = "write", path = file_path, offset = 0L, contents = c(charToRaw("LISTREVI"), as.raw(1)))
           )
         }
         

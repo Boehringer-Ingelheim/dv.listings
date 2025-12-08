@@ -110,10 +110,11 @@ local({
     zero_based_version_byte_pos <- 8L
     
     review_file_path <- file.path('dataset_list', 'ae_roleA.review')
-    v1_first_bytes<- fs_contents[[review_file_path]][1L:(zero_based_version_byte_pos+1L)]
+    v1_first_bytes <- fs_contents[[review_file_path]][1L:(zero_based_version_byte_pos+1L)]
     # NOTE: This will break next time this file format changes
-    expect_equal(v1_first_bytes[[zero_based_version_byte_pos+1L]], as.raw(1))
+    expect_identical(v1_first_bytes[[zero_based_version_byte_pos+1L]], as.raw(1L))
     
+    # Revert version marker to 0
     v0_contents <- as.raw(0)
     fs_client[["write"]](
       path = file.path('dataset_list', 'ae_roleA.review'), 
@@ -123,12 +124,17 @@ local({
     
     info <- REV_load_annotation_info(fs_contents, review, dataset_lists)
     
+    # Check that the module wants to upgrade the format to v1
     expect_length(info[["IO_plan"]], 1)
     action <- info[["IO_plan"]][[1]]
     expect_true(
       action[["kind"]] == 'write' && action[["path"]] == 'dataset_list/ae_roleA.review' &&
-        action[["offset"]] == 0L && identical(action[["new_contents"]], v1_first_bytes)
+        action[["offset"]] == 0L && identical(action[["contents"]], v1_first_bytes)
     )
+    
+    # Check that the IO plan achieves that purpose
+    fs_client[["execute_IO_plan"]](info[["IO_plan"]])
+    expect_identical(fs_contents[["dataset_list/ae_roleA.review"]][[zero_based_version_byte_pos+1L]], as.raw(1L))
   })
 })
 
