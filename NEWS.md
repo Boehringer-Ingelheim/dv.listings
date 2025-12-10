@@ -1,7 +1,10 @@
-# dv.listings 4.3.0-9002
+# dv.listings 4.3.1-9000
+- PLACEHOLDER FOR UPCOMING UNDO FEATURE
+
+# dv.listings 4.3.1
 
 - Guard against selection of nested or conflicting review storage location.
-- PLACEHOLDER FOR UPCOMING UNDO FEATURE
+- Fix mapping of current listing to canonical row indices.
 
 # dv.listings 4.3.0
 
