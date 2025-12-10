@@ -387,26 +387,38 @@ REV_load_annotation_info <- function(folder_contents, review, dataset_lists) {
         mapping <- match(asplit(id_hashes, 2), asplit(base_info[["id_hashes"]], 2))
         return(mapping)
       })
-      map_canonical_data_into_current_order <- function(data) {
-        if (is.data.frame(data)) data[st_map_df, , drop = FALSE]
-        else data[st_map_df]
-      }
-      map_current_indices_into_canonical_order <- function(indices) st_map_df[indices]
+      map_canonical_data_into_current_order <- local({
+        st_map_df <- st_map_df
+        function(data) {
+          if (is.data.frame(data)) data[st_map_df, , drop = FALSE]
+          else data[st_map_df]
+        }
+      })
+      map_current_indices_into_canonical_order <- local({
+        st_map_df <- st_map_df
+        function(indices) st_map_df[indices]
+      })
       
       # Map data from `_df` order into `_st` order through `data_df[df_map_st]`
       # Map indices from `_st` order into `df` order through `df_map_st[indices_st]`
       # Notice how the "df_" and "_st" prefix and suffix match the type of the operand to their left or right
-      df_map_st <- local({
+      df_map_st <- local({ # nolint
         row_count <- ncol(base_info[["id_hashes"]])
         res <- integer(row_count)
         res[st_map_df] <- seq_along(st_map_df)
         return(res)
       }) 
-      map_current_data_into_canonical_order <- function(data) {
-        if (is.data.frame(data)) data[df_map_st, , drop = FALSE]
-        else data[df_map_st]
-      }
-      map_canonical_indices_into_current_order <- function(indices) df_map_st[indices]
+      map_current_data_into_canonical_order <- local({
+        df_map_st <- df_map_st
+        function(data) {
+          if (is.data.frame(data)) data[df_map_st, , drop = FALSE]
+          else data[df_map_st]
+        }
+      })
+      map_canonical_indices_into_current_order <- local({
+        df_map_st <- df_map_st
+        function(indices) df_map_st[indices]
+      })
      
       dataset_review_df[["timestamp"]] <- base_timestamp
       dataset_review_df[["data_timestamp"]] <- map_canonical_data_into_current_order(data_timestamps_st)

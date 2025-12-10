@@ -1,6 +1,7 @@
-# dv.listings 4.3.0-9001
+# dv.listings 4.3.0-9002
 
 - Guard against selection of nested or conflicting review storage location.
+- Fix mapping of current listing to canonical row indices.
 
 # dv.listings 4.3.0
 
