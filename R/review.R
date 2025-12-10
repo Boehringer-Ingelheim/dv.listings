@@ -11,7 +11,8 @@ REV <- pack_of_constants(
     REVIEW_SELECT = "rev_id",
     ROLE = "rev_role",
     CONNECT_STORAGE = "connect_storage",
-    HIGHLIGHT_SUFFIX = "_highlight__"
+    HIGHLIGHT_SUFFIX = "_highlight__",
+    APP_ID_prefix = "APP_ID-"
   ),
   LABEL = pack_of_constants(
     DROPDOWN = "Annotation",
@@ -42,7 +43,10 @@ REV_include_review_info <- function(annotation_info, data, col_names) {
     annotation_info <- annotation_info[filter_mask, ]
   }
 
-  if (nrow(data) > nrow(annotation_info)) browser() # Should not happen
+  if (nrow(data) > nrow(annotation_info)) 
+    return(
+      simpleCondition("Internal error in `REV_include_review_info`: Annotation info has fewer rows than data listing.")
+    )
   
   reviews <- annotation_info[["review"]]
   roles <- annotation_info[["role"]]
@@ -135,18 +139,6 @@ REV_load_annotation_info <- function(folder_contents, review, dataset_lists) {
   loaded_annotation_info <- list()
 
   error <- character()
-
-  # TODO: Chop it in a set of consecutive observers with the app blocked with an overlay
-  # consecutive observers should allow given client time in an asynch way
-  # consider including the global lock for the whole process until released
-  # A queue should exist or retry in the client that is activated when the global lock is released
-  # Maybe a one second wait on a general state 
-  # NOTE(miguel): I think it's possible the above comment predates the IO_action plan. The expensive operations
-  #               are all I/O related and I think it's OK for the server to wait for all of them to be performed
-  #               in the client. The client can figure out which and how many blockers to put up to block the user
-  #               from interacting with the app in the meantime. After that, a single notification to the server
-  #               should be enough.
-  # TODO(miguel): Discuss the two comments above with the team. Maybe collapse them into an architectural comment.
 
   folder_IO_plan <- list()
   append_IO_action <- function(action) {    
@@ -395,26 +387,38 @@ REV_load_annotation_info <- function(folder_contents, review, dataset_lists) {
         mapping <- match(asplit(id_hashes, 2), asplit(base_info[["id_hashes"]], 2))
         return(mapping)
       })
-      map_canonical_data_into_current_order <- function(data) {
-        if (is.data.frame(data)) data[st_map_df, , drop = FALSE]
-        else data[st_map_df]
-      }
-      map_current_indices_into_canonical_order <- function(indices) st_map_df[indices]
+      map_canonical_data_into_current_order <- local({
+        st_map_df <- st_map_df
+        function(data) {
+          if (is.data.frame(data)) data[st_map_df, , drop = FALSE]
+          else data[st_map_df]
+        }
+      })
+      map_current_indices_into_canonical_order <- local({
+        st_map_df <- st_map_df
+        function(indices) st_map_df[indices]
+      })
       
       # Map data from `_df` order into `_st` order through `data_df[df_map_st]`
       # Map indices from `_st` order into `df` order through `df_map_st[indices_st]`
       # Notice how the "df_" and "_st" prefix and suffix match the type of the operand to their left or right
-      df_map_st <- local({
+      df_map_st <- local({ # nolint
         row_count <- ncol(base_info[["id_hashes"]])
         res <- integer(row_count)
         res[st_map_df] <- seq_along(st_map_df)
         return(res)
       }) 
-      map_current_data_into_canonical_order <- function(data) {
-        if (is.data.frame(data)) data[df_map_st, , drop = FALSE]
-        else data[df_map_st]
-      }
-      map_canonical_indices_into_current_order <- function(indices) df_map_st[indices]
+      map_current_data_into_canonical_order <- local({
+        df_map_st <- df_map_st
+        function(data) {
+          if (is.data.frame(data)) data[df_map_st, , drop = FALSE]
+          else data[df_map_st]
+        }
+      })
+      map_canonical_indices_into_current_order <- local({
+        df_map_st <- df_map_st
+        function(indices) df_map_st[indices]
+      })
      
       dataset_review_df[["timestamp"]] <- base_timestamp
       dataset_review_df[["data_timestamp"]] <- map_canonical_data_into_current_order(data_timestamps_st)
@@ -503,6 +507,42 @@ REV_load_annotation_info <- function(folder_contents, review, dataset_lists) {
 
   return(res)
 }
+
+REV_compute_storage_folder_error_message <- function(folder_name, folder_listing, app_id) {
+  error_message <- character(0)
+
+  if (is.null(folder_listing[["error"]])) {
+    item_names <- names(folder_listing[["list"]])
+    if (any(endsWith(item_names, ".base")) || any(endsWith(item_names, ".review")) || 
+        any(endsWith(item_names, ".codes"))) {
+      error_message <- paste(
+        "The selected storage folder is a subfolder of the target folder.",
+        "Please select its parent instead."
+      )
+    } else if (any(startsWith(item_names, REV$ID$APP_ID_prefix))) {
+      storage_app_id_fname <- item_names[startsWith(item_names, REV$ID$APP_ID_prefix)][[1]]
+      storage_app_id <- gsub(paste0("^", REV$ID$APP_ID_prefix), "", storage_app_id_fname)
+      if (nchar(app_id) > 0 && # This check allows users that run the application locally to skip this test
+          !identical(storage_app_id, app_id)) {
+        error_message <- shiny::HTML(
+          paste(
+            "This storage folder seems to belong to a different application.<br>",
+            sprintf("<small>The ID of the <b>current running application</b> is: <tt>%s</tt>.<br>", app_id),
+            sprintf("The ID of the <b>application that created that storage folder</b> is: <tt>%s</tt>.<br>", storage_app_id),
+            "If the ID of the application as been accidentally updated, you can",
+            "ask the application administrator to restore it to its old value.</small>"
+          )
+        )
+      }
+    }
+  } else {
+    error_message <- shiny::HTML(
+      sprintf("Error listing the contents of folder <t>%s</t>: <q>%s</q>.", folder_name, folder_listing[["error"]])
+    )
+  }
+  
+  return(error_message)
+}
     
 REV_main_logic <- function(state, input, review, datasets, fs_client, fs_callbacks) {
   state[["connected"]] <- shiny::reactiveVal(FALSE)
@@ -512,7 +552,7 @@ REV_main_logic <- function(state, input, review, datasets, fs_client, fs_callbac
 
   shiny::observeEvent(input[[REV$ID$CONNECT_STORAGE]], {    
     fs_client[["attach"]]()    
-  }, ignoreNULL = FALSE, ignoreInit = TRUE) # TODO: Remove
+  }, ignoreNULL = FALSE, ignoreInit = TRUE)
 
   shiny::observeEvent(fs_callbacks[["attach"]](), {
     attach_status <- fs_callbacks[["attach"]]()
@@ -522,12 +562,34 @@ REV_main_logic <- function(state, input, review, datasets, fs_client, fs_callbac
     shiny::updateActionButton(inputId = REV$ID$CONNECT_STORAGE, label = paste("Storage:", state[["folder"]]))        
 
     if (attach_status[["connected"]] == TRUE) {
-      fs_client[["read_folder"]](names(datasets))      
+      fs_client[["list"]]()
     } else {
       if (!is.null(attach_status[["error"]])) shiny::showNotification(attach_status[["error"]], type = "error")
       state[["annotation_info"]] <- NULL
+      state[["contents_ready"]](FALSE) # Edge case where a correct folder was chosen before
     }
-  }, ignoreNULL = FALSE, ignoreInit = TRUE) # TODO: Remove
+  })
+  
+  shiny::observeEvent(fs_callbacks[["list"]](), {
+    folder_listing <- fs_callbacks[["list"]]()
+    shiny::req(is.list(folder_listing))
+    
+    error_message <- REV_compute_storage_folder_error_message(
+      folder_name = state[["folder"]], folder_listing = folder_listing, app_id = Sys.getenv("CONNECT_CONTENT_GUID")
+    )
+    
+    if (length(error_message) == 0) {
+      fs_client[["read_folder"]](names(datasets))
+    } else {
+      shiny::showNotification(error_message, duration = NULL, closeButton = TRUE, type = "error")
+      state[["annotation_info"]] <- NULL
+      state[["folder"]] <- NULL
+      shiny::updateActionButton(inputId = REV$ID$CONNECT_STORAGE, label = "Storage:")
+      # If we leave the original attach value and the user selects the same folder, the reactiveVal 
+      # will optimize the change away and the user will not see the error message a second time.
+      fs_callbacks[["attach"]](0)
+    }
+  })
 
   shiny::observeEvent(fs_callbacks[["read_folder"]](), {
     folder_contents <- fs_callbacks[["read_folder"]]()
@@ -547,10 +609,22 @@ REV_main_logic <- function(state, input, review, datasets, fs_client, fs_callbac
       )
       # NOTE: We remain in this state while we wait for the user to select an appropriate alternative folder
     } else {
+      # extend `folder_IO_plan` to write the APP_ID file if necessary
+      connect_id <- Sys.getenv("CONNECT_CONTENT_GUID")
+      if (nchar(connect_id) > 0) {
+        file_name_listing <- names(fs_callbacks[["list"]]()[["list"]]) # Available from previous listing step
+        app_id_fname <- paste0(REV$ID$APP_ID_prefix, connect_id)
+        if (!(app_id_fname %in% file_name_listing)) {
+          load_results[["folder_IO_plan"]][[length(load_results[["folder_IO_plan"]]) + 1]] <- list(
+            type = "write_file", mode = "bin", path = ".", fname = app_id_fname, contents = raw(0)
+          )
+        }
+      }
+      
       state[["annotation_info"]] <- load_results[["loaded_annotation_info"]]
       fs_client[["execute_IO_plan"]](IO_plan = load_results[["folder_IO_plan"]], is_init = TRUE)
     }
-  }, ignoreNULL = FALSE, ignoreInit = TRUE) # TODO: Remove
+  })
 
   # TODO: fs_client[["execute_IO_plan"]][["v"]] if we use the execute IO plan in more places this observer will run
   # more times than it should. Check how this can be avoided, including extra element in status, create a new input?
@@ -563,6 +637,7 @@ REV_main_logic <- function(state, input, review, datasets, fs_client, fs_callbac
         for (entry in plan_status) {
           if (!is.null(entry[["error"]])) {
             error <- TRUE
+            error_message <- entry[["error"]]
             break
           }
         }
@@ -571,7 +646,7 @@ REV_main_logic <- function(state, input, review, datasets, fs_client, fs_callbac
           state[["contents_ready"]](TRUE)
         } else {
           shiny::showNotification("Error in initial read and write operation", type = "error")
-          stop("Error reading and writing")
+          stop(sprintf("Error reading and writing: %s", error_message))
         }
       }
     },
@@ -698,6 +773,13 @@ REV_respond_to_user_review <- function(ns, state, input, review, selected_datase
     annotation_info <- state[["annotation_info"]][[dataset_list_name]][[dataset_name]]
     
     changes <- REV_include_review_info(annotation_info = annotation_info, data = new_data, col_names = list())
+    if (inherits(changes, "simpleCondition")) {
+      shiny::showNotification(changes[["message"]], type = "warning")
+      warning(changes[["message"]])
+      shiny::req(FALSE)
+    }
+    
+    
     new_data <- changes[["data"]]
     timestamp <- SH$get_UTC_time_in_seconds()
     choice_index <- as.integer(info[["option"]])

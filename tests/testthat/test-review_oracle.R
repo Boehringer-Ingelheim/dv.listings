@@ -11,6 +11,12 @@ test_that(sprintf("Running random review tests with seed: %dL", int_seed) |>
               specs$review, specs$review_per_row, specs$review_per_role,
               specs$review_delta_detection, specs$review_accept_removal_of_rows)
             ), {
+              
+  # Sane sample (`base::sample` without the weird edge case)
+  ssample <- function(from, count) from[sample.int(length(from), count, replace = FALSE, prob = NULL)]
+  # Shadow `base::sample` for good measure
+  sample <- function(...) stop("`sample` is Out of Office today")
+              
   # _R_eview _T_est
   RT <- local({
     folder_contents <- NULL
@@ -34,6 +40,11 @@ test_that(sprintf("Running random review tests with seed: %dL", int_seed) |>
       roles = c("roleA", "roleB")
     )
     
+    # This function summarizes the latest changes (related either to the tracking of new dataset (`.base`) or to its 
+    # updates (`.delta`))
+    # If no changes are available since the invocation, no changes are notified.
+    # So this is very much _not_ a pure function. Calling it twice on a row will produce different results.
+    # Reviews are always returned, however.
     track <- function(df){
       dataset_lists <- list(dataset_list = list(df = df))
       
@@ -43,6 +54,14 @@ test_that(sprintf("Running random review tests with seed: %dL", int_seed) |>
       #       load them explicitly through a separate function (both inside the module and in this oracle-like test)
       info <- REV_load_annotation_info(folder_contents, review_param, dataset_lists)
       stopifnot(length(info[["error"]]) == 0)
+     
+      base_and_delta_change_count <- 0L
+      for(action in info[["folder_IO_plan"]]) {
+        if(action[["type"]] == "write_file" && (endsWith(action[["fname"]], '.base') ||
+                                                endsWith(action[["fname"]], '.delta'))){
+          base_and_delta_change_count <- base_and_delta_change_count + 1
+        }
+      }
       fs_client[["execute_IO_plan"]](IO_plan = info[["folder_IO_plan"]], is_init = TRUE)
       fs_client[["read_folder"]](subfolder_candidates = "dataset_list")
       
@@ -93,6 +112,12 @@ test_that(sprintf("Running random review tests with seed: %dL", int_seed) |>
         latest_reviews <- c(latest_reviews, latest_review)
       }
       
+      if(base_and_delta_change_count == 0L){ # Nothing new since we were last called
+        res[["added"]] <- integer(0)
+        res[["modified"]] <- integer(0)
+        # we do keep the "missing" info
+      }
+      
       res[["reviews"]] <- latest_reviews
       
       return(res)
@@ -114,7 +139,7 @@ test_that(sprintf("Running random review tests with seed: %dL", int_seed) |>
     }
     
     shuffle <- function(df){
-      order <- sample(nrow(df), nrow(df), replace = FALSE)
+      order <- ssample(seq_len(nrow(df)), nrow(df))
       res <- df[order,,drop=FALSE]
       return(res)
     }
@@ -179,83 +204,145 @@ test_that(sprintf("Running random review tests with seed: %dL", int_seed) |>
   })
   
   # NOTE: Random testing
-  initial_row_count <- 20
+  tracked_vars <- c("TRACKED_1", "TRACKED_2", "TRACKED_3")
+
+  initial_row_count <- 3
   default_choice <- RT$review_param[['choices']][[1]]
 
   df <- RT$create()
   # TODO: Add `info <- RT$track(df)` if we ever allow to review 0-row data frames
   df <- RT$append(df, initial_row_count)
-  RT$track(df)
   
-  rand_0_to_max <- function(max) sample(0:max, 1)
- 
+  reviews_oracle <- rep(default_choice, initial_row_count) # reviews for present and absent rows, in canonical order
+  
+  oracle_expected <- list(
+    added = seq_len(initial_row_count),
+    modified = integer(0),
+    missing = integer(0),
+    reviews = reviews_oracle
+  )
+  info <- RT$track(df)
+  expect_identical(info, oracle_expected, info = paste('Iteration:', i_iteration))
+  
+  rand_0_to_max <- function(max) ssample(0:max, 1)
+  max_review_action_count <- 3L
+
   iteration_count <- 100
+  max_delta_count <- 3L
   
-  max_delta_count <- 3
-  missing_ids <- integer(0)
-  reviews_st <- rep(default_choice, initial_row_count)
-  
-  # TODO: Generalize to allow any of the operations in any order
-  #       The ecologically valid operations options are:
-  #       - Option A: Add any number of reviews by any number of reviewer roles
-  #       - Option B: Perform any combination of the dataset alteration operations in an arbitrarily chosen order
   # TODO: Add operations that add and remove non-tracked columns
   for(i_iteration in seq_len(iteration_count)){
-    expected <- list(
-      # Reset these to check only the change since last updated
-      added = integer(0),
-      modified = integer(0),
-      # Carry this one over from previous iteration to check all missing IDs regardless of when they disappeared
-      missing = missing_ids
-      # `reviews` appended near the end of this `for` loop
-    )
+    oracle_expected[["added"]] <- integer(0)
+    oracle_expected[["modified"]] <- integer(0)
+    oracle_expected[["reviews"]] <- NULL # appended at the end of this `for` loop
+    # "missing" field preserved
+    # "reviews"
+
+    # --------------------------------[ ANATOMY OF A TEST ORACLE ITERATION ]-------------------------------------
+    #
+    # REVIEW PHASE --> <------------------ DATASET UPDATE PHASE --------------------------------> <--- CHECK PHASE
+    # 
+    #                    recover                                               shuffle
+    #    review   -->       +       -->    mutate   -->    append   -->           +            -->   oracle check
+    #                    remove                                            sort newly appended
+    #
+    # We start each iteration with a dataset that has just been updated and loaded in the app. The `.base` and `.delta`
+    # files are up to date.
+    # 
+    # - REVIEW PHASE
+    # Up to `max_review_action_count` review passes of up to as many different roles.
+    # It's important to allow interleaved reviews of at least two different roles (e.g. A, B, A), 
+    # so `max_review_action_count` should be at least three:
+    stopifnot(max_review_action_count >= 3L)
+    
     
     # NOTE: Review
-    present_ids <- df[['ID']]
-    row_count <- rand_0_to_max(min(length(present_ids), max_delta_count))
-    row_ids <- sample(present_ids, row_count)
-    role <- sample(RT$review_param[['roles']], 1)
-    choice <- sample(RT$review_param[['choices']], 1)
-    df <- RT$review(df, row_ids, role, choice)
-    reviews_st[row_ids] <- choice
+    review_action_count <- rand_0_to_max(max_review_action_count)
+    for(i in seq_len(review_action_count)){
+      present_ids <- df[['ID']]
+      row_count <- rand_0_to_max(min(length(present_ids), max_delta_count))
+      row_ids <- ssample(present_ids, row_count)
+      role <- ssample(RT$review_param[['roles']], 1)
+      choice <- ssample(RT$review_param[['choices']], 1)
+      df <- RT$review(df, row_ids, role, choice)
+      reviews_oracle[row_ids] <- choice
+    }
     
-    # NOTE: Recover
-    missing_ids <- attr(df, 'missing')[['ID']]
-    row_count <- rand_0_to_max(min(length(missing_ids), max_delta_count))
-    row_ids <- sample(missing_ids, row_count)
-    expected[['missing']] <- setdiff(expected[['missing']], row_ids)
-    df <- RT$recover(df, row_ids)
+    # - DATASET UPDATE PHASE
     
-    # NOTE: Remove 
-    present_ids <- df[['ID']]
-    row_count <- rand_0_to_max(min(length(present_ids)-1, max_delta_count))  # We don't allow nrow(df) to reach 0
-    row_ids <- sample(present_ids, row_count)
-    expected[['missing']] <- sort(union(expected[['missing']], row_ids))
-    df <- RT$remove(df, row_ids)
+    # NOTE: Recover + Remove
+    recover_remove_result <- local({
+      actions <- ssample(c('recover', 'remove'), 2)
+      for(action in actions){
+        if(action == 'recover'){
+          # NOTE: Recover
+          missing_ids <- attr(df, 'missing')[['ID']]
+          row_count <- rand_0_to_max(min(length(missing_ids), max_delta_count))
+          row_ids <- ssample(missing_ids, row_count)
+          df <- RT$recover(df, row_ids)
+          oracle_expected[['missing']] <- setdiff(oracle_expected[['missing']], row_ids)
+        } else {
+          stopifnot(action == 'remove')
+          # NOTE: Remove 
+          present_ids <- df[['ID']]
+          row_count <- rand_0_to_max(min(length(present_ids)-1, max_delta_count))  # We don't allow nrow(df) to reach 0
+          row_ids <- ssample(present_ids, row_count)
+          df <- RT$remove(df, row_ids)
+          oracle_expected[['missing']] <- sort(union(oracle_expected[['missing']], row_ids))
+        }
+      }
+      return(list(df = df, expected = oracle_expected))
+    })
+    df <- recover_remove_result[["df"]]
+    oracle_expected <- recover_remove_result[["expected"]]
     
     # NOTE: Mutate
+    #       This step needs to:
+    #       - Follow Recover: To expose the module to data that has gone missing and is recovered after a change.
+    #       - Follow Remove: To prevent the mutation of data that is immediately removed. The module would not be able
+    #                        to see the change. Reproducing that behavior in the logic of the oracle increases its
+    #                        complexity. Instead of that we skirt the issue through the order of the operations. This
+    #                        approach does not impact the generality of the testing routine.
     present_ids <- df[['ID']]
     row_count <- rand_0_to_max(min(length(present_ids), max_delta_count))
-    row_ids <- sample(present_ids, row_count)
-    expected[['modified']] <- sort(union(expected[['modified']], row_ids))
+    row_ids <- ssample(present_ids, row_count)
+    oracle_expected[['modified']] <- sort(union(oracle_expected[['modified']], row_ids))
     df <- RT$mutate(df, row_ids)
     
-    # NOTE: Shuffle (before `append` so that new IDs are introduced in df[['ID']] order)
+    # NOTE: Append
+    #       This step needs to:
+    #       - Follow Mutate: The act of modifying data that the module still hasn't had a chance to see is pointless.
+    #                        The module will treat it just as new data.
+    #       - Follow Remove: Adding new data and removing it before the module can see it only complicates matters and
+    #                        does not generate a new meaningful testing conditions.
+    extra_row_count <- rand_0_to_max(max_delta_count)
+    oracle_expected[['added']] <- c(oracle_expected[['added']], attr(df, 'max_id') + seq_len(extra_row_count))
+    df <- RT$append(df, extra_row_count)
+    reviews_oracle <- c(reviews_oracle, rep(default_choice, extra_row_count))
+    newly_appended_row_ids <- tail(df, extra_row_count)[["ID"]]
+    
+    # NOTE: Shuffle + Sort newly appended
+    #       This step is best left for the end, so that it has a chance to affect all records.
+    #       We do restore the order of newly appended rows so that we can df[["ID"]] follows canonical order.
+    #       This does not impact the generality of the testing routine.
+    #       We could place Shuffle before Append to avoid this reordering, but then we would have to Insert the new
+    #       records in arbitrary row numbers, which is a bit involved. 
+    #       Appending, Shuffling and doing a partial reordering has the same effect.
     df <- RT$shuffle(df)
     
-    # NOTE: Append
-    extra_row_count <- rand_0_to_max(max_delta_count)
-    expected[['added']] <- c(expected[['added']], attr(df, 'max_id') + seq_len(extra_row_count))
-    df <- RT$append(df, extra_row_count)
-    reviews_st <- c(reviews_st, rep(default_choice, extra_row_count))
+    newly_appended_row_mask <- df[["ID"]] %in% newly_appended_row_ids
+    if(any(newly_appended_row_mask)){ # Restore order of data the module has not seen (See [1] below)
+      subdf <- df[newly_appended_row_mask,]
+      subdf <- subdf[order(subdf[['ID']]),]
+      df[newly_appended_row_mask,] <- subdf
+    }
     
-    expected[['reviews']] <- reviews_st[df[["ID"]]]
+    oracle_expected[['reviews']] <- reviews_oracle[df[["ID"]]]
     
-    # NOTE: Test
+    # - CHECK PHASE
+    # NOTE: Oracle check
     info <- RT$track(df)
-    expect_identical(info, expected, info = paste('Iteration:', i_iteration))
-    
-    missing_ids <- expected[['missing']]
+    expect_identical(info, oracle_expected, info = paste('Iteration:', i_iteration))
   }
   
   unlink(RT$store_path, recursive = TRUE, force = TRUE)
