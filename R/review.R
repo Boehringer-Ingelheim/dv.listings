@@ -133,9 +133,7 @@ REV_UI <- function(ns, roles) {
       inputId = ns(REV$ID$ROLE), label = "Role:", choices = choices
     )
   )
-  res[["input_ids_to_exclude_from_bookmarking"]] <- c(ns(REV$ID$CONNECT_STORAGE)
-                                                      # , ns(REV$ID$ROLE) # TODO: Reintroduce
-                                                      )
+  res[["input_ids_to_exclude_from_bookmarking"]] <- c(ns(REV$ID$CONNECT_STORAGE), ns(REV$ID$ROLE))
 
   return(res)
 }
