@@ -3,35 +3,52 @@ FS <- pack_of_constants(
   EMPTY_LISTING = data.frame(isdir = logical(0), size = integer(0), mtime = as.POSIXct(numeric(0)))
 )
 
+fs_update_cached_contents <- function(state_contents_env, path, offset, contents) {
+  if (length(contents) > 0) {
+    cached_contents <- state_contents_env[[path]] %||% raw(0)
+    cached_contents[(offset + 1L):(offset + length(contents))] <- contents
+    state_contents_env[[path]] <- cached_contents
+  }
+}
+
 # Web browser File System Access abstraction.
 # Client-side coarse-grained file system API. The server sends file system commands as custom messages to the browser.
-# The browser uses the (Chrome-specific, experimental) File System Access API 
-#          (Intro: https://developer.chrome.com/docs/capabilities/web-apis/file-system-access,
-#           Spec: https://wicg.github.io/file-system-access/)
-# to perform the requested actions. It reports the results back through pre-allocated shiny inputs.
+# The browser uses the (Chrome-specific, experimental) File System Access API to perform the requested actions and
+# reports the results back through pre-allocated shiny inputs.
+# (Intro: https://developer.chrome.com/docs/capabilities/web-apis/file-system-access,
+#  Spec: https://wicg.github.io/file-system-access/)
 fsa_init <- function(input, input_id, session = shiny::getDefaultReactiveDomain()) {
   checkmate::assert_string(input_id, min.chars = 1)
+  ns <- session[["ns"]]
 
+  # `state` represents a cached copy of everything that is known about the client-side storage.
+  # When the client lists the contents of `state$path`, we keep a copy of the list. Same goes for the contents of files.
+  # `state$error` blocks actions other than `list` from happening.
+  # This variable is exported to the user, so that they can issue one of three actions (list, read, execute_IO_plan) and
+  # retrieve the results from the `state` variable itself
   state <- list(
     path = character(0),
     listing = FS$EMPTY_LISTING,
     contents = new.env(parent = emptyenv()),
     error = "Not listed yet"
   ) |> list2env(parent = emptyenv())
-  
-  ns <- session[["ns"]]
-
+ 
   list_id <- paste0(input_id, "_list")
   read_id <- paste0(input_id, "_read")
   execute_IO_plan_id <- paste0(input_id, "_execute_IO_plan")
 
-  callbacks <- list(
-    list = function(v) NULL
-  )
-  latest_IO_plan <- list()
-
+  # I/O operations are asynchronous. Callers can set custom callback functions that will alert them of the availability
+  # of the results. The defaults are empty placeholders.
+  callbacks <- list(list = function(v) NULL, read = function(v) NULL, execute_IO_plan = function(v) NULL)
   callback_count <- 0L
-
+  # This is value we use as only argument for callbacks (the `v` in the signatures above).
+  # We increase it after every callback because we expect callers to use `reactiveVal`s instead of functions and those
+  # don't trigger if the value doesn't change.
+  
+  # LIST ----
+  # This call combines both the act of attaching a client-side folder and listing its contents.
+  # It throws away all information known about the remote folder and the it populates `state$listing` with available 
+  # paths and `state$contents` with the raw contents of files
   .list <- function(callback = function(v) NULL) {
     callbacks[["list"]] <<- callback
     session$sendCustomMessage("dv_fsa_list", list(status_input_id = ns(list_id)))
@@ -40,56 +57,89 @@ fsa_init <- function(input, input_id, session = shiny::getDefaultReactiveDomain(
     callback_count <<- callback_count + 1L
     on.exit(callbacks[["list"]](callback_count))
 
-    state[["error"]] <- character(0)
-
     v <- input[[list_id]]
+    
+    state[["error"]] <- character(0)
+    state[["path"]] <- v[["path"]]
+    state[["listing"]] <- data.frame(size = integer(0L), isdir = logical(0L), mtime = as.POSIXct(numeric(0)))
+    # `contents` field altered and not recreated to allow downstream code to keep a stable reference to it
+    rm(list = ls(state[["contents"]], all.names = TRUE), envir = state[["contents"]])
+    
     if (is.character(v[["error"]])) {
       state[["error"]] <- v[["error"]][[1]]
-    } else {
-      state[["path"]] <- v[["path"]]
-      
+    } else if (length(v[["list"]]) > 0) {
       isdir <- sapply(v[["list"]], function(x) x[["kind"]] == "directory")
       size <- sapply(v[["list"]], function(x) x[["size"]] %||% 0L)
       mtime <- sapply(v[["list"]], function(x) x[["time"]] %||% 0L) |> as.POSIXct(origin = "1970-01-01", tz = "UTC")
-      state[["listing"]] <- data.frame(size, isdir, mtime)
+
+      if (is.logical(isdir) && is.integer(size) && inherits(mtime, "POSIXct") &&
+         length(isdir) == length(size) && length(isdir) == length(mtime)) {
+        state[["listing"]] <- data.frame(size = size, isdir = isdir, mtime = mtime)
+      } else {
+        state[["error"]] <- "Assertion failed during `list` operation"
+      }
     }
   })
 
+  # READ ----
+  # Update the local contents of the files specified through `paths`.
   .read <- function(paths, callback = function(v) NULL) {
+    # boilerplate
     if (length(state[["error"]]) > 0) {
       callback_count <<- callback_count + 1L
       callback(callback_count)
       return(NULL)
     }
+    
+    # actual behavior
     callbacks[["read"]] <<- callback
-    session$sendCustomMessage("dv_fsa_read", list(status_input_id = ns(read_id), paths = paths))
+    session$sendCustomMessage(
+      "dv_fsa_read", 
+      list(
+        status_input_id = ns(read_id), 
+        paths = I(paths)) # IMPORTANT: Without `I()`, javascript would interpret each letter of `paths` as a unique path
+      )
   }
   shiny::observeEvent(input[[read_id]], {
+    # boilerplate
     callback_count <<- callback_count + 1L
     on.exit(callbacks[["read"]](callback_count))
 
     v <- input[[read_id]]
     if (is.character(v[["error"]])) {
       state[["error"]] <- v[["error"]][[1]]
-    } else {
-      for (fname in names(v[["contents"]])){
-        b64_contents <- v[["contents"]][[fname]]
-        decoded_contents <- base64enc::base64decode(b64_contents)
-        state[["contents"]][[fname]] <- decoded_contents
-      }
+      return(NULL)
+    }
+    
+    contents_check <- checkmate::check_list(v[["contents"]], types = "character", names = "unique", null.ok = TRUE)
+    if (is.character(contents_check)) {
+      state[["error"]] <- sprintf("Assertion failed during `read` operation: %s", contents_check)
+      return(NULL)
+    }
+    
+    # actual behavior
+    for (fname in names(v[["contents"]])){
+      b64_contents <- v[["contents"]][[fname]]
+      decoded_contents <- base64enc::base64decode(b64_contents)
+      state[["contents"]][[fname]] <- decoded_contents
     }
   })
 
+  # EXECUTE_IO_PLAN ----
+  # Send the client a group of write operations to perform and patch cached files to reflect those changes
+  latest_IO_plan <- list()
   .execute_IO_plan <- function(IO_plan, callback = function(v) NULL) {
+    # boilerplate
     if (length(state[["error"]]) > 0) {
       callback_count <<- callback_count + 1L
       callback(callback_count)
       return(NULL)
     }
 
+    # actual behavior
     callbacks[["execute_IO_plan"]] <<- callback
 
-    latest_IO_plan <<- IO_plan # NOTE: Used on the next observeEvent to updated the local content cache
+    latest_IO_plan <<- IO_plan # NOTE: Used on the next observeEvent to update the local content cache
 
     IO_plan_base64_encode <- function(plan) {
       encoded_plan <- plan
@@ -109,43 +159,42 @@ fsa_init <- function(input, input_id, session = shiny::getDefaultReactiveDomain(
     )
   }
   shiny::observeEvent(input[[execute_IO_plan_id]], {
+    # boilerplate
     callback_count <<- callback_count + 1L
     on.exit(callbacks[["execute_IO_plan"]](callback_count))
     on.exit(latest_IO_plan <<- list(), add = TRUE)
     shiny::req(length(state[["error"]]) == 0)
 
-
     v <- input[[execute_IO_plan_id]]
     if (is.character(v[["error"]])) {
       state[["error"]] <- v[["error"]][[1]]
-      shiny::req(FALSE)
+      return(NULL)
     }
 
     status <- v[["status"]]
     if (length(status) != length(latest_IO_plan)) {
       state[["error"]] <- sprintf("Error in IO plan execution. Issued %d actions. Executed %d actions instead",
                                   length(latest_IO_plan), length(status))
-      shiny::req(FALSE)
+      return(NULL)
     }
     
     for (i in seq_along(status)){
       if (is.character(status[[i]][["error"]])) {
         state[["error"]] <- status[[i]][["error"]][[1]]
-        shiny::req(FALSE)
+        return(NULL)
       }
-      
+    }
+
+    # actual behavior
+    for (i in seq_along(status)){
       path <- latest_IO_plan[[i]][["path"]]
       contents <- latest_IO_plan[[i]][["contents"]]
       offset <- status[[i]][["offset"]] # Effective offset patched by client; important in case of WRITE_OFFSET_APPEND
 
-      # 7 - Update local cached contents # TODO: Partially repeats #eiseil
-      if (length(contents) > 0) {
-        cached_contents <- state[["contents"]][[path]] %||% raw(0)
-        cached_contents[(offset + 1L):(offset + length(contents))] <- contents
-        state[["contents"]][[path]] <- cached_contents
-      }
+      # 7 - Update local cached contents
+      fs_update_cached_contents(state[["contents"]], path, offset, contents)
 
-      # 8 - Update local cached listing # TODO: Repeats #yaisei
+      # 8 - Update local cached listing # Compare to #yaisei; this version can't rely on synchronous access to the files
       fs_listing <- state[["listing"]]
       
       size <- length(contents)
@@ -323,13 +372,10 @@ fs_init <- function(path) {
       # 6 - overwrite target file with temp contents
       file.rename(tmp_fname, fname_path)
      
-      # 7 - Update local cached contents # TODO: Repeats #eiseil
-      if (length(contents) > 0) {
-        cached_contents[(offset + 1L):(offset + length(contents))] <- contents
-        state[["contents"]][[path]] <- cached_contents
-      }
+      # 7 - Update local cached contents
+      fs_update_cached_contents(state[["contents"]], path, offset, contents)
      
-      # 8 - Update local cached listing # TODO: Repeats #yaisei
+      # 8 - Update local cached listing # Compare to #yaisei; this version leans on the filesystem
       fs_listing <- state[["listing"]]
       listing_row <- fs_list_paths(state[["path"]], path)
       if (path %in% rownames(fs_listing)) {

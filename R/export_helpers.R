@@ -351,7 +351,7 @@ pdf_preprocessing <- function(df, ref) {
 
   # Create index list which contains for every page the start and end row and the start and end column
   index_list <- lapply(1:n_rows_pages, function(i) {
-    return(lapply(seq_len(length(start_new_page)), function(j) {
+    return(lapply(seq_along(start_new_page), function(j) {
       ind_i <- ifelse(i < n_rows_pages, i * PDF_EXP$N_ROWS, nrow(df))
       ind_j <- ifelse(j < length(start_new_page), start_new_page[j + 1] - 1, ncol(df))
       return(c((i - 1) * PDF_EXP$N_ROWS + 1, ind_i, start_new_page[j], ind_j))

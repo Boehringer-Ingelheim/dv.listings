@@ -598,7 +598,7 @@ RS_load <- function(base, deltas) {
   # extend all revision hashes with dummy tracked_hashes for rows not present at a particular timestamp
   if (length(deltas)) {
     last_known_col_count <- ncol(res$revisions$tracked_hashes[[length(deltas) + 1]])
-    for (i_revision in seq_len(length(deltas))){
+    for (i_revision in seq_along(deltas)){
       revision_row_count <- ncol(res$revisions$tracked_hashes[[i_revision]])
       if (revision_row_count < last_known_col_count) {
         missing_col_count <- last_known_col_count - revision_row_count

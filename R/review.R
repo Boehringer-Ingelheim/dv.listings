@@ -97,7 +97,7 @@ REV_include_highlight_info <- function(table_data, annotation_info, tracked_vars
     for (i_row in seq_along(res)){
       cols <- res[[i_row]][["cols"]]
       if (length(cols) > REV$HIGHLIGHT_ALL_TRACKED_COLUMNS_IF_MORE_THAN_N_COLUMNS_HAVE_CHANGED)
-        res[[i_row]][["cols"]] <- seq_len(length(tracked_vars)) # consider all tracked_vars as modified
+        res[[i_row]][["cols"]] <- seq_along(tracked_vars) # consider all tracked_vars as modified
     }
     return(res)
   })
@@ -133,7 +133,9 @@ REV_UI <- function(ns, roles) {
       inputId = ns(REV$ID$ROLE), label = "Role:", choices = choices
     )
   )
-  res[["input_ids_to_exclude_from_bookmarking"]] <- c(ns(REV$ID$CONNECT_STORAGE), ns(REV$ID$ROLE))
+  res[["input_ids_to_exclude_from_bookmarking"]] <- c(ns(REV$ID$CONNECT_STORAGE)
+                                                      # , ns(REV$ID$ROLE) # TODO: Reintroduce
+                                                      )
 
   return(res)
 }
