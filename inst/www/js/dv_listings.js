@@ -395,7 +395,7 @@ const dv_fsa = (function() {
   let g_cached_contents = {}; // name (string) : contents (ArrayBuffer)
   let g_error = "Not listed yet";
 
-  const list = async function({ status_input_id, folder }) {
+  const list = async function({ status_input_id }) {
     g_directory_handle = null;
     g_error = null;
     
@@ -685,6 +685,7 @@ const dv_fsa = (function() {
     init: init,
     list: list,
     read: read,
+    execute_IO_plan: execute_IO_plan,
   };
 
   return (res);
