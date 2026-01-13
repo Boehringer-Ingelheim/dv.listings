@@ -1,6 +1,6 @@
 FS <- pack_of_constants(
   WRITE_OFFSET_APPEND = -1L,
-  EMPTY_LISTING = data.frame(isdir = logical(0), size = integer(0), mtime = as.POSIXct(numeric(0)))
+  EMPTY_LISTING = data.frame(isdir = logical(0), size = integer(0))
 )
 
 fs_update_cached_contents <- function(state_contents_env, path, offset, contents) {
@@ -61,7 +61,7 @@ fsa_init <- function(input, input_id, session = shiny::getDefaultReactiveDomain(
     
     state[["error"]] <- character(0)
     state[["path"]] <- v[["path"]]
-    state[["listing"]] <- data.frame(size = integer(0L), isdir = logical(0L), mtime = as.POSIXct(numeric(0)))
+    state[["listing"]] <- data.frame(size = integer(0L), isdir = logical(0L))
     # `contents` field altered and not recreated to allow downstream code to keep a stable reference to it
     rm(list = ls(state[["contents"]], all.names = TRUE), envir = state[["contents"]])
     
@@ -70,11 +70,9 @@ fsa_init <- function(input, input_id, session = shiny::getDefaultReactiveDomain(
     } else if (length(v[["list"]]) > 0) {
       isdir <- sapply(v[["list"]], function(x) x[["kind"]] == "directory")
       size <- sapply(v[["list"]], function(x) x[["size"]] %||% 0L)
-      mtime <- sapply(v[["list"]], function(x) x[["time"]] %||% 0L) |> as.POSIXct(origin = "1970-01-01", tz = "UTC")
 
-      if (is.logical(isdir) && is.integer(size) && inherits(mtime, "POSIXct") &&
-         length(isdir) == length(size) && length(isdir) == length(mtime)) {
-        state[["listing"]] <- data.frame(size = size, isdir = isdir, mtime = mtime)
+      if (is.logical(isdir) && is.integer(size) && length(isdir) == length(size)) {
+        state[["listing"]] <- data.frame(size = size, isdir = isdir)
       } else {
         state[["error"]] <- "Assertion failed during `list` operation"
       }
@@ -198,9 +196,8 @@ fsa_init <- function(input, input_id, session = shiny::getDefaultReactiveDomain(
       fs_listing <- state[["listing"]]
       
       size <- length(contents)
-      mtime <- status[[i]][["mtime"]] |> as.POSIXct(origin = "1970-01-01", tz = "UTC")
       
-      listing_row <- data.frame(size = size, isdir = FALSE, mtime = mtime)
+      listing_row <- data.frame(size = size, isdir = FALSE)
       row.names(listing_row) <- path
         
       if (path %in% rownames(fs_listing)) {
@@ -238,7 +235,7 @@ fs_init <- function(path) {
   fs_list_paths <- function(base_path, paths) {
     res <- file.info(file.path(base_path, paths))
     rownames(res) <- paths 
-    return(res[c("isdir", "size", "mtime")])
+    return(res[c("isdir", "size")])
   }
   
   callback_count <- 0L
@@ -306,7 +303,7 @@ fs_init <- function(path) {
     
     file_info_before <- state[["listing"]][rownames(state[["listing"]]) %in% paths, ]
     file_info_after <- file.info(file.path(path, paths))
-    altered <- paths[rowSums(file_info_before[c("size", "mtime")] != file_info_after[c("size", "mtime")]) != 0]
+    altered <- paths[rowSums(file_info_before[c("size")] != file_info_after[c("size")]) != 0]
     if (length(altered) > 0) {
       state[["error"]] <- sprintf("Files changed while reading them: %s", paste(altered, collapse = ", "))
       return()

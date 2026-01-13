@@ -391,7 +391,7 @@ const dv_fsa = (function() {
   let overlay_id = "dv_fsa_overlay";
 
   let g_directory_handle = null;
-  let g_cached_listing = {}; // name (string) : {kind ("directory"/"file"), size (numeric), time (numeric)}
+  let g_cached_listing = {}; // name (string) : {kind ("directory"/"file"), size (numeric)}
   let g_cached_contents = {}; // name (string) : contents (ArrayBuffer)
   let g_error = "Not listed yet";
 
@@ -431,8 +431,7 @@ const dv_fsa = (function() {
             let file = await handle.getFile();
             res[path+name] = {
               kind: 'file',
-              size: file.size,
-              time: file.lastModified / 1000
+              size: file.size
             };
           } catch (err) {
             console.warn(`Failed to read file "${name}": ${err.message}`);
@@ -535,8 +534,7 @@ const dv_fsa = (function() {
       // 6 - overwrite target file with temp contents
       await temp_handle.move(dir_handle, fname);
       
-      let file = await temp_handle.getFile(); // FIXME? Wasteful - could approximate with timestamp and file_size + contents + offset
-      let mtime = file.lastModified / 1000;
+      let file = await temp_handle.getFile(); // FIXME? Wasteful - could approximate with file_size + contents + offset
       file_size = file.size;
       
       // 7 - Update local cached contents
@@ -551,7 +549,7 @@ const dv_fsa = (function() {
       g_cached_contents[file_path] = cached_contents;
       
       // 8 - Update local cached listing 
-      g_cached_listing[file_path] = {kind:'file', size:file_size, time:mtime};
+      g_cached_listing[file_path] = {kind:'file', size:file_size};
     } catch(error) {
       g_error = status.error = `Error writing ${file_path}: ${error}`;
       console.error(error);
@@ -635,7 +633,6 @@ const dv_fsa = (function() {
         let status = await write(entry.path, entry.contents, entry.offset);
         plan[idx].error = status.error;
         plan[idx].offset = status.offset; // Patched inside write if entry.offset == FS_WRITE_OFFSET_APPEND
-        plan[idx].mtime = g_cached_listing[entry.path].time;
         plan[idx].contents = null;
       } else {
         entry.error = g_error = `Unknown IO action kind: ${entry.kind}`;
