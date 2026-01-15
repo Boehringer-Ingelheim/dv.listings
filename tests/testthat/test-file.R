@@ -46,54 +46,17 @@ local({
   read <- fs_client[["read"]]
   state <- fs_client[["state"]]
   
-  OFFSET_APPEND = -1
- 
-  # TODO: Move this to JSON so that the JS tester can also execute it 
-  tests <- list(
-    list(name = "Write 0 bytes", 
-         actions = list(
-           list(contents = raw(0), offset = 0L)
-         ),
-         result = ""),
-    list(name = "Append 0 bytes", 
-         actions = list(
-           list(contents = raw(0), offset = OFFSET_APPEND)
-         ),
-         result = ""),
-    list(name = "Append 1 byte", 
-         actions = list(
-           list(contents = charToRaw("H"), offset = OFFSET_APPEND)
-         ),
-         result = "H"),
-    list(name = "Append 2 bytes",
-         actions = list(
-           list(contents = charToRaw("He"), offset = OFFSET_APPEND)
-         ),
-         result = "He"),
-    list(name = "Append 2 bytes, then three bytes",
-         actions = list(
-           list(contents = charToRaw("He"), offset = OFFSET_APPEND),
-           list(contents = charToRaw("llo"), offset = OFFSET_APPEND)
-         ),
-         result = "Hello"),
-    list(name = "Append 2 bytes, then three bytes, but overwriting one",
-         actions = list(
-           list(contents = charToRaw("Hello"), offset = OFFSET_APPEND),
-           list(contents = charToRaw(" "), offset = 4)
-         ),
-         result = "Hell ")
-  )
+  tests <- jsonlite::read_json('file_tests.json')
   
   for(test in tests){
     path <- tempfile()
     fname <- basename(tempfile())
     for(action in test[["actions"]]){
-      write(path = fname, contents = action[["contents"]], offset = action[["offset"]])
+      write(path = fname, contents = charToRaw(action[["contents"]]), offset = action[["offset"]])
     }
     read(fname)
     raw_contents <- state[["contents"]][[fname]]
     
-    hash <- tools::sha256sum(files = file.path(store_path, fname))
     expect_identical(raw_contents, charToRaw(test[["result"]]), info = test[["name"]])
   }
 })
