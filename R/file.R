@@ -49,6 +49,7 @@ fsa_init <- function(input, input_id, session = shiny::getDefaultReactiveDomain(
   # This call combines both the act of attaching a client-side folder and listing its contents.
   # It throws away all information known about the remote folder and the it populates `state$listing` with available 
   # paths and `state$contents` with the raw contents of files
+  # TODO: It would make sense to call this `init_and_list` to better represent its purpose
   .list <- function(callback = function(v) NULL) {
     callbacks[["list"]] <<- callback
     session$sendCustomMessage("dv_fsa_list", list(status_input_id = ns(list_id)))
@@ -314,8 +315,8 @@ fs_init <- function(path) {
   
   read_range <- function(contents, beg, one_past_end) {
     if (length(contents) == 0) return(contents[0])
-    beg <- min(beg, length(contents))
-    one_past_end <- min(one_past_end, length(contents))
+    beg <- min(beg, length(contents) + 1L)
+    one_past_end <- min(one_past_end, length(contents) + 1L)
     
     if (beg >= one_past_end) return(contents[0])
     
@@ -423,7 +424,7 @@ fs_init <- function(path) {
     state = state,
     list = fs_list,
     read = fs_read,
-    write = fs_write,
+    write = fs_write, # only used by execute_IO_plan; exported here for testing
     execute_IO_plan = fs_execute_IO_plan
   )
   
