@@ -46,7 +46,10 @@ local({
   read <- fs_client[["read"]]
   state <- fs_client[["state"]]
   
-  tests <- jsonlite::read_json('file_tests.json')
+  tests_js <- rawToChar(readBin('file_tests.js', what = raw(0), n = file.size('file_tests.js')))
+  test_json <- sub(';\\s+$', '', sub("^[^\\[]+", '', tests_js))
+  
+  tests <- jsonlite::parse_json(test_json)
   
   for(test in tests){
     path <- tempfile()

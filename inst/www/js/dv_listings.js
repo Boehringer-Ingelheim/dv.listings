@@ -596,7 +596,11 @@ const dv_fsa = (function() {
         let fname = path_components.pop();
         let dir_handle = g_directory_handle;
         
-        for(subdirname of path_components) dir_handle = await dir_handle.getDirectoryHandle(subdirname);
+        for(subdirname of path_components){
+          if(subdirname === ".") {}
+          else dir_handle = await dir_handle.getDirectoryHandle(subdirname);
+        }
+
         let file_handle = await dir_handle.getFileHandle(fname);
 
         let expected_size_in_bytes = g_cached_listing[path].size;
@@ -677,11 +681,26 @@ const dv_fsa = (function() {
       document.body.removeChild(overlay);
     }
   };
+  
+  const remove = async function(path) {
+    let path_components = path.split('/');
+    let fname = path_components.pop();
+    let dir_handle = g_directory_handle;
     
+    for(subdirname of path_components){
+      if(subdirname === ".") {}
+      else dir_handle = await dir_handle.getDirectoryHandle(subdirname);
+    }
+    await dir_handle.removeEntry(fname);
+    return;
+  }
+  
   const res = {
     init: init,
     list: list,
     read: read,
+    write: write, // only used by execute_IO_plan; exported here for testing
+    remove: remove, // exported here for testing
     execute_IO_plan: execute_IO_plan,
   };
 
