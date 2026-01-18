@@ -9,8 +9,8 @@ set.seed(int_seed)
 test_that(sprintf("Running random review tests with seed: %dL", int_seed) |>
             vdoc[["add_spec"]](c(
               specs$review, specs$review_per_row, specs$review_per_role,
-              specs$review_delta_detection, specs$review_accept_removal_of_rows)
-            ), {
+              specs$review_delta_detection, specs$review_accept_removal_of_rows,
+              specs$review_undo)), {
               
   # Sane sample (`base::sample` without the weird edge case)
   ssample <- function(from, count) from[sample.int(length(from), count, replace = FALSE, prob = NULL)]

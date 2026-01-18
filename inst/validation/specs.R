@@ -37,6 +37,7 @@ review <- specs_list(
   , review_accept_removal_of_rows = "review feature tolerates the removal of rows"
   , review_reject_storage_subfolders = "review feature rejects selection of child storage subfolders"
   , review_reject_conflicting_connect_app_storage = "review feature rejects selection of storage folder initially created by a different Posit Connect app"
+  , review_undo = "review feature allows per-role undoing of latest reviews"
 )
 # nolint end line_length_linter
 

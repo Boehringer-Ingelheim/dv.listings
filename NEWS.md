@@ -1,5 +1,5 @@
 # dv.listings 4.3.1-9000
-- PLACEHOLDER FOR UPCOMING UNDO FEATURE
+- Per-role review undo.
 
 # dv.listings 4.3.1
 
