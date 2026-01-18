@@ -230,7 +230,7 @@ RS_compute_base_memory <- function(df_id, df, id_vars, tracked_vars) {
   return(res)
 }
 
-RS_parse_base <- function(contents, only_header = FALSE) {
+RS_parse_base <- function(contents) {
   con <- rawConnection(contents, open = "r")
   on.exit(close(con))
   
@@ -253,13 +253,11 @@ RS_parse_base <- function(contents, only_header = FALSE) {
   row_count <- readBin(con, integer(), 1L)
 
   id_hashes <- tracked_hashes <- row_timestamps <- NULL 
-  if (!isTRUE(only_header)) {
-    id_hashes <- SH$read_hashes_from_con(con, row_count, 16L)
-    tracked_hashes <- SH$read_hashes_from_con(con, row_count, BYTES_PER_TRACKED_HASH * length(tracked_vars))
-    row_timestamps <- rep(timestamp, row_count)
-    empty_read <- readBin(con, raw(), 1L)
-    ; if (length(empty_read) > 0) return(simpleCondition("Too much hash data"))
-  }
+  id_hashes <- SH$read_hashes_from_con(con, row_count, 16L)
+  tracked_hashes <- SH$read_hashes_from_con(con, row_count, BYTES_PER_TRACKED_HASH * length(tracked_vars))
+  row_timestamps <- rep(timestamp, row_count)
+  empty_read <- readBin(con, raw(), 1L)
+  ; if (length(empty_read) > 0) return(simpleCondition("Too much hash data"))
   
   res <- list(
     # HEADER
@@ -355,7 +353,7 @@ RS_compute_delta_memory <- function(state, df) {
   return(res)
 }
 
-RS_parse_delta <- function(contents, tracked_var_count, only_header = FALSE) {
+RS_parse_delta <- function(contents, tracked_var_count) {
   con <- rawConnection(contents, open = "r")
   on.exit(close(con))
   
@@ -372,21 +370,17 @@ RS_parse_delta <- function(contents, tracked_var_count, only_header = FALSE) {
   
   new_id_hashes <- new_tracked_hashes <- modified_row_count <- modified_row_indices <- modified_tracked_hashes <- NULL
   
-  if (!isTRUE(only_header)) {
-    new_id_hashes <- SH$read_hashes_from_con(con, new_row_count, 16L)
-    new_tracked_hashes <- SH$read_hashes_from_con(con, new_row_count, BYTES_PER_TRACKED_HASH * tracked_var_count)
+  new_id_hashes <- SH$read_hashes_from_con(con, new_row_count, 16L)
+  new_tracked_hashes <- SH$read_hashes_from_con(con, new_row_count, BYTES_PER_TRACKED_HASH * tracked_var_count)
   
-    # FIXME? It would have been better to make `modified_row_count` part of the header (before `new_id_hashes`)
-    modified_row_count <- NA_integer_
-    modified_row_indices <- SH$read_integer_vector_from_con(con)
-    modified_row_count <- length(modified_row_indices) # TODO? Skip over indices to make this part of the header
-    modified_tracked_hashes <- SH$read_hashes_from_con(con, modified_row_count, BYTES_PER_TRACKED_HASH * tracked_var_count)
-    
-    empty_read <- readBin(con, raw(), 1L)
-    ; if (length(empty_read) > 0) return(simpleCondition("Too much hash data"))
-  } else {
-    # TODO: Skip over new hashes and return the modified_row_count
-  }
+  # FIXME? It would have been better to make `modified_row_count` part of the header (before `new_id_hashes`)
+  modified_row_count <- NA_integer_
+  modified_row_indices <- SH$read_integer_vector_from_con(con)
+  modified_row_count <- length(modified_row_indices) # TODO? Skip over indices to make this part of the header
+  modified_tracked_hashes <- SH$read_hashes_from_con(con, modified_row_count, BYTES_PER_TRACKED_HASH * tracked_var_count)
+  
+  empty_read <- readBin(con, raw(), 1L)
+  ; if (length(empty_read) > 0) return(simpleCondition("Too much hash data"))
 
   res <- list(
     # HEADER
