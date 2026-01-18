@@ -41,7 +41,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     
     
-    OUT(`Storage path: ${list_v.path}`);
+    OUT(`Storage path: ${list_v.path}\n`);
     
     for(let i_test = 0; i_test < tests.length; i_test += 1){
       let test = tests[i_test];
@@ -60,82 +60,14 @@ document.addEventListener("DOMContentLoaded", () => {
       
       await dv_fsa.remove(fname);
       
-      if(contents !== test.result){
-        OUT(`Error: Test '${test.name}' failed. Expected '${test.result}' but produced '${contents}' instead`);
+      if(contents == test.result){
+        OUT(`${test.name}: OK.`);
+      } else {
+        OUT(`${test.name}: Error. Expected '${test.result}' but produced '${contents}' instead`);
         return;
       }
     }
     
-    OUT("Success!!!");
+    OUT("\nSuccess!!!");
   });
-  
-  /*
-
-  // Read file
-  document.getElementById("read-file").addEventListener("click", async () => {
-    try {
-      const paths = Object.keys(dv_fsa.g_cached_listing).filter(
-        (key) => dv_fsa.g_cached_listing[key].kind === "file"
-      );
-      const status = await dv_fsa.read({ status_input_id: "read-status", paths });
-      OUT(JSON.stringify(status, null, 2));
-    } catch (error) {
-      OUT(`Error: ${error.message}`);
-    }
-  });
-
-  // Write file
-  document.getElementById("write-file").addEventListener("click", async () => {
-    try {
-      const filePath = "example.txt";
-      const contents = btoa("Hello, File System Access API!");
-      const status = await dv_fsa.write(filePath, contents, -1); // Append mode
-      OUT(JSON.stringify(status, null, 2));
-    } catch (error) {
-      OUT(`Error: ${error.message}`);
-    }
-  });
-  
-  */
 });
-
-/*
-// Test Suite for File System Access API
-(async () => {
-  console.log("Running Test Suite...");
-
-  // Test: List folder contents
-  try {
-    const status = await dv_fsa.list({ status_input_id: "test-folder-status" });
-    console.assert(status.list, "Folder listing failed");
-    console.log("Folder listing test passed:", status);
-  } catch (error) {
-    console.error("Folder listing test failed:", error.message);
-  }
-
-  // Test: Read file
-  try {
-    const paths = Object.keys(dv_fsa.g_cached_listing).filter(
-      (key) => dv_fsa.g_cached_listing[key].kind === "file"
-    );
-    const status = await dv_fsa.read({ status_input_id: "test-read-status", paths });
-    console.assert(Object.keys(status.contents).length > 0, "File reading failed");
-    console.log("File reading test passed:", status);
-  } catch (error) {
-    console.error("File reading test failed:", error.message);
-  }
-
-  // Test: Write file
-  try {
-    const filePath = "test-example.txt";
-    const contents = btoa("Test content for File System Access API!");
-    const status = await dv_fsa.write(filePath, contents, -1); // Append mode
-    console.assert(!status.error, "File writing failed");
-    console.log("File writing test passed:", status);
-  } catch (error) {
-    console.error("File writing test failed:", error.message);
-  }
-
-  console.log("Test Suite Completed.");
-})();
-*/
