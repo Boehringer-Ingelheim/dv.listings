@@ -24,21 +24,15 @@ mock_simple_listing_server <- function(input, output, session) {
 #' @keywords internal
 mock_simple_listing_mm <- function() {
   stopifnot(
-    requireNamespace("dv.manager", quietly = TRUE),
-    requireNamespace("dplyr", quietly = TRUE),
-    requireNamespace("tibble", quietly = TRUE)
+    requireNamespace("dv.manager", quietly = TRUE)
   )
-
+  
   create_dummy <- function(dataset) {
+    dataset[["car"]] <- rownames(dataset)
+    row.names(dataset) <- NULL
     list(
-      mpg = dplyr::select(
-        tibble::as_tibble(dataset, rownames = "car"),
-        dplyr::all_of(c("car", "mpg"))
-      ),
-      carb = dplyr::select(
-        tibble::as_tibble(dataset, rownames = "car"),
-        dplyr::all_of(c("car", "carb"))
-      )
+      mpg = dataset[c("car", "mpg")],
+      carb = dataset[c("car", "carb")]
     )
   }
 

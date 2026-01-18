@@ -89,10 +89,6 @@ attributes(dm_dummy$ARM)$label <- "Description of Planned Arm"
 attributes(dm_dummy$COUNTRY)$label <- "Country"
 attributes(dm_dummy$RACE)$label <- "Race"
 
-# Rewrite data frame as tibble
-dm_dummy <- tibble::as_tibble(dm_dummy)
-
-
 ##########################
 # Adverse Events dataset #
 ##########################

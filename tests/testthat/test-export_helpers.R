@@ -378,7 +378,10 @@ test_that("pdf_preprocessing() changes column order due to reference column spec
 
 test_that("pdf_preprocessing() splits df into disjoint sub dataframes that form together the original df when ignoring labels", { # nolint
   # df argument
-  df <- dm_dummy[1:35, 1:10]
+  df <- dm_dummy[1:10]
+  labels <- get_labels(df)
+  df <- head(df, 35)
+  df <- set_labels(df, labels)
 
   # result
   pdf_preprocessing_res <- pdf_preprocessing(df, NULL)
