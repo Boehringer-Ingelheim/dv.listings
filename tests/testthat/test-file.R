@@ -36,6 +36,14 @@ local({
 })
 
 local({
+  # NOTE: This test checks the implementation of the server-side file-system write function.
+  #       It is driven by the contents of the `file_tests.js `(pseudo-)JSON file.
+  #
+  #       There is an equivalent test for the client-side javascript file-system write function.
+  #       You can find it under `./tests/FSA_manual_tests`. It loads the same file and conducts
+  #       the same checks. However, due to web browser restrictions, that test needs to be run
+  #       manually (open `./tests/FSA_manual_tests/index.html` in a chromium-derived web browser
+  #       and follow instructions).
   store_path <- file.path(tempdir(), "file_system_checks")
   dir.create(store_path)
   on.exit(unlink(store_path, recursive = TRUE), add = TRUE, after = FALSE)

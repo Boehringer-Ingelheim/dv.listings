@@ -418,7 +418,7 @@ REV_load_annotation_info <- function(folder_contents, review, dataset_lists) {
           return(list(error = error))
         }
         
-        # Upgrade review files from version 0 to version 1 so to support undoing actions
+        # Upgrade review files from version 0 to version 1 to support undoing actions
         version_number <- role_review_st_v_data[["format_version_number"]]
         if (version_number == 0L) {
           append_IO_action(
@@ -776,9 +776,13 @@ REV_describe_undo_action <- function(
       REV_state[["annotation_info"]][[dataset_list_name]][[dataset_name]], "map_canonical_indices_into_current_order"
     )
     current_row_indices <- current_row_index_from_canonical_row_index(canonical_indices)
-    if (any(is.na(current_row_indices))) {
-      browser() # TODO: Not all indices are necessarily present. We can't show those that are not because we no longer
-      # have access to the original data, so we should filter them out
+    if (any(current_row_indices == 0)) {
+      # NOTE: Some of the canonical indices are not present in the current revision of the dataset.
+      #       This means we can't display any data associated to them.
+      # TODO: Explain the situation to the user?
+      #       We haven't done this because it adds some complexity for very little value. We expect most undo actions to
+      #       target mistaken bulk actions, and not to target actions that happened on a prior session, while reviewing
+      #       an older version of the dataset.
     }
     
     data <- review[["data"]][[dataset_list_name]][[dataset_name]]

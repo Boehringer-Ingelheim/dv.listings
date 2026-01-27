@@ -517,9 +517,9 @@ RS_parse_review_reviews_and_apply_undo <- function(contents, expected_role, expe
       indices_to_remove <- c(indices_to_remove, indices_to_undo, i, i + 1)
     }
     
-    canonical_indices <- canonical_indices[-c(indices_to_remove, i, i + 1)]
-    review_indices <- review_indices[-c(indices_to_remove, i, i + 1)]
-    timestamps <- timestamps[-c(indices_to_remove, i, i + 1)]
+    canonical_indices <- canonical_indices[-indices_to_remove]
+    review_indices <- review_indices[-indices_to_remove]
+    timestamps <- timestamps[-indices_to_remove]
   }
   
   return(
