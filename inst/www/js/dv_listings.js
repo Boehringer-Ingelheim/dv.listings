@@ -538,6 +538,11 @@ const dv_fsa = (function() {
       file_size = file.size;
       
       // 7 - Update local cached contents
+      //  TODO: Consider simply re-reading whole file instead. It may not be that expensive (see also #laafai)
+      
+      // In-place update of the cached contents of file_path. The `transfer(size)` and the casting to an `Uint8Array` 
+      // view are confusing to the untrained eyes of a non-js programmer, so the best way to follow this code might be 
+      // to place a debugger call and step through it interactively.
       let start = offset;
       let end = offset+contents.byteLength;
       if(cached_contents.byteLength < end){
@@ -631,6 +636,7 @@ const dv_fsa = (function() {
   };
 
   const execute_IO_plan = async function({status_input_id, plan}) {
+    // TODO: We could reintroduce the blocking overlay for plans with more than `n` actions
     for (let idx=0; idx<plan.length; idx++) {
       let entry = plan[idx];
       if(entry.kind === "write") {

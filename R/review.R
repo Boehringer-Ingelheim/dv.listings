@@ -727,9 +727,6 @@ REV_compute_undo_action_info <- function(contents, role, domain) {
   
   res <- list(canonical_indices = integer(0), review_decision = NULL, timestamp = NULL)
   if (length(timestamps) > 0) {
-    last_review_index <- review_indices[[length(timestamps)]]
-    last_timestamp <- timestamps[[length(timestamps)]]
-    
     last_timestamp <- timestamps[[length(timestamps)]]
     last_review_index <- review_indices[[length(timestamps)]]
     last_action_indices <- which(timestamps == last_timestamp & review_indices == last_review_index)
@@ -927,23 +924,19 @@ REV_respond_to_user_review <- function(ns, state, input, review, selected_datase
     # > table.row(5).data(tmp).invalidate();
     DT::replaceData(dt_proxy, new_data, resetPaging = FALSE, clearSelection = "none")
     
-    expected_rv_value <- update_undo_description_rv() + 1L
-    fs_execute_IO_plan(IO_plan, callback = function(unused) update_undo_description_rv(expected_rv_value))
+    fs_execute_IO_plan(IO_plan, callback = update_undo_description_callback)
     
     update_undo_resolved_reactives <<- list(
-      dataset_list_name = dataset_list_name, dataset_name = dataset_name,
-      role = role, expected_rv_value = expected_rv_value
+      dataset_list_name = dataset_list_name, dataset_name = dataset_name, role = role
     )
     
     REV_replace_undo_description(ns, "Computing undo description...") # overwritten by #deihee
   })
   
-  update_undo_description_rv <- shiny::reactiveVal(0L)
+  update_undo_description_callback <- shiny::reactiveVal(0L)
   update_undo_resolved_reactives <- list()
-  shiny::observeEvent(update_undo_description_rv(), {
-    shiny::req(
-      identical(update_undo_description_rv(), update_undo_resolved_reactives[["expected_rv_value"]])
-    )
+  shiny::observeEvent(update_undo_description_callback(), {
+    shiny::req(update_undo_description_callback() > 0L)
     
     error_messages <- fs_state[["error"]]
     if (length(error_messages) > 0) {
@@ -977,33 +970,19 @@ REV_respond_to_user_review <- function(ns, state, input, review, selected_datase
     
     timestamp <- SH$get_UTC_time_in_seconds()
     
-    contents <- REV_serialize_undo_action(undo_info = undo_desc[["info"]], timestamp)
-    
-    IO_plan <- list(
-      list(
-        kind = "write",
-        path = file.path(dataset_list_name, paste0(dataset_name, "_", role, ".review")),
-        contents = contents,
-        offset = FS$WRITE_OFFSET_APPEND
-      )
-    )
-    
-    expected_rv_value <- update_table_and_undo_description_rv() + 1L
-    fs_execute_IO_plan(IO_plan, callback = function(unused) update_table_and_undo_description_rv(expected_rv_value))
+    IO_plan <- REV_produce_IO_plan_for_review_undo_action(undo_desc[["info"]], timestamp, role, dataset_list_name, dataset_name)
+    fs_execute_IO_plan(IO_plan, callback = update_table_and_undo_description_callback)
     
     update_table_and_undo_resolved_reactives <<- list(
-      dataset_list_name = dataset_list_name, dataset_name = dataset_name, role = role,
-      expected_rv_value = expected_rv_value
+      dataset_list_name = dataset_list_name, dataset_name = dataset_name, role = role
     )
     REV_replace_undo_description(ns, "Computing undo description...") # overwritten by #eegega
   })
   
-  update_table_and_undo_description_rv <- shiny::reactiveVal(0L)
+  update_table_and_undo_description_callback <- shiny::reactiveVal(0L)
   update_table_and_undo_resolved_reactives <- list()
-  shiny::observeEvent(update_table_and_undo_description_rv(), {
-    shiny::req(
-      identical(update_table_and_undo_description_rv(), update_table_and_undo_resolved_reactives[["expected_rv_value"]])
-    )
+  shiny::observeEvent(update_table_and_undo_description_callback(), {
+    shiny::req(update_table_and_undo_description_callback() > 0L)
     
     error_messages <- fs_state[["error"]]
     if (length(error_messages) > 0) {

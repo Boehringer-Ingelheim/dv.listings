@@ -612,7 +612,6 @@ listings_server <- function(module_id,
           )
         )
 
-        # TODO: find a place for this if # TODO(miguel): figure out purpose of this TODO
         if (checkmate::test_string(input[[REV$ID$ROLE]], min.chars = 1)) {
           fs_contents <- fs_client[["state"]][["contents"]]
           initial_undo_description <- shiny::div(

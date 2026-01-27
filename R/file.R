@@ -371,6 +371,7 @@ fs_init <- function(path) {
       file.rename(tmp_fname, fname_path)
      
       # 7 - Update local cached contents
+      # TODO: Consider simply re-reading whole file instead. It may not be that expensive (see also #laafai)
       fs_update_cached_contents(state[["contents"]], path, offset, contents)
      
       # 8 - Update local cached listing # Compare to #yaisei; this version leans on the filesystem
