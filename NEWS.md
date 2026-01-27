@@ -1,3 +1,6 @@
+# dv.listings 4.3.1-9000
+- Per-role review undo.
+
 # dv.listings 4.3.1
 
 - Guard against selection of nested or conflicting review storage location.

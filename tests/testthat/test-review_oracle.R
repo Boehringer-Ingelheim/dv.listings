@@ -9,8 +9,8 @@ set.seed(int_seed)
 test_that(sprintf("Running random review tests with seed: %dL", int_seed) |>
             vdoc[["add_spec"]](c(
               specs$review, specs$review_per_row, specs$review_per_role,
-              specs$review_delta_detection, specs$review_accept_removal_of_rows)
-            ), {
+              specs$review_delta_detection, specs$review_accept_removal_of_rows,
+              specs$review_undo)), {
               
   # Sane sample (`base::sample` without the weird edge case)
   ssample <- function(from, count) from[sample.int(length(from), count, replace = FALSE, prob = NULL)]
@@ -19,19 +19,14 @@ test_that(sprintf("Running random review tests with seed: %dL", int_seed) |>
               
   # _R_eview _T_est
   RT <- local({
-    folder_contents <- NULL
-    fs_callbacks <- list(
-      attach = function(arg) NULL, list = function(arg) NULL, read = function(arg) NULL, write = function(arg) NULL,
-      append = function(arg) NULL, execute_IO_plan = function(arg) NULL,
-      read_folder = function(arg) folder_contents <<- arg
-    )
-    
     store_path <- file.path(tempdir(), "random_data_test")
     unlink(store_path, recursive = TRUE, force = TRUE)
     dir.create(store_path)
     
-    fs_client <- fs_init(callbacks = fs_callbacks, store_path)
-    fs_client[["read_folder"]](subfolder_candidates = "dataset_list")
+    fs_client <- fs_init(store_path)
+    fs_state <- fs_client[["state"]]
+    fs_contents <- fs_state[["contents"]]
+    fs_client[["list"]]()
     
     # Review folder contents initialized here
     review_param = list(
@@ -47,29 +42,25 @@ test_that(sprintf("Running random review tests with seed: %dL", int_seed) |>
     # Reviews are always returned, however.
     track <- function(df){
       dataset_lists <- list(dataset_list = list(df = df))
-      
-      fs_client[["read_folder"]](subfolder_candidates = "dataset_list") # Refreshes potentially new review info
      
       # TODO: This initial `_load_` is here to load reviews through a side channel. It would be preferable to 
       #       load them explicitly through a separate function (both inside the module and in this oracle-like test)
-      info <- REV_load_annotation_info(folder_contents, review_param, dataset_lists)
+      info <- REV_load_annotation_info(fs_contents, review_param, dataset_lists)
       stopifnot(length(info[["error"]]) == 0)
      
       base_and_delta_change_count <- 0L
-      for(action in info[["folder_IO_plan"]]) {
-        if(action[["type"]] == "write_file" && (endsWith(action[["fname"]], '.base') ||
-                                                endsWith(action[["fname"]], '.delta'))){
+      for(action in info[["IO_plan"]]) {
+        if(action[["kind"]] == "write" && (endsWith(action[["path"]], '.base') ||
+                                           endsWith(action[["path"]], '.delta'))){
           base_and_delta_change_count <- base_and_delta_change_count + 1
         }
       }
-      fs_client[["execute_IO_plan"]](IO_plan = info[["folder_IO_plan"]], is_init = TRUE)
-      fs_client[["read_folder"]](subfolder_candidates = "dataset_list")
+      fs_client[["execute_IO_plan"]](IO_plan = info[["IO_plan"]])
       
-      contents <- folder_contents[["dataset_list"]]
-      fnames <- names(contents)
+      fnames <- names(fs_contents)
       base_fname <- fnames[endsWith(fnames, '.base')]
       stopifnot(length(base_fname) == 1)
-      base_info <- RS_parse_base(contents[[base_fname]][["contents"]])
+      base_info <- RS_parse_base(fs_contents[[base_fname]])
       total_row_count <- base_info[["row_count"]]
       
       res <- list(
@@ -78,9 +69,9 @@ test_that(sprintf("Running random review tests with seed: %dL", int_seed) |>
         missing = integer(0)
       )
       
-      delta_fnames <- fnames[endsWith(fnames, '.delta')]
-      for(delta_fname in delta_fnames){
-        delta_info <- RS_parse_delta(contents[[delta_fname]][["contents"]], 
+      sorted_delta_fnames <- sort(fnames[endsWith(fnames, '.delta')])
+      for(delta_fname in sorted_delta_fnames){
+        delta_info <- RS_parse_delta(fs_contents[[delta_fname]], 
                                      tracked_var_count = length(base_info[["tracked_vars"]]))
         
         added_count <- delta_info[["new_row_count"]]
@@ -169,7 +160,6 @@ test_that(sprintf("Running random review tests with seed: %dL", int_seed) |>
       recover_mask <- missing[["ID"]] %in% row_ids
       res <- rbind(df, missing[recover_mask, , drop = FALSE])
       attr(res, 'missing') <- missing[!recover_mask, , drop = FALSE]
-      
       return(res)
     }
     
@@ -192,14 +182,28 @@ test_that(sprintf("Running random review tests with seed: %dL", int_seed) |>
         canonical_row_indices = row_ids, role = role, choice_index, timestamp, dataset_list_name, dataset_name
       )
       
-      fs_client[["execute_IO_plan"]](IO_plan = IO_plan, is_init = FALSE)
+      fs_client[["execute_IO_plan"]](IO_plan = IO_plan)
       
       return(res)
     }
     
+    undo_review <- function(role){
+      review_path <- file.path('dataset_list', sprintf("df_%s.review", role))
+      info <- REV_compute_undo_action_info(contents = fs_contents[[review_path]], role = role, domain = 'df')
+      
+      action_count <- length(info[["canonical_indices"]])
+      if(action_count > 0){
+        timestamp <- SH$get_UTC_time_in_seconds()
+        IO_plan <- REV_produce_IO_plan_for_review_undo_action(info, timestamp, role, 'dataset_list', 'df')
+        fs_client[["execute_IO_plan"]](IO_plan = IO_plan)
+      }
+      
+      return(NULL)
+    }
+    
     return(list(
       track = track, create = create, append = append, shuffle = shuffle, remove = remove, recover = recover,
-      mutate = mutate, review = review, store_path = store_path, review_param = review_param
+      mutate = mutate, review = review, undo_review = undo_review, store_path = store_path, review_param = review_param
     ))
   })
   
@@ -223,18 +227,21 @@ test_that(sprintf("Running random review tests with seed: %dL", int_seed) |>
   )
   info <- RT$track(df)
   expect_identical(info, oracle_expected, info = paste('Iteration:', i_iteration))
+ 
+  review_history <- list() # each element a tuple of (role, row_ids, choice)
   
   rand_0_to_max <- function(max) ssample(0:max, 1)
   max_review_action_count <- 3L
+  max_undo_count <- 3L
 
-  iteration_count <- 100
+  iteration_count <- 100L
   max_delta_count <- 3L
   
   # TODO: Add operations that add and remove non-tracked columns
   for(i_iteration in seq_len(iteration_count)){
     oracle_expected[["added"]] <- integer(0)
     oracle_expected[["modified"]] <- integer(0)
-    oracle_expected[["reviews"]] <- NULL # appended at the end of this `for` loop
+    oracle_expected[["reviews"]] <- NULL # computed at the end of this `for` loop
     # "missing" field preserved
     # "reviews"
 
@@ -242,9 +249,9 @@ test_that(sprintf("Running random review tests with seed: %dL", int_seed) |>
     #
     # REVIEW PHASE --> <------------------ DATASET UPDATE PHASE --------------------------------> <--- CHECK PHASE
     # 
-    #                    recover                                               shuffle
-    #    review   -->       +       -->    mutate   -->    append   -->           +            -->   oracle check
-    #                    remove                                            sort newly appended
+    #    review          recover                                               shuffle
+    #      +      -->       +       -->    mutate   -->    append   -->           +            -->   oracle check
+    #     undo           remove                                            sort newly appended
     #
     # We start each iteration with a dataset that has just been updated and loaded in the app. The `.base` and `.delta`
     # files are up to date.
@@ -254,7 +261,6 @@ test_that(sprintf("Running random review tests with seed: %dL", int_seed) |>
     # It's important to allow interleaved reviews of at least two different roles (e.g. A, B, A), 
     # so `max_review_action_count` should be at least three:
     stopifnot(max_review_action_count >= 3L)
-    
     
     # NOTE: Review
     review_action_count <- rand_0_to_max(max_review_action_count)
@@ -266,6 +272,32 @@ test_that(sprintf("Running random review tests with seed: %dL", int_seed) |>
       choice <- ssample(RT$review_param[['choices']], 1)
       df <- RT$review(df, row_ids, role, choice)
       reviews_oracle[row_ids] <- choice
+      
+      # push new review as latest
+      if(row_count > 0) {
+        review_history[[length(review_history)+1]] <- list(role = role, row_ids = row_ids, choice = choice)
+      }
+    }
+    
+    stopifnot(max_undo_count >= 3L)
+    
+    # NOTE: Undo review
+    #       The fact that the undo step follows the review step should not impact the generality of the oracle, as the
+    #       review step can be a no-op if review_action_count == 0. Undoing can also rewind back into reviews preceding
+    #       the current dataset update
+    undo_count <- rand_0_to_max(max_undo_count)
+    for(i in seq_len(undo_count)){
+      role <- ssample(RT$review_param[['roles']], 1)
+      RT$undo_review(role)
+      
+      # pop last review by `role`
+      for(i_rev in rev(seq_along(review_history))){
+        review_node <- review_history[[i_rev]]
+        if(review_node[["role"]] == role){
+          review_history[[i_rev]] <- NULL
+          break
+        }
+      }
     }
     
     # - DATASET UPDATE PHASE
@@ -336,6 +368,16 @@ test_that(sprintf("Running random review tests with seed: %dL", int_seed) |>
       subdf <- subdf[order(subdf[['ID']]),]
       df[newly_appended_row_mask,] <- subdf
     }
+    
+    
+    reviews_oracle <- local({
+      default_choice <- RT$review_param[['choices']][[1]]
+      res <- rep(default_choice, attr(df, 'max_id')) # reviews for present and absent rows, in canonical order
+      for(review in review_history){
+        res[review$row_ids] <- review$choice
+      }
+      return(res)
+    })
     
     oracle_expected[['reviews']] <- reviews_oracle[df[["ID"]]]
     

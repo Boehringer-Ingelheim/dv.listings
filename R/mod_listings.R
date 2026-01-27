@@ -416,22 +416,13 @@ listings_server <- function(module_id,
     show_review_columns <- function() FALSE
     REV_state <- new.env(parent = emptyenv())
     if (enable_review) {
-
-      fs_callbacks <- list(
-        attach = shiny::reactiveVal(NULL),
-        list = shiny::reactiveVal(NULL),
-        read = shiny::reactiveVal(NULL),
-        write = shiny::reactiveVal(NULL),
-        append = shiny::reactiveVal(NULL),
-        read_folder = shiny::reactiveVal(NULL),
-        execute_IO_plan = shiny::reactiveVal(NULL)
-      )
-     
       fs_client <- NULL 
       if (is.null(review[["store_path"]])) {
-        fs_client <- fsa_init(input, TBL$FSA_CLIENT, fs_callbacks)
+        fs_client <- fsa_init(input, TBL$FSA_CLIENT)
       } else {
-        fs_client <- fs_init(fs_callbacks, review[["store_path"]])
+        fs_client <- fs_init(review[["store_path"]])
+        # NOTE: It's possible for the app creator to configure a folder that does not exist yet, so we create it here
+        dir.create(review[["store_path"]], showWarnings = FALSE, recursive = TRUE)
       }
       
       # Overly restrictive sanitization of role strings, as they will be used for file names:
@@ -439,14 +430,12 @@ listings_server <- function(module_id,
       review[["roles"]] <- gsub("[^a-zA-Z0-9 _.-]", "", review[["roles"]]) # Accepts alpha+num+space+'.'+'_'+'-'
 
       output[[TBL$REVIEW_UI_ID]] <- shiny::renderUI({
-
         review_ui <- shinyWidgets::dropdownButton(
           inputId = ns(TBL$REVIEW_DROPDOWN_ID), label = shiny::textOutput(ns("review_label"), inline = TRUE), circle = FALSE,
           REV_UI(ns = ns, roles = review[["roles"]])[["ui"]]
         )
 
         review_ui
-
       })
 
       review_button_label <- shiny::reactive({
@@ -462,7 +451,7 @@ listings_server <- function(module_id,
 
       shiny::outputOptions(output, TBL$REVIEW_UI_ID, suspendWhenHidden = FALSE)
 
-      REV_main_logic(REV_state, input, review, review[["data"]], fs_client, fs_callbacks)
+      REV_main_logic(REV_state, input, review, review[["data"]], fs_client)
       show_review_columns <- REV_state[["contents_ready"]]
     }
 
@@ -555,7 +544,8 @@ listings_server <- function(module_id,
         selected_dataset_name = shiny::reactive(input[[TBL$DATASET_ID]]),
         data = shiny::reactive(output_table_data()[["data"]]),
         dt_proxy = dt_proxy,
-        fs_execute_IO_plan = fs_client[["execute_IO_plan"]]
+        fs_execute_IO_plan = fs_client[["execute_IO_plan"]],
+        fs_state = fs_client[["state"]]
       )
     }
     
@@ -622,13 +612,20 @@ listings_server <- function(module_id,
           )
         )
 
-        # TODO: find a place for this if
         if (checkmate::test_string(input[[REV$ID$ROLE]], min.chars = 1)) {
-          bulk_render <- sprintf(
-            "dv_listings.render_bulk_menu(settings.sTableId + \"_wrapper\", [%s], '%s');",
-            paste(paste0("'", review[["choices"]], "'"), collapse = ", "), ns(REV$ID$REVIEW_SELECT)
+          fs_contents <- fs_client[["state"]][["contents"]]
+          initial_undo_description <- shiny::div(
+            REV_describe_undo_action(
+              review, REV_state, fs_contents, selected_dataset_list_name, selected_dataset_name, role
+            )[["text"]], id = sprintf("%s", ns(REV$ID$UNDO_DESCRIPTION))
           )
-          init_complete_payloads <- c(init_complete_payloads, bulk_render)
+          
+          bulk_and_undo_render <- sprintf(
+            "dv_listings.render_bulk_menu_and_undo_button(settings.sTableId + \"_wrapper\", [%s], '%s', '%s', '%s', '%s');",
+            paste(paste0("'", review[["choices"]], "'"), collapse = ", "), ns(REV$ID$REVIEW_SELECT), 
+            ns(REV$ID$UNDO), ns(REV$ID$UNDO_DESCRIPTION_ANCHOR), initial_undo_description
+          )
+          init_complete_payloads <- c(init_complete_payloads, bulk_and_undo_render)
         }
       }
       
