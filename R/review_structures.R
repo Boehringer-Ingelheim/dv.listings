@@ -1,4 +1,5 @@
 BYTES_PER_TRACKED_HASH <- 2L
+UNKNOWN_VARIABLE_TYPE_ENCODING <- 255L
 
 SH <- local({ # _S_erialization _H_elpers
   get_UTC_time_in_seconds <- function() as.numeric(structure(Sys.time(), tzone = "UTC"))
@@ -141,16 +142,17 @@ RS_hash_data_frame <- function(df) {
 RS_variable_type_encoding <- list(
   # The order of this list matters, because e.g. POSIXct variables are also numeric
   # They go from most to least restrictive
-  list(code = 1,  desc = "Date",      fn = function(v) inherits(v, "Date")),
-  list(code = 2,  desc = "POSIXct",   fn = function(v) inherits(v, "POSIXct")),
-  list(code = 3,  desc = "POSIXlt",   fn = function(v) inherits(v, "POSIXlt")),
-  list(code = 10, desc = "logical",   fn = is.logical),
-  list(code = 11, desc = "factor",    fn = is.factor),
-  list(code = 13, desc = "integer",   fn = is.integer),
-  list(code = 14, desc = "numeric",   fn = is.numeric),
-  list(code = 15, desc = "complex",   fn = is.complex),
-  list(code = 16, desc = "character", fn = is.character),
-  list(code = 24, desc = "raw",       fn = is.raw)
+  list(code = 1,   desc = "Date",      fn = function(v) inherits(v, "Date")),
+  list(code = 2,   desc = "POSIXct",   fn = function(v) inherits(v, "POSIXct")),
+  list(code = 3,   desc = "POSIXlt",   fn = function(v) inherits(v, "POSIXlt")),
+  list(code = 10,  desc = "logical",   fn = is.logical),
+  list(code = 11,  desc = "factor",    fn = is.factor),
+  list(code = 13,  desc = "integer",   fn = is.integer),
+  list(code = 14,  desc = "numeric",   fn = is.numeric),
+  list(code = 15,  desc = "complex",   fn = is.complex),
+  list(code = 16,  desc = "character", fn = is.character),
+  list(code = 24,  desc = "raw",       fn = is.raw),
+  list(code = UNKNOWN_VARIABLE_TYPE_ENCODING, desc = "unknown", fn = function(v) TRUE) # catches all
 )
 RS_variable_type_desc_from_code <- local({
   res <- character()

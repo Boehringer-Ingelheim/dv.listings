@@ -1261,6 +1261,34 @@ check_review_parameter <- function(datasets, dataset_names, review, err) {
         )
       )
       
+      all_vars <- union(info[["id_vars"]], info[["tracked_vars"]])
+      
+      encodings <- RS_compute_data_frame_variable_types(dataset, all_vars)
+      
+      CM$assert(
+        container = err,
+        cond = !any(encodings == UNKNOWN_VARIABLE_TYPE_ENCODING),
+        msg = local({
+          res <- "The following variables are of types currently not supported by the review feature:"
+          indices <- which(encodings == UNKNOWN_VARIABLE_TYPE_ENCODING)
+          for (index in indices){
+            var_name <- all_vars[[index]]
+            res <- paste(res, var_name, sprintf("(class: %s)", paste(class(dataset[[var_name]]), collapse = ",")))
+          }
+          
+          res <- paste0(res, ".<br>")
+          
+          supported_data_types <- character(0)
+          for (encoding in RS_variable_type_encoding){
+            if (encoding[["code"]] != UNKNOWN_VARIABLE_TYPE_ENCODING) { 
+              supported_data_types <- c(supported_data_types, encoding[["desc"]])
+            }
+          }
+          res <- paste(res, sprintf("Supported data types are: %s.", paste(supported_data_types, collapse = ", ")))
+          
+          return(res)
+        })
+      )
     }
   }
 }
