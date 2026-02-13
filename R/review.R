@@ -1185,12 +1185,27 @@ check_review_parameter <- function(datasets, dataset_names, review, err) {
   ) &&
     CM$assert(
       container = err,
-      cond = (checkmate::test_list(review[["datasets"]], names = "unique") &&
+      cond = (checkmate::test_list(review[["datasets"]]) &&
                 checkmate::test_subset(names(review[["datasets"]]), dataset_names)),
       msg = sprintf(
         "`review$datasets` should be a list and its elements should be named after the following dataset names: %s",
         paste(dataset_names, collapse = ", ")
       )
+    ) &&
+    CM$assert(
+      container = err,
+      cond = checkmate::test_list(review[["datasets"]], names = "unique"),
+      msg = local({
+        res <- sprintf(
+          "`review$datasets` should be a list and its elements should be <b>uniquely</b> named after the 
+          following dataset names: %s.<br>", paste(dataset_names, collapse = ", "))
+      
+        dataset_names <- names(review[["datasets"]])
+        repeat_names <- unique(sort(dataset_names[duplicated(dataset_names)]))
+        res <- paste0(res, sprintf("However, the following dataset names appear more than once: %s", 
+                                   paste(repeat_names, collapse = ",")))
+        return(res)
+      })
     ) &&
     CM$assert(
       container = err,
