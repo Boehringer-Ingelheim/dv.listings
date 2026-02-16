@@ -41,7 +41,6 @@ Imports:
     shinyFeedback (>= 0.4.0),
     shinyjs (>= 2.1.0),
     shinyWidgets (>= 0.8.0),
-    xxhashlite,
     base64enc,
     htmltools,
     jsonlite
