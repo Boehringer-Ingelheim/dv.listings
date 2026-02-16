@@ -1,3 +1,6 @@
+# dv.listings 4.3.1-9002
+- Vendor xxhashlite library to remove package dependency.
+
 # dv.listings 4.3.1-9001
 - Per-role review undo.
 
