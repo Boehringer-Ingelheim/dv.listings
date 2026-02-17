@@ -28,6 +28,6 @@
 #' vec <- as.raw(c(0x01, 0x02, 0x99))
 #' xxhash_raw(vec)
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-xxhash_raw <- function(vec, algo = 'xxh128', as_raw = FALSE) {
+xxhash_raw <- function(vec, algo = "xxh128", as_raw = FALSE) {
   .Call(xxhash_raw_, vec, algo, as_raw)
 }
