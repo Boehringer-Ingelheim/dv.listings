@@ -20,7 +20,7 @@ SH <- local({ # _S_erialization _H_elpers
   ..ref_hash_id <- function(row) {
     input <- paste(row, collapse = "\1D")
     input <- charToRaw(input)
-    res <- xxhashlite::xxhash_raw(input, as_raw = TRUE)
+    res <- xxhash_raw(input, as_raw = TRUE)
     return(res)
   }
   
@@ -32,7 +32,7 @@ SH <- local({ # _S_erialization _H_elpers
     #       It makes sense to postpone this improvement until we have a better reason
     input <- paste(row, collapse = "\1D")
     input <- charToRaw(input)
-    res <- xxhashlite::xxhash_raw(input, algo = "xxh32", as_raw = TRUE)
+    res <- xxhash_raw(input, algo = "xxh32", as_raw = TRUE)
     return(res)
   }
   
@@ -54,7 +54,7 @@ SH <- local({ # _S_erialization _H_elpers
   }
 
   vectorized_hash_row <- function(df, algo = "xxh128") {  
-    vectorized_hash_id <- Vectorize(function(x) xxhashlite::xxhash_raw(charToRaw(x), as_raw = TRUE, algo = algo), USE.NAMES = FALSE, SIMPLIFY = FALSE)
+    vectorized_hash_id <- Vectorize(function(x) xxhash_raw(charToRaw(x), as_raw = TRUE, algo = algo), USE.NAMES = FALSE, SIMPLIFY = FALSE)
     single_col <- do.call(function(...) paste(..., sep = "\1D"), lapply(df, as.character))
     hashed_col <- vectorized_hash_id(single_col)
     n_col <- length(hashed_col)
@@ -132,7 +132,7 @@ RS_hash_data_frame <- function(df) {
   # Strip arguments from unnecessary detail
   attributes(df) <- list(class = "data.frame", names = names(df), row.names = seq_len(nrow(df)))
   
-  res <- xxhashlite::xxhash_raw(
+  res <- xxhash_raw(
     vec = serialize(object = df, connection = NULL, ascii = FALSE, xdr = FALSE, version = 3), 
     algo = "xxh128", as_raw = TRUE
   )
