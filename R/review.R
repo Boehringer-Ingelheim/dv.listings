@@ -396,7 +396,7 @@ REV_load_annotation_info <- function(folder_contents, review, dataset_lists) {
         role_review <- list(review = rep_len(NA_character_, nrow(dataset_review_df)), 
                             timestamp = rep_len(NA_real_, nrow(dataset_review_df)))
         res <- list()
-        for(role in review[["roles"]]) res[[role]] <- role_review
+        for (role in review[["roles"]]) res[[role]] <- role_review
         return(res)
       })
 
@@ -1023,11 +1023,11 @@ REV_respond_to_user_review <- function(ns, state, input, review, selected_datase
 
 REV_review_var_to_json <- function(latest_reviews, data_timestamps) {
   # Output should have this format:
-  # "{\"reviews\":{\"ROLE_1\":{},\"ROLE_2\":{},\"ROLE_3\":{},\"ROLE_4\":{}},\"data_timestamp\":1769537142.137}"
+  # > "{\"reviews\":{\"ROLE_1\":{},\"ROLE_2\":{},\"ROLE_3\":{},\"ROLE_4\":{}},\"data_timestamp\":1769537142.137}"
  
   elem_count <- length(data_timestamps)
   review_pieces <- list() 
-  for(role in names(latest_reviews)){
+  for (role in names(latest_reviews)){
     na_mask <- is.na(latest_reviews[[role]][["review"]])
     s <- character(elem_count)
     s[na_mask] <- sprintf('"%s":{}', role)
