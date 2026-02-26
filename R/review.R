@@ -769,9 +769,16 @@ REV_describe_undo_action <- function(
     target_data <- data[current_row_indices, ]
     undo_table <- target_data[id_vars]
     #> undo_table[["Previous review"]] <- second_to_last_review_choices # TODO? Would be nice to see the old values, but not mandatory
-    
-    undo_table_s <- capture.output(print(undo_table, row.names = FALSE))
-    undo_table_s <- sprintf("<pre>%s</pre>", paste(undo_table_s, collapse = "<br>"))
+   
+    if (nrow(undo_table) <= 11L) {
+      undo_table_s <- capture.output(print(undo_table, row.names = FALSE))
+    } else {
+      head_rows <- capture.output(print(head(undo_table, n = 5L), row.names = FALSE))
+      tail_rows <- capture.output(print(tail(undo_table, n = 5L), row.names = FALSE)) |> tail(n = 5L)
+      tail_rows <- tail(tail_rows, n = 5) # discards column names
+      undo_table_s <- c(head_rows, sprintf("(omitted %d rows)", nrow(undo_table) - 10L), tail_rows)
+    }
+    undo_table_s <- paste0("<pre>", paste(undo_table_s, collapse = "<br>"), "</pre>") 
     
     # TODO: Replace ID column names with labels if available
     
@@ -1023,7 +1030,9 @@ REV_respond_to_user_review <- function(ns, state, input, review, selected_datase
 
 REV_review_var_to_json <- function(latest_reviews, data_timestamps) {
   # Output should have this format:
-  # > "{\"reviews\":{\"ROLE_1\":{},\"ROLE_2\":{},\"ROLE_3\":{},\"ROLE_4\":{}},\"data_timestamp\":1769537142.137}"
+  # > '{"reviews":{"ROLE_1":{"role":"ROLE_1","review":"Reviewed with no issues","timestamp":1771937907.9553,"reviewed_at_least_once":true},
+  # >   "ROLE_2":{},"ROLE_3":{},"ROLE_4":{}},\"data_timestamp\":1769537142.1378}'
+  # TODO: Do we need "role" and "reviewed_at_least_once" ?
  
   elem_count <- length(data_timestamps)
   review_pieces <- list() 
@@ -1031,7 +1040,10 @@ REV_review_var_to_json <- function(latest_reviews, data_timestamps) {
     na_mask <- is.na(latest_reviews[[role]][["review"]])
     s <- character(elem_count)
     s[na_mask] <- sprintf('"%s":{}', role)
-    s[!na_mask] <- sprintf('"%s":"%s"', role, latest_reviews[[role]][["review"]][!na_mask])
+    s[!na_mask] <- sprintf(
+      '"%s":{"review":"%s", "timestamp":%.3f}',
+      role, latest_reviews[[role]][["review"]][!na_mask], latest_reviews[[role]][["timestamp"]][!na_mask]
+    )
     review_pieces <- c(review_pieces, list(s))
   }
   reviews <- do.call(paste, c(review_pieces, sep = ","))
