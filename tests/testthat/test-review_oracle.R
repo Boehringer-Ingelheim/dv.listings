@@ -87,20 +87,17 @@ test_that(sprintf("Running random review tests with seed: %dL", int_seed) |>
         )
       }
             
-      latest_reviews <- character(0) 
-      loaded_latest_reviews <- info[["loaded_annotation_info"]][["dataset_list"]][["df"]][["latest_reviews"]]
-      for(i_row_review in seq_along(loaded_latest_reviews)){
-        row_reviews <- loaded_latest_reviews[[i_row_review]][["reviews"]]
-        latest_review <- review_param[["choices"]][[1]]
-        latest_review_timestamp <- 0
-        for(role in review_param[["roles"]]){
-          role_row_review <- row_reviews[[role]]
-          if(!is.null(role_row_review) && latest_review_timestamp < role_row_review[["timestamp"]]){
-            latest_review <- role_row_review[["review"]]
-            latest_review_timestamp <- role_row_review[["timestamp"]]
-          }
-        }
-        latest_reviews <- c(latest_reviews, latest_review)
+      loaded_latest_reviews <- attr(info[["loaded_annotation_info"]][["dataset_list"]][["df"]], "latest_reviews")
+      current_row_count <- length(loaded_latest_reviews[[1]][["review"]])
+      latest_reviews <- rep(review_param[["choices"]][[1]], current_row_count) # default
+      latest_review_timestamps <- rep(-Inf, current_row_count)
+      
+      for(role in names(loaded_latest_reviews)){
+        role_reviews <- loaded_latest_reviews[[role]]
+        if(length(latest_review_timestamps) != length(role_reviews[["timestamp"]])) browser()
+        update_mask <- !is.na(role_reviews[["timestamp"]]) & (latest_review_timestamps < role_reviews[["timestamp"]])
+        latest_reviews[update_mask] <- role_reviews[["review"]][update_mask]
+        latest_review_timestamps[update_mask] <- role_reviews[["timestamp"]][update_mask]
       }
       
       if(base_and_delta_change_count == 0L){ # Nothing new since we were last called
