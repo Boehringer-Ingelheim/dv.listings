@@ -54,16 +54,13 @@ REV_include_review_info <- function(annotation_info, data, col_names) {
   reviews <- annotation_info[["review"]]
   roles <- annotation_info[["role"]]
   status <- NA_character_
-  latest_reviews <- annotation_info[["latest_reviews"]]
   
   # include review-related columns
   res <- data.frame(reviews, roles) # FIXME: (maybe) Can't pass latest review as argument. List confuses data.frame
   res[["status"]] <- rep(status, nrow(res)) # Explicit `rep` avoids assignment error when `nrow(res) == 0`
-  res[["latest_reviews"]] <- latest_reviews
   names(res)[[1]] <- REV$ID$REVIEW_COL
   names(res)[[2]] <- REV$ID$ROLE_COL
   names(res)[[3]] <- REV$ID$STATUS_COL
-  names(res)[[4]] <- REV$ID$LATEST_REVIEW_COL
   res_col_names <- c(REV$LABEL$REVIEW_COLS)
  
   # add actual data
@@ -72,6 +69,9 @@ REV_include_review_info <- function(annotation_info, data, col_names) {
  
   attributes_to_restore <- setdiff(ls(attributes(data)), c("class", "names"))
   for (e in attributes_to_restore) attr(res, e) <- attr(data, e)
+ 
+  attr(res, "latest_reviews") <- attr(annotation_info, "latest_reviews") # pass-through
+  attr(res, "data_timestamps") <- annotation_info[["data_timestamps"]] # pass-through
 
   return(list(data = res, col_names = res_col_names))
 }
@@ -190,7 +190,7 @@ REV_load_annotation_info <- function(folder_contents, review, dataset_lists) {
       dataset_review_df <- data.frame(review = rep(default_review, row_count),
                                       timestamp = numeric(row_count), 
                                       role = rep(role_factor, row_count), 
-                                      data_timestamp = numeric(row_count))
+                                      data_timestamps = numeric(row_count))
       
       id_vars <- review[["datasets"]][[dataset_review_name]][["id_vars"]]
       tracked_vars <- setdiff(review[["datasets"]][[dataset_review_name]][["tracked_vars"]], id_vars)
@@ -389,14 +389,15 @@ REV_load_annotation_info <- function(folder_contents, review, dataset_lists) {
       })
      
       dataset_review_df[["timestamp"]] <- base_timestamp
-      dataset_review_df[["data_timestamp"]] <- map_canonical_data_into_current_order(data_timestamps_st)
+      dataset_review_df[["data_timestamps"]] <- map_canonical_data_into_current_order(data_timestamps_st)
       
       # <domain>_<ROLE>.review      
-      all_latest_reviews_df <- local({
-        role_list <- rep_len(list(), length.out = length(review[["roles"]]))
-        names(role_list) <- review[["roles"]]
-        role_timestamp_list <- list(reviews = role_list, data_timestamp = NULL)
-        rep_len(list(role_timestamp_list), length.out = nrow(dataset_review_df))
+      all_latest_reviews <- local({
+        role_review <- list(review = rep_len(NA_character_, nrow(dataset_review_df)), 
+                            timestamp = rep_len(NA_real_, nrow(dataset_review_df)))
+        res <- list()
+        for (role in review[["roles"]]) res[[role]] <- role_review
+        return(res)
       })
 
       for (role in review[["roles"]]){
@@ -439,25 +440,19 @@ REV_load_annotation_info <- function(folder_contents, review, dataset_lists) {
         }
         # compact all in lists
         # Replace by list of roles so it is a single column and we can directly iterate over it
-        all_latest_reviews_df <- local({          
+        all_latest_reviews <- local({
           reviewed_idx <- which(role_review_df[["timestamp"]] > 0)
-          for (idx in reviewed_idx) {
-            review_char <- review[["choices"]][role_review_df[["review"]][[idx]]]         
-            curr_crr <- list(role = role, review = review_char, timestamp = role_review_df[["timestamp"]][[idx]], reviewed_at_least_once = TRUE)            
-            all_latest_reviews_df[[idx]][["reviews"]][[role]] <- curr_crr            
-          } 
-
-          for (idx in seq_len(nrow(dataset_review_df))) {            
-            all_latest_reviews_df[[idx]][["data_timestamp"]] <- dataset_review_df[["data_timestamp"]][[idx]]
-          } 
-          all_latest_reviews_df
+          
+          reviews_int <- role_review_df[["review"]][reviewed_idx]
+          reviews_char <- review[["choices"]][reviews_int]
+          all_latest_reviews[[role]][["review"]][reviewed_idx] <- reviews_char
+          all_latest_reviews[[role]][["timestamp"]][reviewed_idx] <- role_review_df[["timestamp"]][reviewed_idx]
+          return(all_latest_reviews)
         })
       }
 
-      dataset_review_df[["latest_reviews"]] <- all_latest_reviews_df
-           
       # Add latest roles columns      
-      sub_res[[dataset_review_name]] <- dataset_review_df[c("review", "timestamp", "role", "data_timestamp", "latest_reviews")]
+      sub_res[[dataset_review_name]] <- dataset_review_df[c("review", "timestamp", "role", "data_timestamps")]
       attr(sub_res[[dataset_review_name]], "map_canonical_data_into_current_order") <- 
         map_canonical_data_into_current_order
       attr(sub_res[[dataset_review_name]], "map_current_indices_into_canonical_order") <- 
@@ -470,6 +465,8 @@ REV_load_annotation_info <- function(folder_contents, review, dataset_lists) {
       attr(sub_res[[dataset_review_name]], "base_timestamp") <- base_timestamp
       # Add tracked_hashes for each revision of the dataset to be able to attribute row changes to specific columns
       attr(sub_res[[dataset_review_name]], "revisions") <- base_info[["revisions"]]
+      
+      attr(sub_res[[dataset_review_name]], "latest_reviews") <- all_latest_reviews
     }
     loaded_annotation_info[[dataset_lists_name]] <- sub_res
   }
@@ -680,38 +677,22 @@ REV_compute_review_changes <- function(data, row_indices, annotation_info, choic
     canonical_row_indices, role, choice_index, timestamp, dataset_list_name, dataset_name
   )
   
-  # NOTE: We could cache the modified table and avoid repeating this operation 
-  #       if it turns out to be a performance bottleneck
-  # TODO: This loop can be too long when there are too many rows
-  # Writing is done in one step but by row update is done one by one.
-  for (i in seq_along(row_indices)) {
-    curr_i_row <- row_indices[[i]]
-    curr_defiltered_i_row <- defiltered_row_indices[[i]]
+  data[[REV$ID$REVIEW_COL]][row_indices] <- choices[[choice_index]]
+  data[[REV$ID$ROLE_COL]][row_indices] <- role
     
-    last_review_entry <- data[curr_i_row, ][[REV$ID$LATEST_REVIEW_COL]][[1]]
-    last_review_entry[["reviews"]][[role]][["role"]] <- role
-    last_review_entry[["reviews"]][[role]][["review"]] <- choices[[choice_index]]
-    last_review_entry[["reviews"]][[role]][["timestamp"]] <- timestamp
-    
-    # Fixed columns
-    data[curr_i_row, ][[REV$ID$REVIEW_COL]] <- choices[[choice_index]]
-    data[curr_i_row, ][[REV$ID$ROLE_COL]] <- role
-    data[curr_i_row, ][[REV$ID$LATEST_REVIEW_COL]][[1]] <- last_review_entry
-    
-    # - data_time does not change when reviewed
-    
-    # `REV_load_annotation_info()` would return this same (modified) state, but we do manual synchronization
-    # to avoid potentially expensive data reloading
-    row_contents <- annotation_info[curr_defiltered_i_row, ]
-    row_contents[["review"]] <- choices[[choice_index]]
-    row_contents[["timestamp"]] <- timestamp
-    row_contents[["role"]] <- role    
-    row_contents[["latest_reviews"]][[1]] <- last_review_entry
-    # > row_contents[["data_timestamp"]] # unchanged
-    
-    annotation_info[curr_defiltered_i_row, ] <- row_contents
-  }
+  latest_reviews <- attr(data, "latest_reviews")
+  latest_reviews[[role]][["review"]][row_indices] <- choices[[choice_index]]
+  latest_reviews[[role]][["timestamp"]][row_indices] <- timestamp
   
+  attr(data, "latest_reviews") <- latest_reviews 
+  attr(annotation_info, "latest_reviews") <- latest_reviews
+  
+  # `REV_load_annotation_info()` would return this same (modified) state, but we do manual synchronization
+  # to avoid potentially expensive data reloading
+  annotation_info[["review"]][row_indices] <- choices[[choice_index]]
+  annotation_info[["timestamp"]][row_indices] <- timestamp
+  annotation_info[["role"]][row_indices] <- role
+ 
   res[["data"]] <- data 
   res[["annotation_info"]] <- annotation_info
   res[["IO_plan"]] <- IO_plan
@@ -787,9 +768,16 @@ REV_describe_undo_action <- function(
     target_data <- data[current_row_indices, ]
     undo_table <- target_data[id_vars]
     #> undo_table[["Previous review"]] <- second_to_last_review_choices # TODO? Would be nice to see the old values, but not mandatory
-    
-    undo_table_s <- capture.output(print(undo_table, row.names = FALSE))
-    undo_table_s <- sprintf("<pre>%s</pre>", paste(undo_table_s, collapse = "<br>"))
+   
+    if (nrow(undo_table) <= 11L) {
+      undo_table_s <- capture.output(print(undo_table, row.names = FALSE))
+    } else {
+      head_rows <- capture.output(print(head(undo_table, n = 5L), row.names = FALSE))
+      tail_rows <- capture.output(print(tail(undo_table, n = 5L), row.names = FALSE)) |> tail(n = 5L)
+      tail_rows <- tail(tail_rows, n = 5) # discards column names
+      undo_table_s <- c(head_rows, sprintf("(omitted %d rows)", nrow(undo_table) - 10L), tail_rows)
+    }
+    undo_table_s <- paste0("<pre>", paste(undo_table_s, collapse = "<br>"), "</pre>") 
     
     # TODO: Replace ID column names with labels if available
     
@@ -901,10 +889,14 @@ REV_respond_to_user_review <- function(ns, state, input, review, selected_datase
     annotation_info <- changes[["annotation_info"]]
     state[["annotation_info"]][[dataset_list_name]][[dataset_name]] <- annotation_info
     IO_plan <- changes[["IO_plan"]]
+    
+    latest_reviews <- attr(changes[["data"]], "latest_reviews")
+    data_timestamps <- attr(changes[["data"]], "data_timestamps")
 
     # TODO: Benchmark to decide if this is a bottleneck for bigger datasets
-    new_data[[REV$ID$STATUS_COL]] <- REV_compute_status(new_data, role)
-    new_data[[REV$ID$LATEST_REVIEW_COL]] <- REV_review_var_to_json(new_data[[REV$ID$LATEST_REVIEW_COL]])
+    new_data[[REV$ID$STATUS_COL]] <- REV_compute_status(new_data, role, latest_reviews, data_timestamps)
+    new_data[[REV$ID$LATEST_REVIEW_COL]] <- REV_review_var_to_json(latest_reviews, data_timestamps)
+    new_data <- relocate_column(new_data, REV$ID$LATEST_REVIEW_COL, 4L)
 
     new_data <- local({
       # TODO: rewrite REV_include_highlight_info to avoid this clumsy wrapper
@@ -1009,8 +1001,13 @@ REV_respond_to_user_review <- function(ns, state, input, review, selected_datase
       changes <- REV_include_review_info(annotation_info = annotation_info, data = data, col_names = list())
       shiny::validate(shiny::need(!inherits(changes, "simpleCondition"), changes[["message"]]))
       
-      changes[["data"]][[REV$ID$STATUS_COL]] <- REV_compute_status(changes[["data"]], role)
-      changes[["data"]][[REV$ID$LATEST_REVIEW_COL]] <- REV_review_var_to_json(changes[["data"]][[REV$ID$LATEST_REVIEW_COL]])        
+      latest_reviews <- attr(changes[["data"]], "latest_reviews")
+      data_timestamps <- attr(changes[["data"]], "data_timestamps")
+      changes[["data"]][[REV$ID$STATUS_COL]] <- REV_compute_status(
+        changes[["data"]], role, latest_reviews, data_timestamps
+      )
+      changes[["data"]][[REV$ID$LATEST_REVIEW_COL]] <- REV_review_var_to_json(latest_reviews, data_timestamps)        
+      changes[["data"]] <- relocate_column(changes[["data"]], REV$ID$LATEST_REVIEW_COL, 4L)
       
       data <- changes[["data"]]
       
@@ -1030,18 +1027,35 @@ REV_respond_to_user_review <- function(ns, state, input, review, selected_datase
   return(NULL)
 }
 
-REV_review_var_to_json <- function(col) {
-  res <- vector(mode = "character", length = length(col))
-  for (idx in seq_along(col)) {
-    curr_entry <- col[[idx]]
-    # Careful autounbox works with this particular structure
-    # TODO: (Optimize?) toJSON by hand given the simplicity of the structure
-    res[[idx]] <- jsonlite::toJSON(curr_entry, auto_unbox = TRUE)
+REV_review_var_to_json <- function(latest_reviews, data_timestamps) {
+  # Output has this format (newlines added for legibility):
+  # > '{
+  # >   "reviews":{
+  # >     "ROLE_1":{"review":"Reviewed with no issues","timestamp":1771937907.9553},
+  # >     "ROLE_2":{},"ROLE_3":{},"ROLE_4":{}
+  # >    },
+  # >   "data_timestamp":1769537142.1378
+  # >  }'
+ 
+  elem_count <- length(data_timestamps)
+  review_pieces <- list() 
+  for (role in names(latest_reviews)){
+    na_mask <- is.na(latest_reviews[[role]][["review"]])
+    s <- character(elem_count)
+    s[na_mask] <- sprintf('"%s":{}', role)
+    s[!na_mask] <- sprintf(
+      '"%s":{"review":"%s", "timestamp":%.3f}',
+      role, latest_reviews[[role]][["review"]][!na_mask], latest_reviews[[role]][["timestamp"]][!na_mask]
+    )
+    review_pieces <- c(review_pieces, list(s))
   }
-  res
+  reviews <- do.call(paste, c(review_pieces, sep = ","))
+  
+  res <- paste0('{"reviews":{', reviews, sprintf('},"data_timestamp":%.3f}', data_timestamps))
+  return(res)
 }
 
-REV_compute_status <- function(dataset_review, role) {
+REV_compute_status <- function(dataset_review, role, latest_reviews, data_timestamps) {
 
   # Does this function make sense with no role? Yes it does because the latest review is the one that may be outdated,
   # conflicting, unreviewed, etc.
@@ -1066,25 +1080,23 @@ REV_compute_status <- function(dataset_review, role) {
   outdated_role_mask <- rep_len(FALSE, nrow(res))
   for (idx in reviewed_status_idx) {
     if (dataset_review[[REV$ID$ROLE_COL]][[idx]] != "") { # There has been at least one review
-      curr_reviews <- dataset_review[[REV$ID$LATEST_REVIEW_COL]][[idx]][["reviews"]]
-      data_timestamp <- dataset_review[[REV$ID$LATEST_REVIEW_COL]][[idx]][["data_timestamp"]]
+      data_timestamp <- data_timestamps[[idx]]
       latest_review <- dataset_review[[REV$ID$REVIEW_COL]][[idx]]
       latest_reviewer <- dataset_review[[REV$ID$ROLE_COL]][[idx]]
-      latest_timestamp <- curr_reviews[[as.character(latest_reviewer)]][["timestamp"]]
+      latest_timestamp <- latest_reviews[[as.character(latest_reviewer)]][["timestamp"]][[idx]]
 
       # latest is outdated      
       outdated_latest_mask[[idx]] <- data_timestamp > latest_timestamp
 
-      for (role_nm in names(curr_reviews)) {
-        curr_entry <- curr_reviews[[role_nm]]
-        if (!is.null(curr_entry)) { # role_nm has reviewed this row
-          curr_review_timestamp <- curr_entry[["timestamp"]]
-          curr_review <- curr_entry[["review"]]
+      for (role_nm in names(latest_reviews)) {
+        curr_review <- latest_reviews[[role_nm]][["review"]][[idx]]
+        if (!is.na(curr_review)) { # role_nm has reviewed this row
+          curr_review_timestamp <- latest_reviews[[role_nm]][["timestamp"]][[idx]]
           # current is outdated
           conflict_with_latest_mask[[idx]] <- conflict_with_latest_mask[[idx]] || curr_review != latest_review
           if (!is.na(role) && role_nm == role) {
             outdated_role_mask[[idx]] <- data_timestamp > curr_review_timestamp
-            conflict_with_role_mask[[idx]] <- curr_entry[["review"]] != latest_review
+            conflict_with_role_mask[[idx]] <- curr_review != latest_review
           }
         }
       }

@@ -28,3 +28,21 @@ trigger_only_on_change <- function(r) {
     x
   }
 }
+
+relocate_column <- function(df, column_name, destination_index) {
+  if (ncol(df) < destination_index) return(simpleCondition("Not enough columns"))
+  if (destination_index < 1L) return(simpleCondition("`destination_index` must be positive"))
+  
+  original_index <- which(names(df) == column_name)
+  if (length(original_index) != 1L)
+    return(simpleCondition("`column_name` must uniquely identify a single column of the input data.frame"))
+  
+  if (original_index == destination_index) return(df)
+ 
+  all_but_one_column_indices <- setdiff(seq_len(ncol(df)), original_index)
+  target_order <- append(all_but_one_column_indices, original_index, after = destination_index - 1L)
+  df <- df[, target_order]
+  
+  return(df)
+}
+

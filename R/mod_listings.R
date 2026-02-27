@@ -582,9 +582,16 @@ listings_server <- function(module_id,
           col_names = table_data[["col_names"]]
         )
         shiny::validate(shiny::need(!inherits(changes, "simpleCondition"), changes[["message"]]))
+        
+        latest_reviews <- attr(changes[["data"]], "latest_reviews")
+        data_timestamps <- attr(changes[["data"]], "data_timestamps")
 
-        changes[["data"]][[REV$ID$STATUS_COL]] <- REV_compute_status(changes[["data"]], role)
-        changes[["data"]][[REV$ID$LATEST_REVIEW_COL]] <- REV_review_var_to_json(changes[["data"]][[REV$ID$LATEST_REVIEW_COL]])        
+        changes[["data"]][[REV$ID$STATUS_COL]] <- REV_compute_status(
+          changes[["data"]], role, latest_reviews, data_timestamps
+        )
+        
+        changes[["data"]][[REV$ID$LATEST_REVIEW_COL]] <- REV_review_var_to_json(latest_reviews, data_timestamps)
+        changes[["data"]] <- relocate_column(changes[["data"]], REV$ID$LATEST_REVIEW_COL, 4L)
         
         review_col_count <- ncol(changes[["data"]]) - ncol(table_data[["data"]])
         table_data[["data"]] <- changes[["data"]]
