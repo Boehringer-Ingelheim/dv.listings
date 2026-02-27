@@ -677,7 +677,6 @@ REV_compute_review_changes <- function(data, row_indices, annotation_info, choic
     canonical_row_indices, role, choice_index, timestamp, dataset_list_name, dataset_name
   )
   
-  data[[REV$ID$REVIEW_COL]][row_indices] <- choices[choice_index]
   data[[REV$ID$REVIEW_COL]][row_indices] <- choices[[choice_index]]
   data[[REV$ID$ROLE_COL]][row_indices] <- role
     
@@ -1029,10 +1028,14 @@ REV_respond_to_user_review <- function(ns, state, input, review, selected_datase
 }
 
 REV_review_var_to_json <- function(latest_reviews, data_timestamps) {
-  # Output should have this format:
-  # > '{"reviews":{"ROLE_1":{"role":"ROLE_1","review":"Reviewed with no issues","timestamp":1771937907.9553,"reviewed_at_least_once":true},
-  # >   "ROLE_2":{},"ROLE_3":{},"ROLE_4":{}},\"data_timestamp\":1769537142.1378}'
-  # TODO: Do we need "role" and "reviewed_at_least_once" ?
+  # Output has this format (newlines added for legibility):
+  # > '{
+  # >   "reviews":{
+  # >     "ROLE_1":{"review":"Reviewed with no issues","timestamp":1771937907.9553},
+  # >     "ROLE_2":{},"ROLE_3":{},"ROLE_4":{}
+  # >    },
+  # >   "data_timestamp":1769537142.1378
+  # >  }'
  
   elem_count <- length(data_timestamps)
   review_pieces <- list() 

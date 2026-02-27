@@ -1,6 +1,6 @@
 # dv.listings 4.3.1-9003
 - Faster response to review actions
-- Remove depencency on jsonlite
+- Remove dependency on jsonlite
 
 # dv.listings 4.3.1-9002
 - Vendor xxhashlite library to remove package dependency.
