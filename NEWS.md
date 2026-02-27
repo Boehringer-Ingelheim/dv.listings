@@ -1,3 +1,6 @@
+# dv.listings 4.3.1-9004
+- Limited column width resizing support
+
 # dv.listings 4.3.1-9003
 - Faster response to review actions
 - Remove dependency on jsonlite

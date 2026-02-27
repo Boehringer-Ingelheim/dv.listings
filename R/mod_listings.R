@@ -655,6 +655,7 @@ listings_server <- function(module_id,
           # TODO: Update to use new recommended API: https://datatables.net/reference/option/layout
           dom = "<'top'<'top-title'>>rtilp", # Buttons, filtering, processing display element, table, information summary, length, pagination
           fixedColumns = list(left = review_col_count),
+          colResize = list(),
           initComplete = htmlwidgets::JS(init_complete_js),
           drawCallback = htmlwidgets::JS("
             function (settings) {  
@@ -683,6 +684,20 @@ listings_server <- function(module_id,
           ") # Keep filtering enabled even for columns that have a unique value
         ),
         selection = "none"
+      )
+      
+      res$dependencies <- c(
+        # Inject the JS/CSS `colResize` dependency directly into the table to force it to load after jQuery
+        res$dependencies, list(
+          htmltools::htmlDependency(
+            name = "colResize",
+            version = "1.6.1",
+            src = system.file("www/", package = "dv.listings", mustWork = TRUE),
+            script = "js/jquery.dataTables.colResize.js",
+            stylesheet = "css/jquery.dataTables.colResize.css",
+            all_files = FALSE
+          )
+        )
       )
       
       if (show_review_columns()) {
