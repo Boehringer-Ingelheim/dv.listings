@@ -46,5 +46,5 @@ Imports:
 Depends: R (>= 4.1.0)
 RoxygenNote: 7.3.2
 Roxygen: list(markdown = TRUE)
-Remotes: boehringer-ingelheim/dv.manager@main
+Remotes: boehringer-ingelheim/dv.manager
 VignetteBuilder: knitr
