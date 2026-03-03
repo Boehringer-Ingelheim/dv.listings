@@ -157,3 +157,65 @@ local({
   })
 })
 
+test_that("REV_compute_status preserves expected behavior", {
+  dataset_review <- data.frame(
+    `__review__` = factor(c("Default", "Default", "Default"), levels =  c("Default", "A", "B", "C")), 
+    `__role__` = factor(c("", "", ""), levels = c("", "ROLE_1", "ROLE_2", "ROLE_3", "ROLE_4")), 
+    `__status__` = c(NA_character_, NA_character_, NA_character_), 
+    check.names = FALSE
+  )
+  
+  role <- NA
+  
+  latest_reviews_by_role <- list(
+    ROLE_1 = list(review = c(NA, NA, NA), timestamp = c(NA, NA, NA)), 
+    ROLE_2 = list(review = c(NA, NA, NA), timestamp = c(NA, NA, NA)), 
+    ROLE_3 = list(review = c(NA, NA, NA), timestamp = c(NA, NA, NA)), 
+    ROLE_4 = list(review = c(NA, NA, NA), timestamp = c(NA, NA, NA))
+  )
+  
+  data_timestamps <- c(0, 0, 0)
+  
+  res_levels <- c("Pending", "Latest Outdated", "Conflict", "Conflict I can fix", "OK")
+ 
+  # No reviews 
+  res <- REV_compute_status(dataset_review, role, latest_reviews_by_role, data_timestamps)
+  expect_equal(res, factor(c("Pending", "Pending", "Pending"), levels = res_levels))
+ 
+  # ROLE_1 reviews first row as "A" 
+  dataset_review[["__review__"]][[1]] <- "A"
+  dataset_review[["__role__"]][[1]] <- "ROLE_1"
+  latest_reviews_by_role[["ROLE_1"]][["review"]][[1]]  <- "A"
+  latest_reviews_by_role[["ROLE_1"]][["timestamp"]][[1]] <- 1
+  res <- REV_compute_status(dataset_review, role, latest_reviews_by_role, data_timestamps)
+  expect_equal(res, factor(c("OK", "Pending", "Pending"), levels = res_levels))
+ 
+  # Review becomes outdated 
+  data_timestamps[[1]] <- 2
+  res <- REV_compute_status(dataset_review, role, latest_reviews_by_role, data_timestamps)
+  expect_equal(res, factor(c("Latest Outdated", "Pending", "Pending"), levels = res_levels))
+  
+  # ROLE_2 reviews first row as "B"
+  dataset_review[["__review__"]][[1]] <- "B"
+  dataset_review[["__role__"]][[1]] <- "ROLE_2"
+  latest_reviews_by_role[["ROLE_2"]][["review"]][[1]]  <- "A"
+  latest_reviews_by_role[["ROLE_2"]][["timestamp"]][[1]] <- 3
+  res <- REV_compute_status(dataset_review, role, latest_reviews_by_role, data_timestamps)
+  expect_equal(res, factor(c("Conflict", "Pending", "Pending"), levels = res_levels))
+ 
+  # See status from the point of view of ROLE_1
+  role <- "ROLE_1"
+  res <- REV_compute_status(dataset_review, role, latest_reviews_by_role, data_timestamps)
+  expect_equal(res, factor(c("Conflict I can fix", "Pending", "Pending"), levels = res_levels))
+ 
+  # See status from the point of view of ROLE_2 
+  role <- "ROLE_2"
+  res <- REV_compute_status(dataset_review, role, latest_reviews_by_role, data_timestamps)
+  expect_equal(res, factor(c("Conflict I can fix", "Pending", "Pending"), levels = res_levels))
+ 
+  # See status from the point of view of ROLE_3 
+  role <- "ROLE_3"
+  res <- REV_compute_status(dataset_review, role, latest_reviews_by_role, data_timestamps)
+  expect_equal(res, factor(c("Conflict", "Pending", "Pending"), levels = res_levels))
+})
+
