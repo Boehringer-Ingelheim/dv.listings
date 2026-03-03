@@ -1,11 +1,3 @@
-# TODO: The temptation here would be to avoid the many transitions that we make from 
-#       R to C by handing over the data frame that we want to hash. That way we can 
-#       allocate a suitably sized data structure and collect all hashes in one go.
-#      
-#       Measuring precedes optimizing, but it looks like the module would benefit from
-#       combining the calls to hash_tracked_inner for an entire data.frame under a 
-#       single C call.
-#
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #' Calculate the hash of a raw vector or string
 #' 
@@ -29,5 +21,5 @@
 #' xxhash_raw(vec)
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 xxhash_raw <- function(vec, algo = "xxh128", as_raw = FALSE) {
-  .Call(xxhash_raw_, vec, algo, as_raw)
+  .Call(xxhash_raw_, vec, algo, as_raw) # Only really used as reference for the `dv_xxh_*` bulk hashes
 }

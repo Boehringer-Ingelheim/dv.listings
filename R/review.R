@@ -1074,7 +1074,7 @@ REV_compute_status <- function(dataset_review, role, latest_reviews_by_role, dat
  
   outdated_latest_mask <- local({
     latest_review_timestamps <- rep(-Inf, length(res))
-    for(rev in latest_reviews_by_role){
+    for (rev in latest_reviews_by_role){
       latest_review_timestamps <- pmax(latest_review_timestamps, rev[["timestamp"]], na.rm = TRUE)
     }
     res <- (data_timestamps > latest_review_timestamps) & !pending_mask
@@ -1083,7 +1083,7 @@ REV_compute_status <- function(dataset_review, role, latest_reviews_by_role, dat
   
   conflict_with_latest_mask <- local({
     res <- rep_len(FALSE, length(res))
-    for(rev in latest_reviews_by_role){
+    for (rev in latest_reviews_by_role){
       mask <- dataset_review[[REV$ID$REVIEW_COL]] != rev[["review"]]
       res <- pmax(res, mask, na.rm = TRUE)
     }
@@ -1093,7 +1093,7 @@ REV_compute_status <- function(dataset_review, role, latest_reviews_by_role, dat
   
   conflict_with_role_mask <- local({
     res <- rep_len(FALSE, length(res))
-    if(!is.na(role)){
+    if (!is.na(role)) {
       role_review <- latest_reviews_by_role[[role]][["review"]]
       res <- (role_review != 1 & role_review != dataset_review[[REV$ID$REVIEW_COL]])
     }
