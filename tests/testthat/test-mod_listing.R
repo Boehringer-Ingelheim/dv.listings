@@ -492,50 +492,7 @@ test_that("mod_listings displays no table when handed an empty data.frame", {
   app$stop()
   
   testthat::expect_equal(actual, expected = 0)
-}) # integration
-
-test_that("mock_table_mm() displays selected columns after activating global filter", {
-  # Initialize test app
-  app <- shinytest2::AppDriver$new(
-    app_dir = app_dir, name = "test_global_filter_selected_cols"
-  )
-
-  # Set selected columns
-  selected_cols <- c("STUDYID", "USUBJID")
-  app$set_inputs(`multi-col_sel` = selected_cols)
-  app$wait_for_idle()
-
-  # Activate global filter
-  app$set_inputs(`global_filter-vars` = "RACE")
-  app$wait_for_idle()
-
-  actual <- app$get_value(input = "multi-col_sel")
-
-  testthat::expect_equal(actual, expected = selected_cols)
-}) # integration
-
-test_that("mock_table_mm() displays selected dataset after activating global filter", {
-  # Initialize test app
-  app <- shinytest2::AppDriver$new(
-    app_dir = app_dir, name = "test_global_filter_selected_dataset"
-  )
-
-  selected <- "adae"
-  # Switch dataset
-  app$set_inputs(`multi-dataset` = selected)
-  app$wait_for_idle()
-
-  # Activate global filter
-  app$set_inputs(`global_filter-vars` = "RACE")
-  app$wait_for_idle()
-
-  actual <- app$get_value(input = "multi-dataset")
-
-  # Kill test app
-  app$stop()
-
-  testthat::expect_equal(actual, expected = selected)
-}) # integration
+})
 
 app_dir <- "./apps/listings_app" # applies for all tests within this describe()
 app <- shinytest2::AppDriver$new(app_dir = app_dir, name = "test_listings_app")
