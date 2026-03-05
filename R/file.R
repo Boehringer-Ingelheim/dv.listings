@@ -145,7 +145,7 @@ fsa_init <- function(input, input_id, session = shiny::getDefaultReactiveDomain(
       IO_action_sequence_number <<- IO_action_sequence_number + 1L
     }
 
-    IO_plans_in_flight <<- c(IO_plans_in_flight, IO_plan) # NOTE: Used on the next observeEvent to update the local content cache
+    IO_plans_in_flight[[length(IO_plans_in_flight) + 1]] <<- IO_plan # NOTE: Used on the next observeEvent to update the local content cache
 
     IO_plan_base64_encode <- function(plan) {
       encoded_plan <- plan
@@ -176,8 +176,11 @@ fsa_init <- function(input, input_id, session = shiny::getDefaultReactiveDomain(
       return(NULL)
     }
 
-    latest_IO_plan <- head(IO_plans_in_flight, 1)
-    IO_plans_in_flight <<- IO_plans_in_flight[-1]
+    latest_IO_plan <- NULL
+    if (length(IO_plans_in_flight)) {
+      latest_IO_plan <- IO_plans_in_flight[[1]]
+      IO_plans_in_flight <<- IO_plans_in_flight[-1]
+    }
 
     status <- v[["status"]]
     if (length(status) != length(latest_IO_plan)) {
