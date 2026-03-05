@@ -481,26 +481,16 @@ test_that("mock_table_mm() updates dropdown choices on dataset change in dv.mana
   testthat::expect_equal(actual, expected = expected)
 }) # integration
 
-test_that("mock_table_mm() displays no table when global filter returns an empty data.frame", {
-  # Initialize test app
+test_that("mod_listings displays no table when handed an empty data.frame", {
   app <- shinytest2::AppDriver$new(
-    app_dir = app_dir, name = "test_empty_df",
-    timeout = 6000, load_timeout = 30000
+    app_dir = "./apps/mm_no_data_app", name = "test_no_data_app"
   )
-
-  # Choose global filter settings that lead to an empty data.frame
-  # NOTE: It is not possible to put those two set_input() lines into only one call since we need to wait until the
-  # first input is available! (Second call wouldn't be able to find it otherwise.)
-  app$set_inputs(`global_filter-vars` = "RACE")
-  app$wait_for_idle()
-  app$set_inputs(`global_filter-RACE` = character(0))
-  app$wait_for_idle(duration = 3000)
-
-  # Verify that a table with zero rows is shown
-
-  dataset <- app$get_value(export = "multi-output_table")
+  
+  dataset <- app$get_value(export = "single-output_table")
   actual <- nrow(dataset)
-
+  
+  app$stop()
+  
   testthat::expect_equal(actual, expected = 0)
 }) # integration
 
