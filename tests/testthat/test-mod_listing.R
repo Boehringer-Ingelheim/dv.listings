@@ -322,6 +322,8 @@ test_that("mod_listings() displays a data table, dataset selector and correspond
   app <- shinytest2::AppDriver$new(
     app_dir = app_dir, name = "test_initial_state"
   )
+  
+  app$wait_for_idle() # Necessary after the inclusion of the colResize extension
 
   dataset_sel <- app$get_value(input = "listings-dataset")
   column_sel <- app$get_value(input = "listings-col_sel")
