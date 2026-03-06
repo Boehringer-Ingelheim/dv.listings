@@ -68,7 +68,7 @@ SH <- local({ # _S_erialization _H_elpers
     for (i_col in seq_len(n_col)) {
       col_indices <- (((i_col - 1) + hash_tracked_offsets) %% n_col) + 1
       single_col <- do.call(function(...) paste(..., sep = "\1D"), lapply(df[col_indices], as.character)) # TODO: Intended separator is "\035" but maintaining for backwards compatibility
-      res[[i_col]] <- .Call(dv_xxh16_char_input_, single_col) # TODO: Do the dropping inside the .Call
+      res[[i_col]] <- .Call(dv_xxh16_char_input_, single_col)
     }
     res <- do.call(rbind, res)
     return(res)
