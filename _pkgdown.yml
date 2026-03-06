@@ -12,8 +12,8 @@ navbar:
 home:
   title: dv.listings
   links:
-  - text: Browse source code
-    href: https://github.com/Boehringer-Ingelheim/dv.listings
+
+url: https://boehringer-ingelheim.github.io/dv.listings
 
 reference:
 - title: "Modules and utils"

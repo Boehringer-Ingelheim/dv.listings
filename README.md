@@ -9,7 +9,7 @@ listing can be filtered to show only entries containing a keyword specified by t
 The module is not limited to usage of one data source,
 most notably, it can handle data from ADaM or SDTM.
 
-<img src="man/figures/table_main_view.PNG" width="100%" />
+<img src="man/figures/table_main_view.PNG" width="100%" alt="Sample listing"/>
 
 The module is prepared to be used in combination with DaVinci's {dv.manager} package and
 supports its bookmarking functionality.
