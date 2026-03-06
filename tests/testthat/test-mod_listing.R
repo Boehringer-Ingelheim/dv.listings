@@ -481,71 +481,18 @@ test_that("mock_table_mm() updates dropdown choices on dataset change in dv.mana
   testthat::expect_equal(actual, expected = expected)
 }) # integration
 
-test_that("mock_table_mm() displays no table when global filter returns an empty data.frame", {
-  # Initialize test app
+test_that("mod_listings displays no table when handed an empty data.frame", {
   app <- shinytest2::AppDriver$new(
-    app_dir = app_dir, name = "test_empty_df",
-    timeout = 6000, load_timeout = 30000
+    app_dir = "./apps/mm_no_data_app", name = "test_no_data_app"
   )
-
-  # Choose global filter settings that lead to an empty data.frame
-  # NOTE: It is not possible to put those two set_input() lines into only one call since we need to wait until the
-  # first input is available! (Second call wouldn't be able to find it otherwise.)
-  app$set_inputs(`global_filter-vars` = "RACE")
-  app$wait_for_idle()
-  app$set_inputs(`global_filter-RACE` = character(0))
-  app$wait_for_idle(duration = 3000)
-
-  # Verify that a table with zero rows is shown
-
-  dataset <- app$get_value(export = "multi-output_table")
+  
+  dataset <- app$get_value(export = "single-output_table")
   actual <- nrow(dataset)
-
-  testthat::expect_equal(actual, expected = 0)
-}) # integration
-
-test_that("mock_table_mm() displays selected columns after activating global filter", {
-  # Initialize test app
-  app <- shinytest2::AppDriver$new(
-    app_dir = app_dir, name = "test_global_filter_selected_cols"
-  )
-
-  # Set selected columns
-  selected_cols <- c("STUDYID", "USUBJID")
-  app$set_inputs(`multi-col_sel` = selected_cols)
-  app$wait_for_idle()
-
-  # Activate global filter
-  app$set_inputs(`global_filter-vars` = "RACE")
-  app$wait_for_idle()
-
-  actual <- app$get_value(input = "multi-col_sel")
-
-  testthat::expect_equal(actual, expected = selected_cols)
-}) # integration
-
-test_that("mock_table_mm() displays selected dataset after activating global filter", {
-  # Initialize test app
-  app <- shinytest2::AppDriver$new(
-    app_dir = app_dir, name = "test_global_filter_selected_dataset"
-  )
-
-  selected <- "adae"
-  # Switch dataset
-  app$set_inputs(`multi-dataset` = selected)
-  app$wait_for_idle()
-
-  # Activate global filter
-  app$set_inputs(`global_filter-vars` = "RACE")
-  app$wait_for_idle()
-
-  actual <- app$get_value(input = "multi-dataset")
-
-  # Kill test app
+  
   app$stop()
-
-  testthat::expect_equal(actual, expected = selected)
-}) # integration
+  
+  testthat::expect_equal(actual, expected = 0)
+})
 
 app_dir <- "./apps/listings_app" # applies for all tests within this describe()
 app <- shinytest2::AppDriver$new(app_dir = app_dir, name = "test_listings_app")

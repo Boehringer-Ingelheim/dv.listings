@@ -1,3 +1,6 @@
+# dv.listings 4.3.1-9005
+- Improved checks of asynchronous review write actions
+
 # dv.listings 4.3.1-9004
 - Limited column width resizing support
 

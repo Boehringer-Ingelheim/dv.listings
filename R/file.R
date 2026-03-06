@@ -126,7 +126,9 @@ fsa_init <- function(input, input_id, session = shiny::getDefaultReactiveDomain(
 
   # EXECUTE_IO_PLAN ----
   # Send the client a group of write operations to perform and patch cached files to reflect those changes
-  latest_IO_plan <- list()
+  IO_plans_in_flight <- list()
+  IO_action_sequence_number <- 0L
+
   .execute_IO_plan <- function(IO_plan, callback = function(v) NULL) {
     # boilerplate
     if (length(state[["error"]]) > 0) {
@@ -138,7 +140,12 @@ fsa_init <- function(input, input_id, session = shiny::getDefaultReactiveDomain(
     # actual behavior
     callbacks[["execute_IO_plan"]] <<- callback
 
-    latest_IO_plan <<- IO_plan # NOTE: Used on the next observeEvent to update the local content cache
+    for (i_action in seq_along(IO_plan)){
+      IO_plan[[i_action]][["sequence_number"]] <- IO_action_sequence_number
+      IO_action_sequence_number <<- IO_action_sequence_number + 1L
+    }
+
+    IO_plans_in_flight[[length(IO_plans_in_flight) + 1]] <<- IO_plan # NOTE: Used on the next observeEvent to update the local content cache
 
     IO_plan_base64_encode <- function(plan) {
       encoded_plan <- plan
@@ -161,7 +168,6 @@ fsa_init <- function(input, input_id, session = shiny::getDefaultReactiveDomain(
     # boilerplate
     callback_count <<- callback_count + 1L
     on.exit(callbacks[["execute_IO_plan"]](callback_count))
-    on.exit(latest_IO_plan <<- list(), add = TRUE)
     shiny::req(length(state[["error"]]) == 0)
 
     v <- input[[execute_IO_plan_id]]
@@ -170,11 +176,29 @@ fsa_init <- function(input, input_id, session = shiny::getDefaultReactiveDomain(
       return(NULL)
     }
 
+    latest_IO_plan <- NULL
+    if (length(IO_plans_in_flight)) {
+      latest_IO_plan <- IO_plans_in_flight[[1]]
+      IO_plans_in_flight <<- IO_plans_in_flight[-1]
+    }
+
     status <- v[["status"]]
     if (length(status) != length(latest_IO_plan)) {
       state[["error"]] <- sprintf("Error in IO plan execution. Issued %d actions. Executed %d actions instead",
                                   length(latest_IO_plan), length(status))
       return(NULL)
+    }
+    
+    for (i_action in seq_along(latest_IO_plan)){
+      if (status[[i_action]][["sequence_number"]] != latest_IO_plan[[i_action]][["sequence_number"]]) {
+        state[["error"]] <- sprintf(
+          paste(
+            "Error in IO plan execution. Expected result for action with sequence number %d;",
+            "got action %d instead.",
+          ), latest_IO_plan[[i_action]][["sequence_number"]], status[[i_action]][["sequence_number"]]
+        )
+        return(NULL)
+      }
     }
     
     for (i in seq_along(status)){
