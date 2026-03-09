@@ -501,6 +501,8 @@ const dv_fsa = (function() {
     try { // NOTE: Follows the same logic as #isoaxo
       let path_components = file_path.split('/');
       let fname = path_components.pop();
+      
+      if(path_components.length == 0) path_components = ['.'];
       let folder_path = path_components.join('/');
 
       let contents = await _base64_to_buffer(contents_b64);
@@ -626,6 +628,8 @@ const dv_fsa = (function() {
       for(let path of paths){
         let path_components = path.split('/');
         let fname = path_components.pop();
+        if(path_components.length == 0) path_components = ['.'];
+
         let dir_handle = g_directory_handle;
         
         for(subdirname of path_components){
@@ -718,6 +722,8 @@ const dv_fsa = (function() {
   const remove = async function(path) {
     let path_components = path.split('/');
     let fname = path_components.pop();
+    if(path_components.length == 0) path_components = ['.'];
+
     let dir_handle = g_directory_handle;
     
     for(subdirname of path_components){
