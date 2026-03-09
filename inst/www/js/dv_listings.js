@@ -384,7 +384,7 @@ const dv_listings = (function () {
     show_child: show_child
   }
   return (res)
-})()
+})();
 
 const dv_listings_blocker = (function () {
   Shiny.addCustomMessageHandler('dv-listings-toggle-dt-processing', function(message) {
@@ -411,7 +411,7 @@ const dv_listings_blocker = (function () {
       container.find('table').trigger('processing.dt', [null_event, false]);
     }
   });
-})()
+})();
 
 const dv_fsa = (function() {
   const FS_WRITE_OFFSET_APPEND = -1;

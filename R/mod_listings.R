@@ -684,6 +684,7 @@ listings_server <- function(module_id,
             }
           ") # Keep filtering enabled even for columns that have a unique value
         ),
+        class = "display dv-listings-table",
         selection = "none"
       )
       
