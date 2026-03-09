@@ -1,3 +1,7 @@
+# dv.listings 4.3.1-9007
+- Show DT progress indicators during long review actions
+- Fix FSA file creation regression
+
 # dv.listings 4.3.1-9006
 - Faster response to review actions
 
