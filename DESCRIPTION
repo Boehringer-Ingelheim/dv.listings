@@ -1,7 +1,7 @@
 Package: dv.listings
 Type: Package
 Title: Data listings module
-Version: 4.3.1-9005
+Version: 4.3.1-9006
 Authors@R: 
     c(
       person("Boehringer-Ingelheim Pharma GmbH & Co.KG", role = c("cph", "fnd")),
@@ -48,3 +48,4 @@ RoxygenNote: 7.3.2
 Roxygen: list(markdown = TRUE)
 Remotes: boehringer-ingelheim/dv.manager
 VignetteBuilder: knitr
+URL: https://github.com/Boehringer-Ingelheim/dv.listings, https://boehringer-ingelheim.github.io/dv.listings

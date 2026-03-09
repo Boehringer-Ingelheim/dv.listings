@@ -1,3 +1,6 @@
+# dv.listings 4.3.1-9006
+- Faster response to review actions
+
 # dv.listings 4.3.1-9005
 - Improved checks of asynchronous review write actions
 

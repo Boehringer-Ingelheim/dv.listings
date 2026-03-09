@@ -28,7 +28,8 @@ REV <- pack_of_constants(
     CONFLICT_ROLE = "Conflict I can fix",
     OK = "OK"
   ),
-  HIGHLIGHT_ALL_TRACKED_COLUMNS_IF_MORE_THAN_N_COLUMNS_HAVE_CHANGED = 4
+  HIGHLIGHT_ALL_TRACKED_COLUMNS_IF_MORE_THAN_N_COLUMNS_HAVE_CHANGED = 4L,
+  DEFAULT_REVIEW_VALUE = 1L
 )
 
 REV_time_from_timestamp <- function(v) {  
@@ -70,6 +71,9 @@ REV_include_review_info <- function(annotation_info, data, col_names) {
   attributes_to_restore <- setdiff(ls(attributes(data)), c("class", "names"))
   for (e in attributes_to_restore) attr(res, e) <- attr(data, e)
  
+  # TODO: Consider returning these as regular members of the output list
+  # TODO: Consider attaching these from the caller site instead
+  # TODO: Consider taking latest_reviews as separate input variable
   attr(res, "latest_reviews") <- attr(annotation_info, "latest_reviews") # pass-through
   attr(res, "data_timestamps") <- annotation_info[["data_timestamps"]] # pass-through
 
@@ -1055,8 +1059,7 @@ REV_review_var_to_json <- function(latest_reviews, data_timestamps) {
   return(res)
 }
 
-REV_compute_status <- function(dataset_review, role, latest_reviews, data_timestamps) {
-
+REV_compute_status <- function(dataset_review, role, latest_reviews_by_role, data_timestamps) {
   # Does this function make sense with no role? Yes it does because the latest review is the one that may be outdated,
   # conflicting, unreviewed, etc.
   # Optionally, we could indicate if the current role does have a conflict or is it someone else?
@@ -1064,51 +1067,56 @@ REV_compute_status <- function(dataset_review, role, latest_reviews, data_timest
   # Include the button if the selected role has this problem, basically we have a different review and we want to 
   # change to the currently selected.
 
-  # Should conflict only appear with respect to the selected role? Then this column should be recalculated everytime.
+  # Should conflict only appear with respect to the selected role? Then this column should be recalculated every time.
   # Conflict with me conflict with others?
-  # For now we say conflict but we don't say with whom.
+  # For now we indicate conflicts but not with whom.
 
-  res <- dataset_review
-  unclassed_status_levels <- unclass(REV$STATUS_LEVELS) # Get rid of poc class, otherwise factor levels errors
-  res[[REV$ID$STATUS_COL]] <- factor(rep(REV$STATUS_LEVELS$OK, length = nrow(res)), levels = unclassed_status_levels)
-  pending_mask <- dataset_review[[REV$ID$REVIEW_COL]] == levels(dataset_review[[REV$ID$REVIEW_COL]])[[1]] # First level is always default
-  reviewed_status_idx <- which(dataset_review[[REV$ID$ROLE_COL]] != "")
+  row_count <- nrow(dataset_review)
   
-  conflict_with_latest_mask <- rep_len(FALSE, nrow(res))
-  conflict_with_role_mask <- rep_len(FALSE, nrow(res))
-  outdated_latest_mask <- rep_len(FALSE, nrow(res))
-  outdated_role_mask <- rep_len(FALSE, nrow(res))
-  for (idx in reviewed_status_idx) {
-    if (dataset_review[[REV$ID$ROLE_COL]][[idx]] != "") { # There has been at least one review
-      data_timestamp <- data_timestamps[[idx]]
-      latest_review <- dataset_review[[REV$ID$REVIEW_COL]][[idx]]
-      latest_reviewer <- dataset_review[[REV$ID$ROLE_COL]][[idx]]
-      latest_timestamp <- latest_reviews[[as.character(latest_reviewer)]][["timestamp"]][[idx]]
-
-      # latest is outdated      
-      outdated_latest_mask[[idx]] <- data_timestamp > latest_timestamp
-
-      for (role_nm in names(latest_reviews)) {
-        curr_review <- latest_reviews[[role_nm]][["review"]][[idx]]
-        if (!is.na(curr_review)) { # role_nm has reviewed this row
-          curr_review_timestamp <- latest_reviews[[role_nm]][["timestamp"]][[idx]]
-          # current is outdated
-          conflict_with_latest_mask[[idx]] <- conflict_with_latest_mask[[idx]] || curr_review != latest_review
-          if (!is.na(role) && role_nm == role) {
-            outdated_role_mask[[idx]] <- data_timestamp > curr_review_timestamp
-            conflict_with_role_mask[[idx]] <- curr_review != latest_review
-          }
-        }
-      }
+  pending_mask <- dataset_review[[REV$ID$REVIEW_COL]] == levels(dataset_review[[REV$ID$REVIEW_COL]])[[1]] # First level is always default
+ 
+  outdated_latest_mask <- local({
+    latest_review_timestamps <- rep(-Inf, row_count)
+    for (rev in latest_reviews_by_role){
+      latest_review_timestamps <- pmax(latest_review_timestamps, rev[["timestamp"]], na.rm = TRUE)
     }
-  }
-
-  res[[REV$ID$STATUS_COL]][pending_mask] <- REV$STATUS_LEVELS$PENDING
-  res[[REV$ID$STATUS_COL]][outdated_latest_mask] <- REV$STATUS_LEVELS$LATEST_OUTDATED
-  res[[REV$ID$STATUS_COL]][conflict_with_latest_mask & !outdated_latest_mask] <- REV$STATUS_LEVELS$CONFLICT
-  res[[REV$ID$STATUS_COL]][conflict_with_role_mask & !outdated_latest_mask] <- REV$STATUS_LEVELS$CONFLICT_ROLE
-    
-  return(res[[REV$ID$STATUS_COL]])
+    res <- (data_timestamps > latest_review_timestamps) & !pending_mask
+    return(res)
+  })
+  
+  conflict_with_latest_mask <- local({
+    res <- rep_len(FALSE, row_count)
+    for (rev in latest_reviews_by_role){
+      mask <- dataset_review[[REV$ID$REVIEW_COL]] != rev[["review"]]
+      res <- pmax(res, mask, na.rm = TRUE)
+    }
+    res <- as.logical(res)
+    return(res)
+  })
+  
+  conflict_with_role_mask <- local({
+    res <- rep_len(FALSE, row_count)
+    if (!is.na(role)) {
+      role_review <- latest_reviews_by_role[[role]][["review"]]
+      res <- ((role_review != REV$DEFAULT_REVIEW_VALUE) & (role_review != dataset_review[[REV$ID$REVIEW_COL]]))
+    }
+    return(res)
+  })
+ 
+  # NOTE: Assignments in ascending order of priority (0..4)
+  # [0] All rows are OK...
+  res <- factor(rep(REV$STATUS_LEVELS$OK, length = nrow(dataset_review)), 
+                levels = unclass(REV$STATUS_LEVELS)) # Strips POC class away to prevent factor level errors
+  # [1] Except for pending rows
+  res[pending_mask] <- REV$STATUS_LEVELS$PENDING
+  # [2] A conflicting row deserves attention
+  res[conflict_with_latest_mask] <- REV$STATUS_LEVELS$CONFLICT
+  # [3] A conflict in which the current role participates deserves even more attention
+  res[conflict_with_role_mask] <- REV$STATUS_LEVELS$CONFLICT_ROLE
+  # [4] But a review based on outdated information is the most relevant
+  res[outdated_latest_mask] <- REV$STATUS_LEVELS$LATEST_OUTDATED
+  
+  return(res)
 }
 
 # Collect hashes that were known prior to the times indicated by `review_timestamps` 

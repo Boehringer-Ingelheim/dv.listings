@@ -18,9 +18,9 @@ SH <- local({ # _S_erialization _H_elpers
   }
 
   ..ref_hash_id <- function(row) {
-    input <- paste(row, collapse = "\1D")
+    input <- paste(row, collapse = "\1D") # TODO: Intended separator was "\035" but maintaining for backwards compatibility
     input <- charToRaw(input)
-    res <- xxhash_raw(input, as_raw = TRUE)
+    res <- xxhash_raw(input, as_raw = TRUE, algo = "xxh128")
     return(res)
   }
   
@@ -30,7 +30,7 @@ SH <- local({ # _S_erialization _H_elpers
     # NOTE: This can't be done without versioning the file format so that old trials
     #       can still use this old function and new trials use the new one.
     #       It makes sense to postpone this improvement until we have a better reason
-    input <- paste(row, collapse = "\1D")
+    input <- paste(row, collapse = "\1D") # TODO: Intended separator was "\035" but maintaining for backwards compatibility
     input <- charToRaw(input)
     res <- xxhash_raw(input, algo = "xxh32", as_raw = TRUE)
     return(res)
@@ -53,24 +53,22 @@ SH <- local({ # _S_erialization _H_elpers
     return(res)
   }
 
-  vectorized_hash_row <- function(df, algo = "xxh128") {  
-    vectorized_hash_id <- Vectorize(function(x) xxhash_raw(charToRaw(x), as_raw = TRUE, algo = algo), USE.NAMES = FALSE, SIMPLIFY = FALSE)
-    single_col <- do.call(function(...) paste(..., sep = "\1D"), lapply(df, as.character))
-    hashed_col <- vectorized_hash_id(single_col)
-    n_col <- length(hashed_col)
-    n_row <- if (length(hashed_col) > 0) length(hashed_col[[1]]) else 0
-    res <- matrix(unlist(vectorized_hash_id(single_col)) %||% raw(0), nrow = n_row, ncol = n_col)  
-    res
+  rowwise_xxh128_dataframe_hash <- function(df) {
+    single_col <- do.call(function(...) paste(..., sep = "\1D"), lapply(df, as.character)) # TODO: Intended separator is "\035" but maintaining for backwards compatibility
+    res <- .Call(dv_xxh128_char_input_, single_col)
+    return(res)
   }
 
-  hash_id <- vectorized_hash_row
+  hash_id <- rowwise_xxh128_dataframe_hash
 
+  stopifnot(BYTES_PER_TRACKED_HASH == 2L) # this function assumes 16 bits per hash
   hash_tracked <- function(df) {
     n_col <- ncol(df)
     res <- list()   
     for (i_col in seq_len(n_col)) {
       col_indices <- (((i_col - 1) + hash_tracked_offsets) %% n_col) + 1
-      res[[i_col]] <- vectorized_hash_row(df[col_indices], algo = "xxh32")[1:BYTES_PER_TRACKED_HASH, , drop = FALSE] # MSBs
+      single_col <- do.call(function(...) paste(..., sep = "\1D"), lapply(df[col_indices], as.character)) # TODO: Intended separator is "\035" but maintaining for backwards compatibility
+      res[[i_col]] <- .Call(dv_xxh16_char_input_, single_col)
     }
     res <- do.call(rbind, res)
     return(res)
