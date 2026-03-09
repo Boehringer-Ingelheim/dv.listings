@@ -20,7 +20,8 @@ local({
       )
     ),
     choices = c("choiceA", "choiceB"),
-    roles = c("roleA", "roleB")
+    roles = c("roleA", "roleB"),
+    allow_row_deletion = TRUE
   )
   
   dataset_lists <- list(
