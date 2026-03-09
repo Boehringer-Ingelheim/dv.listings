@@ -386,6 +386,33 @@ const dv_listings = (function () {
   return (res)
 })()
 
+const dv_listings_blocker = (function () {
+  Shiny.addCustomMessageHandler('dv-listings-toggle-dt-processing', function(message) {
+    let container = $('#' + message.id);
+    let loader = container.find('.dataTables_processing');
+   
+    let null_event = null;
+    if(message.show) {
+      // update or prepend text with the contents of `message`
+      let text_node = loader.contents().filter(function() {
+        return this.nodeType === Node.TEXT_NODE;
+      })[0];
+      
+      if(text_node) {
+        text_node.nodeValue = message.msg;
+      } else{ // text node does not exist, so we create one
+        loader.prepend(document.createTextNode(message.msg));
+      }
+      
+      loader.show().css({'visibility': 'visible', 'display': 'block'});
+      container.find('table').trigger('processing.dt', [null_event, true]);
+    } else {
+      loader.hide().css('visibility', 'hidden');
+      container.find('table').trigger('processing.dt', [null_event, false]);
+    }
+  });
+})()
+
 const dv_fsa = (function() {
   const FS_WRITE_OFFSET_APPEND = -1;
   let overlay_id = "dv_fsa_overlay";

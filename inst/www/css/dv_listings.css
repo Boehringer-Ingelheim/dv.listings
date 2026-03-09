@@ -116,4 +116,16 @@
   background-color: #e4605a;
 }
 
-
+/* === "PROCESSING" BLOCKER === */
+/* more salient "processing" blocker */
+.dataTables_processing {
+  z-index: 1050 !important; /* in front of table */
+  border: 1px solid #08312A !important;
+  font-weight: bold !important;
+  padding: 20px !important;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.1) !important;
+}
+/* color of animated dots matches the light color of dv.manager's theme */
+div.dataTables_processing>div:last-child>div {
+  background: #00E47C60 !important;
+}
