@@ -8,3 +8,5 @@
 ^\.github
 ^doc$
 ^Meta$
+^\.git-blame-ignore-revs$
+^\.lintr.R$
