@@ -10,3 +10,4 @@
 ^Meta$
 ^\.git-blame-ignore-revs$
 ^\.lintr.R$
+\.gitempty$
