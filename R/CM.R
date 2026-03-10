@@ -790,7 +790,7 @@ CM <- local({ # _C_hecked _M_odule
 
     df_to_string <- function(df) {
       names(df) <- sprintf("[%s] ", names(df))
-      lines <- capture.output(print(as.data.frame(df), right = FALSE, row.names = FALSE, quote = TRUE)) |> trimws()
+      lines <- utils::capture.output(print(as.data.frame(df), right = FALSE, row.names = FALSE, quote = TRUE)) |> trimws()
       return(paste(lines, collapse = "\n"))
     }
 
