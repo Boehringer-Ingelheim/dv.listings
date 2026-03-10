@@ -23,7 +23,7 @@ REV <- pack_of_constants(
   ),
   MESSAGE = pack_of_constants(
     LOADING_REVIEW_DATA = "Loading review data...",
-    MULTIPLE_REVIEW = "Aplying reviews...",
+    MULTIPLE_REVIEW = "Applying reviews...",
     UNDO_REVIEW = "Undoing latest review..."
   ),
   STATUS_LEVELS = pack_of_constants(
