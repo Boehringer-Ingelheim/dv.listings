@@ -1,3 +1,6 @@
+# dv.listings 4.3.1-9008
+- Remove dependency from lastpage.sty latex package
+
 # dv.listings 4.3.1-9007
 - Show DT progress indicators during long review actions
 - Fix FSA file creation regression
