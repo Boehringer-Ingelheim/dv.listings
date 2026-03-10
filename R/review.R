@@ -21,6 +21,11 @@ REV <- pack_of_constants(
     DROPDOWN = "Annotation",
     REVIEW_COLS = c("Latest Review", "Latest Reviewer", "Status", "Latest Reviews")
   ),
+  MESSAGE = pack_of_constants(
+    LOADING_REVIEW_DATA = "Loading review data...",
+    MULTIPLE_REVIEW = "Applying reviews...",
+    UNDO_REVIEW = "Undoing latest review..."
+  ),
   STATUS_LEVELS = pack_of_constants(
     PENDING = "Pending",
     LATEST_OUTDATED = "Latest Outdated",
@@ -28,9 +33,20 @@ REV <- pack_of_constants(
     CONFLICT_ROLE = "Conflict I can fix",
     OK = "OK"
   ),
-  HIGHLIGHT_ALL_TRACKED_COLUMNS_IF_MORE_THAN_N_COLUMNS_HAVE_CHANGED = 4L,
-  DEFAULT_REVIEW_VALUE = 1L
+  CONSTANT = pack_of_constants(
+    HIGHLIGHT_ALL_TRACKED_COLUMNS_IF_MORE_THAN_N_COLUMNS_HAVE_CHANGED = 4L,
+    DEFAULT_REVIEW_VALUE = 1L,
+    MULTIPLE_REVIEW_THRESHOLD = 30L
+  )
 )
+
+REV_show_blocker <- function(id, message, session = shiny::getDefaultReactiveDomain()) {
+  session$sendCustomMessage("dv-listings-toggle-dt-processing", list(id = id, show = TRUE, msg = message))
+}
+
+REV_hide_blocker <- function(id, session = shiny::getDefaultReactiveDomain()) {
+  session$sendCustomMessage("dv-listings-toggle-dt-processing", list(id = id, show = FALSE))
+}
 
 REV_time_from_timestamp <- function(v) {  
   non_breaking_hyphen <- "\U2011"
@@ -100,7 +116,7 @@ REV_include_highlight_info <- function(table_data, annotation_info, tracked_vars
     res <- REV_report_changes(h0, h1)
     for (i_row in seq_along(res)){
       cols <- res[[i_row]][["cols"]]
-      if (length(cols) > REV$HIGHLIGHT_ALL_TRACKED_COLUMNS_IF_MORE_THAN_N_COLUMNS_HAVE_CHANGED)
+      if (length(cols) > REV$CONSTANT$HIGHLIGHT_ALL_TRACKED_COLUMNS_IF_MORE_THAN_N_COLUMNS_HAVE_CHANGED)
         res[[i_row]][["cols"]] <- seq_along(tracked_vars) # consider all tracked_vars as modified
     }
     return(res)
@@ -515,7 +531,7 @@ REV_compute_storage_folder_error_message <- function(paths, app_id) {
   return(error_message)
 }
     
-REV_main_logic <- function(state, input, review, datasets, fs_client) {
+REV_main_logic <- function(ns, state, input, review, datasets, fs_client) {
   state[["connected"]] <- shiny::reactiveVal(FALSE)
   state[["contents_ready"]] <- shiny::reactiveVal(FALSE)
   state[["folder"]] <- NULL
@@ -575,6 +591,8 @@ REV_main_logic <- function(state, input, review, datasets, fs_client) {
     load_results <- NULL
     error_messages <- fs_state[["error"]]
     if (length(error_messages) == 0) {
+      REV_show_blocker(ns(TBL$TABLE_ID), message = paste(REV$MESSAGE$LOADING_REVIEW_DATA))
+      on.exit(REV_hide_blocker(ns(TBL$TABLE_ID)))
       load_results <- REV_load_annotation_info(fs_contents, review, datasets)
       error_messages <- load_results[["error"]]
     }
@@ -868,6 +886,11 @@ REV_respond_to_user_review <- function(ns, state, input, review, selected_datase
       info[["row"]] <- input[[paste0(TBL$TABLE_ID, "_rows_all")]]
     }
     shiny::req(length(info[["row"]]) > 0)
+    
+    if (length(info[["row"]]) >= REV$CONSTANT$MULTIPLE_REVIEW_THRESHOLD) {
+      REV_show_blocker(ns(TBL$TABLE_ID), message = paste(REV$MESSAGE$MULTIPLE_REVIEW))
+      on.exit(REV_hide_blocker(ns(TBL$TABLE_ID)))
+    }
 
     i_rows <- as.numeric(info[["row"]])
     annotation_info <- state[["annotation_info"]][[dataset_list_name]][[dataset_name]]
@@ -988,6 +1011,9 @@ REV_respond_to_user_review <- function(ns, state, input, review, selected_datase
         ), duration = NULL, closeButton = TRUE, type = "error"
       )
     }
+
+    REV_show_blocker(ns(TBL$TABLE_ID), message = paste(REV$MESSAGE$UNDO_REVIEW))
+    on.exit(REV_hide_blocker(ns(TBL$TABLE_ID)))
     
     # NOTE: compute data and reload through proxy
     if (TRUE) { # FIXME: Partially repeats #weilae 
@@ -1098,7 +1124,7 @@ REV_compute_status <- function(dataset_review, role, latest_reviews_by_role, dat
     res <- rep_len(FALSE, row_count)
     if (!is.na(role)) {
       role_review <- latest_reviews_by_role[[role]][["review"]]
-      res <- ((role_review != REV$DEFAULT_REVIEW_VALUE) & (role_review != dataset_review[[REV$ID$REVIEW_COL]]))
+      res <- ((role_review != REV$CONSTANT$DEFAULT_REVIEW_VALUE) & (role_review != dataset_review[[REV$ID$REVIEW_COL]]))
     }
     return(res)
   })

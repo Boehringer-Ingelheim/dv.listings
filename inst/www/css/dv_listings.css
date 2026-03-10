@@ -116,4 +116,24 @@
   background-color: #e4605a;
 }
 
+/* === "PROCESSING" BLOCKER === */
+/* more salient "processing" blocker */
+.dataTables_wrapper:has(.dv-listings-table) .dataTables_processing {
+  z-index: 1050 !important; /* in front of table */
+  border: 1px solid #08312A !important;
+  font-weight: bold !important;
+  padding: 20px !important;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.1) !important;
+  
+  animation: dvListingsFadeIn 0.250s ease-in-out forwards;
+}
 
+@keyframes dvListingsFadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* color of animated dots to match the light color of dv.manager's theme */
+.dataTables_wrapper:has(.dv-listings-table) div.dataTables_processing>div:last-child>div {
+  background: #00E47C !important;
+}

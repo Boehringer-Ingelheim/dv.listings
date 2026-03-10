@@ -451,7 +451,7 @@ listings_server <- function(module_id,
 
       shiny::outputOptions(output, TBL$REVIEW_UI_ID, suspendWhenHidden = FALSE)
 
-      REV_main_logic(REV_state, input, review, review[["data"]], fs_client)
+      REV_main_logic(ns, REV_state, input, review, review[["data"]], fs_client)
       show_review_columns <- REV_state[["contents_ready"]]
     }
 
@@ -656,6 +656,7 @@ listings_server <- function(module_id,
           dom = "<'top'<'top-title'>>rtilp", # Buttons, filtering, processing display element, table, information summary, length, pagination
           fixedColumns = list(left = review_col_count),
           colResize = list(),
+          processing = TRUE,
           initComplete = htmlwidgets::JS(init_complete_js),
           drawCallback = htmlwidgets::JS("
             function (settings) {  
@@ -683,6 +684,7 @@ listings_server <- function(module_id,
             }
           ") # Keep filtering enabled even for columns that have a unique value
         ),
+        class = "display dv-listings-table",
         selection = "none"
       )
       
