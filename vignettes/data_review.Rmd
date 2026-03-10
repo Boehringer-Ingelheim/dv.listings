@@ -260,7 +260,7 @@ We store hashes for the values of `id_vars` and `tracked_vars` dataset columns. 
 
 #### Choice of hash function
 
-A popular choice for non-cryptographic hashing is the `xxh` family of function (https://github.com/Cyan4973/xxHash/tree/dev?tab=readme-ov-file#xxhash---extremely-fast-hash-algorithm) for its balance of speed and perceived hash quality.
+A popular choice for non-cryptographic hashing is the `xxh` family of function (https://xxhash.com/) for its balance of speed and perceived hash quality.
 Three independent R packages implement them:
 
 - rlang: Provides no control over serialization, so hashes are potentially not stable across R versions. 
