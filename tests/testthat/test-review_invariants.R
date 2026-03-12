@@ -1,17 +1,12 @@
 local({
-  folder_contents <- NULL
-  fs_callbacks <- list(
-    attach = function(arg) NULL, list = function(arg) NULL, read = function(arg) NULL, write = function(arg) NULL,
-    append = function(arg) NULL, execute_IO_plan = function(arg) NULL,
-    read_folder = function(arg) folder_contents <<- arg
-  )
-  
   store_path <- file.path(tempdir(), "data_checks")
   dir.create(store_path)
   on.exit(unlink(store_path, recursive = TRUE), add = TRUE, after = FALSE)
   
-  fs_client <- fs_init(callbacks = fs_callbacks, store_path)
-  fs_client[["read_folder"]](subfolder_candidates = "dataset_list")
+  fs_client <- fs_init(store_path)
+  fs_state <- fs_client[["state"]]
+  fs_contents <- fs_state[["contents"]]
+  fs_client[["list"]]()
   
   # Review folder contents is initialized here
   review = list(
@@ -34,15 +29,15 @@ local({
     )
   )
   
-  info <- REV_load_annotation_info(folder_contents, review, dataset_lists)
+  info <- REV_load_annotation_info(fs_contents, review, dataset_lists)
   expect_length(info[["error"]], 0)
-  fs_client[["execute_IO_plan"]](IO_plan = info[["folder_IO_plan"]], is_init = TRUE)
-  fs_client[["read_folder"]](subfolder_candidates = "dataset_list")
+  fs_client[["execute_IO_plan"]](info[["IO_plan"]])
+  expect_length(fs_state[["error"]], 0L)
   
   test_that("Review error message when extra choice is provided", {
     review2 <- review
     review2[["choices"]] <- c(review2[["choices"]], "choiceC")
-    info <- REV_load_annotation_info(folder_contents, review2, dataset_lists)
+    info <- REV_load_annotation_info(fs_contents, review2, dataset_lists)
     expect_true(length(info[["error"]]) == 1 &&
                   startsWith(info[["error"]][[1]], "Review choices should remain stable during the course of a trial."))
   })
@@ -50,7 +45,7 @@ local({
   test_that("Review error message when `id_vars` is modified", {
     review2 <- review
     review2[["datasets"]][["ae"]][["id_vars"]] <- c("USUBJID", "AESEQ", "STUDYID")
-    info <- REV_load_annotation_info(folder_contents, review2, dataset_lists)
+    info <- REV_load_annotation_info(fs_contents, review2, dataset_lists)
     expect_true(length(info[["error"]]) == 1 &&
                   startsWith(info[["error"]][[1]], "[ae] `id_vars` should remain stable during the course of a trial."))
   })
@@ -58,7 +53,7 @@ local({
   test_that("Review error message when `tracked_vars` disappear", {
     review2 <- review
     review2[["datasets"]][["ae"]][["tracked_vars"]] <- review2[["datasets"]][["ae"]][["tracked_vars"]][-1]
-    info <- REV_load_annotation_info(folder_contents, review2, dataset_lists)
+    info <- REV_load_annotation_info(fs_contents, review2, dataset_lists)
     expect_true(
       length(info[["error"]]) == 1 &&
         startsWith(info[["error"]][[1]], 
@@ -69,7 +64,7 @@ local({
   test_that("Review error message when `tracked_vars` appear", {
     review2 <- review
     review2[["datasets"]][["ae"]][["tracked_vars"]] <- c(review2[["datasets"]][["ae"]][["tracked_vars"]], "DOMAIN")
-    info <- REV_load_annotation_info(folder_contents, review2, dataset_lists)
+    info <- REV_load_annotation_info(fs_contents, review2, dataset_lists)
     expect_true(
       length(info[["error"]]) == 1 &&
         startsWith(
@@ -87,7 +82,7 @@ local({
     dataset_lists2[["dataset_list"]][["ae"]][["USUBJID"]] <- 
       as.factor(dataset_lists2[["dataset_list"]][["ae"]][["USUBJID"]])
     
-    info <- REV_load_annotation_info(folder_contents, review, dataset_lists2)
+    info <- REV_load_annotation_info(fs_contents, review, dataset_lists2)
     
     expect_true(
       length(info[["error"]]) == 1 &&
@@ -104,7 +99,7 @@ local({
     dataset_lists2[["dataset_list"]][["ae"]][["AESTDY"]] <- 
       as.numeric(dataset_lists2[["dataset_list"]][["ae"]][["AESTDY"]])
     
-    info <- REV_load_annotation_info(folder_contents, review, dataset_lists2)
+    info <- REV_load_annotation_info(fs_contents, review, dataset_lists2)
     
     expect_true(
       length(info[["error"]]) == 1 &&
@@ -120,7 +115,7 @@ local({
     dataset_lists2 <- dataset_lists
     dataset_lists2[["dataset_list"]][["ae"]] <- head(dataset_lists2[["dataset_list"]][["ae"]], 1)
     
-    info <- REV_load_annotation_info(folder_contents, review, dataset_lists2)
+    info <- REV_load_annotation_info(fs_contents, review, dataset_lists2)
     expect_true(length(info[["error"]]) == 0)
   })
 })

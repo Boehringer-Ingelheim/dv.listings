@@ -1,17 +1,12 @@
 local({
-  folder_contents <- NULL
-  fs_callbacks <- list(
-    attach = function(arg) NULL, list = function(arg) NULL, read = function(arg) NULL, write = function(arg) NULL,
-    append = function(arg) NULL, execute_IO_plan = function(arg) NULL,
-    read_folder = function(arg) folder_contents <<- arg
-  )
-  
   store_path <- file.path(tempdir(), "data_checks")
   dir.create(store_path)
   on.exit(unlink(store_path, recursive = TRUE), add = TRUE, after = FALSE)
   
-  fs_client <- fs_init(callbacks = fs_callbacks, store_path)
-  fs_client[["read_folder"]](subfolder_candidates = "dataset_list")
+  fs_client <- fs_init(store_path)
+  fs_state <- fs_client[["state"]]
+  fs_contents <- fs_state[["contents"]]
+  fs_client[["list"]]()
   
   # Review folder contents is initialized here
   tracked_vars = c(
@@ -35,48 +30,46 @@ local({
     )
   )
   
-  info <- REV_load_annotation_info(folder_contents, review, dataset_lists)
+  info <- REV_load_annotation_info(fs_contents, review, dataset_lists)
   expect_length(info[["error"]], 0)
-  fs_client[["execute_IO_plan"]](IO_plan = info[["folder_IO_plan"]], is_init = TRUE)
-  fs_client[["read_folder"]](subfolder_candidates = "dataset_list")
+  fs_client[["execute_IO_plan"]](IO_plan = info[["IO_plan"]])
   
   test_that("REV_load_annotation_info detects modification of previously known row and generates new delta file" |>
               vdoc[["add_spec"]](specs$review_delta_detection), {
     dataset_lists2 <- dataset_lists
     dataset_lists2[["dataset_list"]][["ae"]][["AESEV"]][[1]] <- "SEVERE"
     
-    info <- REV_load_annotation_info(folder_contents, review, dataset_lists2)
+    info <- REV_load_annotation_info(fs_contents, review, dataset_lists2)
     expect_length(info[["error"]], 0)
-    expect_length(info[["folder_IO_plan"]], 1)
-    folder_op <- info[["folder_IO_plan"]][[1]]
-    expect_equal(folder_op[["type"]], "write_file")
-    expect_equal(folder_op[["fname"]], "ae_001.delta")
+    expect_length(info[["IO_plan"]], 1)
+    folder_op <- info[["IO_plan"]][[1]]
+    expect_equal(folder_op[["kind"]], "write")
+    expect_equal(folder_op[["path"]], "dataset_list/ae_001.delta")
+    expect_equal(folder_op[["offset"]], 0L)
     
-    delta <- RS_parse_delta(info[["folder_IO_plan"]][[1]][["contents"]], length(tracked_vars))
+    delta <- RS_parse_delta(info[["IO_plan"]][[1]][["contents"]], length(tracked_vars))
     
     expect_equal(delta[["modified_row_indices"]], c(1L))
   })
   
   test_that("Review routines produce a descriptive error when asked to review an empty dataset" |>
               vdoc[["add_spec"]](specs$review_reject_empty_dataset), {
-    folder_contents <- NULL
     dataset_lists <- list(
       dataset_list = list(
         ae = head(safetyData::sdtm_ae, 0)
       )
     )
-    info <- REV_load_annotation_info(folder_contents, review, dataset_lists)
+    info <- REV_load_annotation_info(folder_contents = NULL, review, dataset_lists)
     expect_equal(info[["error"]], "Refusing to review 0-row dataset")
   })
   
   test_that("Review routines cope with 1-row datasets", {
-    folder_contents <- NULL
     dataset_lists <- list(
       dataset_list = list(
         ae = head(safetyData::sdtm_ae, 1)
       )
     )
-    info <- REV_load_annotation_info(folder_contents, review, dataset_lists)
+    info <- REV_load_annotation_info(folder_contents = NULL, review, dataset_lists)
     expect_length(info[["error"]], 0)
   })
   
@@ -112,41 +105,117 @@ local({
       delta[["new_row_count"]] == 1 && delta[["modified_row_count"]] == 1 && delta[["modified_row_indices"]] == 1,
     )
   })
+  
+  test_that("REV_load_annotation_info updates .review files automatically from version 0 of the format to version 1", {
+    zero_based_version_byte_pos <- 8L
+    
+    review_file_path <- file.path('dataset_list', 'ae_roleA.review')
+    v1_first_bytes <- fs_contents[[review_file_path]][1L:(zero_based_version_byte_pos+1L)]
+    # NOTE: This will break next time this file format changes
+    expect_identical(v1_first_bytes[[zero_based_version_byte_pos+1L]], as.raw(1L))
+    
+    # Revert version marker to 0
+    v0_contents <- as.raw(0)
+    fs_client[["write"]](
+      path = file.path('dataset_list', 'ae_roleA.review'), 
+      contents = v0_contents, 
+      offset = zero_based_version_byte_pos
+    )
+    
+    info <- REV_load_annotation_info(fs_contents, review, dataset_lists)
+    
+    # Check that the module wants to upgrade the format to v1
+    expect_length(info[["IO_plan"]], 1)
+    action <- info[["IO_plan"]][[1]]
+    expect_true(
+      action[["kind"]] == 'write' && action[["path"]] == 'dataset_list/ae_roleA.review' &&
+        action[["offset"]] == 0L && identical(action[["contents"]], v1_first_bytes)
+    )
+    
+    # Check that the IO plan achieves that purpose
+    fs_client[["execute_IO_plan"]](info[["IO_plan"]])
+    expect_identical(fs_contents[["dataset_list/ae_roleA.review"]][[zero_based_version_byte_pos+1L]], as.raw(1L))
+  })
 })
 
 local({
-  build_folder_listing <- function(file_names = character(0), error = NULL){
-    folder_contents <- setNames(list(), character(0))
-    for(name in file_names) folder_contents[[name]] <- list(kind = 'file', size = 0L, time = 0)
-    return(list(list = folder_contents, error = error))
-  }
-  
   test_that("review feature accepts empty folders" |> vdoc[["add_spec"]](specs$review), {
-    error_message <- REV_compute_storage_folder_error_message(
-      'folder_name',  build_folder_listing(), ''
-    )
+    error_message <- REV_compute_storage_folder_error_message(character(0), '')
     expect_length(error_message, 0)
   })
   
   test_that("review feature rejects selection of child storage subfolders" |> vdoc[["add_spec"]](c(specs$review, specs$review_reject_storage_subfolders)), {
-    error_message <- REV_compute_storage_folder_error_message(
-      'folder_name',  build_folder_listing('foo.base'), ''
-    )
+    error_message <- REV_compute_storage_folder_error_message(c('foo.base'), '')
     expect_length(error_message, 1)
   })
   
   test_that("review feature rejects selection of storage folder initially created by a different Posit Connect app" |> vdoc[["add_spec"]](c(specs$review, specs$review_reject_conflicting_connect_app_storage)), {
     error_message <- REV_compute_storage_folder_error_message(
-      'folder_name',  build_folder_listing(paste0(REV$ID$APP_ID_prefix, '00000000-0000-0000-0000-000000000000')), '11111111-1111-1111-1111-111111111111'
+      paste0(REV$ID$APP_ID_prefix, '00000000-0000-0000-0000-000000000000'), '11111111-1111-1111-1111-111111111111'
     )
     expect_length(error_message, 1)
   })
+})
+
+test_that("REV_compute_status preserves expected behavior", {
+  dataset_review <- data.frame(
+    `__review__` = factor(c("Default", "Default", "Default"), levels =  c("Default", "A", "B", "C")), 
+    `__role__` = factor(c("", "", ""), levels = c("", "ROLE_1", "ROLE_2", "ROLE_3", "ROLE_4")), 
+    `__status__` = c(NA_character_, NA_character_, NA_character_), 
+    check.names = FALSE
+  )
   
-  test_that("review feature passes through error signaled by the listing action of the filesystem API" |> vdoc[["add_spec"]](specs$review), {
-    error_message <- REV_compute_storage_folder_error_message(
-      'folder_name',  build_folder_listing(error = 'error text'), ''
-    )
-    expect_length(error_message, 1)
-  })
+  role <- NA
+  
+  latest_reviews_by_role <- list(
+    ROLE_1 = list(review = c(NA, NA, NA), timestamp = c(NA, NA, NA)), 
+    ROLE_2 = list(review = c(NA, NA, NA), timestamp = c(NA, NA, NA)), 
+    ROLE_3 = list(review = c(NA, NA, NA), timestamp = c(NA, NA, NA)), 
+    ROLE_4 = list(review = c(NA, NA, NA), timestamp = c(NA, NA, NA))
+  )
+  
+  data_timestamps <- c(0, 0, 0)
+  
+  res_levels <- c("Pending", "Latest Outdated", "Conflict", "Conflict I can fix", "OK")
+ 
+  # No reviews 
+  res <- REV_compute_status(dataset_review, role, latest_reviews_by_role, data_timestamps)
+  expect_equal(res, factor(c("Pending", "Pending", "Pending"), levels = res_levels))
+ 
+  # ROLE_1 reviews first row as "A" 
+  dataset_review[["__review__"]][[1]] <- "A"
+  dataset_review[["__role__"]][[1]] <- "ROLE_1"
+  latest_reviews_by_role[["ROLE_1"]][["review"]][[1]]  <- "A"
+  latest_reviews_by_role[["ROLE_1"]][["timestamp"]][[1]] <- 1
+  res <- REV_compute_status(dataset_review, role, latest_reviews_by_role, data_timestamps)
+  expect_equal(res, factor(c("OK", "Pending", "Pending"), levels = res_levels))
+ 
+  # Review becomes outdated 
+  data_timestamps[[1]] <- 2
+  res <- REV_compute_status(dataset_review, role, latest_reviews_by_role, data_timestamps)
+  expect_equal(res, factor(c("Latest Outdated", "Pending", "Pending"), levels = res_levels))
+  
+  # ROLE_2 reviews first row as "B"
+  dataset_review[["__review__"]][[1]] <- "B"
+  dataset_review[["__role__"]][[1]] <- "ROLE_2"
+  latest_reviews_by_role[["ROLE_2"]][["review"]][[1]]  <- "A"
+  latest_reviews_by_role[["ROLE_2"]][["timestamp"]][[1]] <- 3
+  res <- REV_compute_status(dataset_review, role, latest_reviews_by_role, data_timestamps)
+  expect_equal(res, factor(c("Conflict", "Pending", "Pending"), levels = res_levels))
+ 
+  # See status from the point of view of ROLE_1
+  role <- "ROLE_1"
+  res <- REV_compute_status(dataset_review, role, latest_reviews_by_role, data_timestamps)
+  expect_equal(res, factor(c("Conflict I can fix", "Pending", "Pending"), levels = res_levels))
+ 
+  # See status from the point of view of ROLE_2 
+  role <- "ROLE_2"
+  res <- REV_compute_status(dataset_review, role, latest_reviews_by_role, data_timestamps)
+  expect_equal(res, factor(c("Conflict I can fix", "Pending", "Pending"), levels = res_levels))
+ 
+  # See status from the point of view of ROLE_3 
+  role <- "ROLE_3"
+  res <- REV_compute_status(dataset_review, role, latest_reviews_by_role, data_timestamps)
+  expect_equal(res, factor(c("Conflict", "Pending", "Pending"), levels = res_levels))
 })
 

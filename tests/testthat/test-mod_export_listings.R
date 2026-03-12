@@ -1,6 +1,3 @@
-# Load dummy data for testing purpose
-source("dummy-data.R")
-
 # Rewrite server function due to module_id argument which is expected to be named id by shiny::testServer
 server_func <- function(
     id,

@@ -9,6 +9,9 @@ REV <- pack_of_constants(
     DATA_TIMESTAMP_COL = "__data_timestamp__",
     LATEST_REVIEW_COL = "__latest_review__",
     REVIEW_SELECT = "rev_id",
+    UNDO = "undo",
+    UNDO_DESCRIPTION_ANCHOR = "undo_description_anchor",
+    UNDO_DESCRIPTION = "undo_description",
     ROLE = "rev_role",
     CONNECT_STORAGE = "connect_storage",
     HIGHLIGHT_SUFFIX = "_highlight__",
@@ -18,6 +21,11 @@ REV <- pack_of_constants(
     DROPDOWN = "Annotation",
     REVIEW_COLS = c("Latest Review", "Latest Reviewer", "Status", "Latest Reviews")
   ),
+  MESSAGE = pack_of_constants(
+    LOADING_REVIEW_DATA = "Loading review data...",
+    MULTIPLE_REVIEW = "Applying reviews...",
+    UNDO_REVIEW = "Undoing latest review..."
+  ),
   STATUS_LEVELS = pack_of_constants(
     PENDING = "Pending",
     LATEST_OUTDATED = "Latest Outdated",
@@ -25,8 +33,20 @@ REV <- pack_of_constants(
     CONFLICT_ROLE = "Conflict I can fix",
     OK = "OK"
   ),
-  HIGHLIGHT_ALL_TRACKED_COLUMNS_IF_MORE_THAN_N_COLUMNS_HAVE_CHANGED = 4
+  CONSTANT = pack_of_constants(
+    HIGHLIGHT_ALL_TRACKED_COLUMNS_IF_MORE_THAN_N_COLUMNS_HAVE_CHANGED = 4L,
+    DEFAULT_REVIEW_VALUE = 1L,
+    MULTIPLE_REVIEW_THRESHOLD = 30L
+  )
 )
+
+REV_show_blocker <- function(id, message, session = shiny::getDefaultReactiveDomain()) {
+  session$sendCustomMessage("dv-listings-toggle-dt-processing", list(id = id, show = TRUE, msg = message))
+}
+
+REV_hide_blocker <- function(id, session = shiny::getDefaultReactiveDomain()) {
+  session$sendCustomMessage("dv-listings-toggle-dt-processing", list(id = id, show = FALSE))
+}
 
 REV_time_from_timestamp <- function(v) {  
   non_breaking_hyphen <- "\U2011"
@@ -51,16 +71,13 @@ REV_include_review_info <- function(annotation_info, data, col_names) {
   reviews <- annotation_info[["review"]]
   roles <- annotation_info[["role"]]
   status <- NA_character_
-  latest_reviews <- annotation_info[["latest_reviews"]]
   
   # include review-related columns
   res <- data.frame(reviews, roles) # FIXME: (maybe) Can't pass latest review as argument. List confuses data.frame
   res[["status"]] <- rep(status, nrow(res)) # Explicit `rep` avoids assignment error when `nrow(res) == 0`
-  res[["latest_reviews"]] <- latest_reviews
   names(res)[[1]] <- REV$ID$REVIEW_COL
   names(res)[[2]] <- REV$ID$ROLE_COL
   names(res)[[3]] <- REV$ID$STATUS_COL
-  names(res)[[4]] <- REV$ID$LATEST_REVIEW_COL
   res_col_names <- c(REV$LABEL$REVIEW_COLS)
  
   # add actual data
@@ -69,6 +86,12 @@ REV_include_review_info <- function(annotation_info, data, col_names) {
  
   attributes_to_restore <- setdiff(ls(attributes(data)), c("class", "names"))
   for (e in attributes_to_restore) attr(res, e) <- attr(data, e)
+ 
+  # TODO: Consider returning these as regular members of the output list
+  # TODO: Consider attaching these from the caller site instead
+  # TODO: Consider taking latest_reviews as separate input variable
+  attr(res, "latest_reviews") <- attr(annotation_info, "latest_reviews") # pass-through
+  attr(res, "data_timestamps") <- annotation_info[["data_timestamps"]] # pass-through
 
   return(list(data = res, col_names = res_col_names))
 }
@@ -93,8 +116,8 @@ REV_include_highlight_info <- function(table_data, annotation_info, tracked_vars
     res <- REV_report_changes(h0, h1)
     for (i_row in seq_along(res)){
       cols <- res[[i_row]][["cols"]]
-      if (length(cols) > REV$HIGHLIGHT_ALL_TRACKED_COLUMNS_IF_MORE_THAN_N_COLUMNS_HAVE_CHANGED)
-        res[[i_row]][["cols"]] <- seq_len(length(tracked_vars)) # consider all tracked_vars as modified
+      if (length(cols) > REV$CONSTANT$HIGHLIGHT_ALL_TRACKED_COLUMNS_IF_MORE_THAN_N_COLUMNS_HAVE_CHANGED)
+        res[[i_row]][["cols"]] <- seq_along(tracked_vars) # consider all tracked_vars as modified
     }
     return(res)
   })
@@ -140,29 +163,19 @@ REV_load_annotation_info <- function(folder_contents, review, dataset_lists) {
 
   error <- character()
 
-  folder_IO_plan <- list()
+  IO_plan <- list()
   append_IO_action <- function(action) {    
-    folder_IO_plan <<- c(folder_IO_plan, list(action))
+    IO_plan <<- c(IO_plan, list(action))
   }
   
   for (dataset_lists_name in names(dataset_lists)) {
     sub_res <- list()
     dataset_list <- dataset_lists[[dataset_lists_name]]
-
-    if (!dataset_lists_name %in% names(folder_contents)) {      
-      append_IO_action(
-        list(
-          type = "create_dir",
-          dname = dataset_lists_name
-        )
-      )
-      folder_contents[[dataset_lists_name]] <- list()
-    }
-
+    
     # review.codes (common to all datasets)
-    fname <- "review.codes"
-    if (fname %in% names(folder_contents[[dataset_lists_name]])) {
-      contents <- folder_contents[[dataset_lists_name]][[fname]][["contents"]]
+    file_path <- file.path(dataset_lists_name, "review.codes")
+    if (file_path %in% names(folder_contents)) {
+      contents <- folder_contents[[file_path]]
       review_info <- RS_parse_review_codes(contents)
       if (!identical(review_info, review[["choices"]])) {
         error <- c(
@@ -178,15 +191,7 @@ REV_load_annotation_info <- function(folder_contents, review, dataset_lists) {
       }
     } else {
       contents <- RS_compute_review_codes_memory(review[["choices"]])
-      append_IO_action(
-        list(
-          type = "write_file",
-          mode = "bin",
-          path = dataset_lists_name,
-          fname = fname,
-          contents = contents
-        )
-      )                  
+      append_IO_action(list(kind = "write", path = file_path, contents = contents, offset = 0L))
     }
       
     for (dataset_review_name in names(review[["datasets"]])){
@@ -205,7 +210,7 @@ REV_load_annotation_info <- function(folder_contents, review, dataset_lists) {
       dataset_review_df <- data.frame(review = rep(default_review, row_count),
                                       timestamp = numeric(row_count), 
                                       role = rep(role_factor, row_count), 
-                                      data_timestamp = numeric(row_count))
+                                      data_timestamps = numeric(row_count))
       
       id_vars <- review[["datasets"]][[dataset_review_name]][["id_vars"]]
       tracked_vars <- setdiff(review[["datasets"]][[dataset_review_name]][["tracked_vars"]], id_vars)
@@ -213,21 +218,20 @@ REV_load_annotation_info <- function(folder_contents, review, dataset_lists) {
       base_timestamp <- NA_real_
       data_timestamps_st <- rep(NA_real_, row_count)
       # <domain>_000.base
-      fname <- paste0(dataset_review_name, "_000.base")
-      if (fname %in% names(folder_contents[[dataset_lists_name]])) {
-        contents <- folder_contents[[dataset_lists_name]][[fname]][["contents"]]        
+      file_path <- file.path(dataset_lists_name, paste0(dataset_review_name, "_000.base"))
+      if (file_path %in% names(folder_contents)) {
+        contents <- folder_contents[[file_path]]        
 
-        delta_fnames <- local({
-          dataset_fnames <- names(folder_contents[[dataset_lists_name]])
-          pattern <- sprintf("^%s_[0-9]*.delta", dataset_review_name)
-          sort(grep(pattern, dataset_fnames, value = TRUE))
+        sorted_delta_file_paths <- local({
+          pattern <- sprintf("^%s_[0-9]*.delta", file.path(dataset_lists_name, dataset_review_name))
+          sort(grep(pattern, names(folder_contents), value = TRUE))
         })        
         
         deltas <- local({
           res <- list()
-          for (fname in delta_fnames){            
+          for (file_path in sorted_delta_file_paths){            
             # TODO: Control for file errors?
-            res[[length(res) + 1]] <- folder_contents[[dataset_lists_name]][[fname]][["contents"]]
+            res[[length(res) + 1]] <- folder_contents[[file_path]]
           }
           return(res)
         })
@@ -330,22 +334,14 @@ REV_load_annotation_info <- function(folder_contents, review, dataset_lists) {
             if (length(error_strings)) { # Error conditions prevent generation of delta files
               error <- c(error, paste0("[", dataset_review_name, "] ", error_strings))
             } else {
-              new_delta <- new_delta_and_errors[["contents"]]
+              new_delta_contents <- new_delta_and_errors[["contents"]]
               
-              deltas[[length(deltas) + 1]] <- new_delta
+              deltas[[length(deltas) + 1]] <- new_delta_contents
               base_info <- RS_load(contents, deltas)
               
-              delta_number <- length(delta_fnames) + 1
-              fname <- sprintf("%s_%03d.delta", dataset_review_name, delta_number)
-              append_IO_action(
-                list(
-                  type = "write_file",
-                  mode = "bin",
-                  path = dataset_lists_name,
-                  fname = fname,
-                  contents = new_delta
-                )
-              )
+              delta_number <- length(sorted_delta_file_paths) + 1
+              file_path <- file.path(dataset_lists_name, sprintf("%s_%03d.delta", dataset_review_name, delta_number))
+              append_IO_action(list(kind = "write", path = file_path, contents = new_delta_contents, offset = 0L))
             }
         }
       } else {
@@ -355,15 +351,7 @@ REV_load_annotation_info <- function(folder_contents, review, dataset_lists) {
           return(list(error = c(error, contents[["message"]])))
         } else {
           base_info <- RS_load(base = contents, deltas = list())
-          append_IO_action(
-            list(
-              type = "write_file",
-              mode = "bin",
-              path = dataset_lists_name,
-              fname = fname,
-              contents = contents
-            )
-          )  
+          append_IO_action(list(kind = "write", path = file_path, contents = contents, offset = 0L))
         }
       }
       
@@ -421,37 +409,45 @@ REV_load_annotation_info <- function(folder_contents, review, dataset_lists) {
       })
      
       dataset_review_df[["timestamp"]] <- base_timestamp
-      dataset_review_df[["data_timestamp"]] <- map_canonical_data_into_current_order(data_timestamps_st)
+      dataset_review_df[["data_timestamps"]] <- map_canonical_data_into_current_order(data_timestamps_st)
       
       # <domain>_<ROLE>.review      
-      all_latest_reviews_df <- local({
-        role_list <- rep_len(list(), length.out = length(review[["roles"]]))
-        names(role_list) <- review[["roles"]]
-        role_timestamp_list <- list(reviews = role_list, data_timestamp = NULL)
-        rep_len(list(role_timestamp_list), length.out = nrow(dataset_review_df))
+      all_latest_reviews <- local({
+        role_review <- list(review = rep_len(NA_character_, nrow(dataset_review_df)), 
+                            timestamp = rep_len(NA_real_, nrow(dataset_review_df)))
+        res <- list()
+        for (role in review[["roles"]]) res[[role]] <- role_review
+        return(res)
       })
 
       for (role in review[["roles"]]){
-        fname <- paste0(dataset_review_name, "_", role, ".review")
-        if (fname %in% names(folder_contents[[dataset_lists_name]])) {          
-          contents <- folder_contents[[dataset_lists_name]][[fname]][["contents"]]          
+        file_path <- file.path(dataset_lists_name, paste0(dataset_review_name, "_", role, ".review"))
+        if (file_path %in% names(folder_contents)) {          
+          contents <- folder_contents[[file_path]]
         } else { 
           contents <- RS_compute_review_reviews_memory(role, dataset_review_name)
-          append_IO_action(
-            list(
-              type = "write_file",
-              mode = "bin",
-              path = dataset_lists_name,
-              fname = fname,
-              contents = contents
-            )
-          )
+          append_IO_action(list(kind = "write", path = file_path, contents = contents, offset = 0L))
         }
 
         # NOTE: each role keeps their own decisions and we combine them to display the latest one
         row_count <- ncol(base_info[["id_hashes"]])
-        role_review_st <- RS_parse_review_reviews(contents, row_count = row_count,
-                                                  expected_role = role, expected_domain = dataset_review_name)
+        role_review_st_v_data <- RS_parse_review_reviews(contents, row_count = row_count,
+                                                         expected_role = role, expected_domain = dataset_review_name)
+        if (inherits(role_review_st_v_data, "simpleCondition")) {
+          # If there's something wrong with prior reviews, we can't add further reviews on top. So, we stop.
+          error <- c(error, sprintf("Error while processing `%s`: %s", file_path, role_review_st_v_data[["message"]]))
+          return(list(error = error))
+        }
+        
+        # Upgrade review files from version 0 to version 1 to support undoing actions
+        version_number <- role_review_st_v_data[["format_version_number"]]
+        if (version_number == 0L) {
+          append_IO_action(
+            list(kind = "write", path = file_path, offset = 0L, contents = c(charToRaw("LISTREVI"), as.raw(1)))
+          )
+        }
+        
+        role_review_st <- role_review_st_v_data[["data"]]
         role_review_df <- map_canonical_data_into_current_order(role_review_st)
         
         # Progressive update of all roles through the mask
@@ -464,25 +460,19 @@ REV_load_annotation_info <- function(folder_contents, review, dataset_lists) {
         }
         # compact all in lists
         # Replace by list of roles so it is a single column and we can directly iterate over it
-        all_latest_reviews_df <- local({          
+        all_latest_reviews <- local({
           reviewed_idx <- which(role_review_df[["timestamp"]] > 0)
-          for (idx in reviewed_idx) {
-            review_char <- review[["choices"]][role_review_df[["review"]][[idx]]]         
-            curr_crr <- list(role = role, review = review_char, timestamp = role_review_df[["timestamp"]][[idx]], reviewed_at_least_once = TRUE)            
-            all_latest_reviews_df[[idx]][["reviews"]][[role]] <- curr_crr            
-          } 
-
-          for (idx in seq_len(nrow(dataset_review_df))) {            
-            all_latest_reviews_df[[idx]][["data_timestamp"]] <- dataset_review_df[["data_timestamp"]][[idx]]
-          } 
-          all_latest_reviews_df
+          
+          reviews_int <- role_review_df[["review"]][reviewed_idx]
+          reviews_char <- review[["choices"]][reviews_int]
+          all_latest_reviews[[role]][["review"]][reviewed_idx] <- reviews_char
+          all_latest_reviews[[role]][["timestamp"]][reviewed_idx] <- role_review_df[["timestamp"]][reviewed_idx]
+          return(all_latest_reviews)
         })
       }
 
-      dataset_review_df[["latest_reviews"]] <- all_latest_reviews_df
-           
       # Add latest roles columns      
-      sub_res[[dataset_review_name]] <- dataset_review_df[c("review", "timestamp", "role", "data_timestamp", "latest_reviews")]
+      sub_res[[dataset_review_name]] <- dataset_review_df[c("review", "timestamp", "role", "data_timestamps")]
       attr(sub_res[[dataset_review_name]], "map_canonical_data_into_current_order") <- 
         map_canonical_data_into_current_order
       attr(sub_res[[dataset_review_name]], "map_current_indices_into_canonical_order") <- 
@@ -495,91 +485,94 @@ REV_load_annotation_info <- function(folder_contents, review, dataset_lists) {
       attr(sub_res[[dataset_review_name]], "base_timestamp") <- base_timestamp
       # Add tracked_hashes for each revision of the dataset to be able to attribute row changes to specific columns
       attr(sub_res[[dataset_review_name]], "revisions") <- base_info[["revisions"]]
+      
+      attr(sub_res[[dataset_review_name]], "latest_reviews") <- all_latest_reviews
     }
     loaded_annotation_info[[dataset_lists_name]] <- sub_res
   }
 
   res <- list(
     loaded_annotation_info = loaded_annotation_info,
-    folder_IO_plan = folder_IO_plan,
+    IO_plan = IO_plan,
     error = error
   )
 
   return(res)
 }
 
-REV_compute_storage_folder_error_message <- function(folder_name, folder_listing, app_id) {
+REV_compute_storage_folder_error_message <- function(paths, app_id) {
   error_message <- character(0)
 
-  if (is.null(folder_listing[["error"]])) {
-    item_names <- names(folder_listing[["list"]])
-    if (any(endsWith(item_names, ".base")) || any(endsWith(item_names, ".review")) || 
-        any(endsWith(item_names, ".codes"))) {
-      error_message <- paste(
-        "The selected storage folder is a subfolder of the target folder.",
-        "Please select its parent instead."
-      )
-    } else if (any(startsWith(item_names, REV$ID$APP_ID_prefix))) {
-      storage_app_id_fname <- item_names[startsWith(item_names, REV$ID$APP_ID_prefix)][[1]]
-      storage_app_id <- gsub(paste0("^", REV$ID$APP_ID_prefix), "", storage_app_id_fname)
-      if (nchar(app_id) > 0 && # This check allows users that run the application locally to skip this test
-          !identical(storage_app_id, app_id)) {
-        error_message <- shiny::HTML(
-          paste(
-            "This storage folder seems to belong to a different application.<br>",
-            sprintf("<small>The ID of the <b>current running application</b> is: <tt>%s</tt>.<br>", app_id),
-            sprintf("The ID of the <b>application that created that storage folder</b> is: <tt>%s</tt>.<br>", storage_app_id),
-            "If the ID of the application as been accidentally updated, you can",
-            "ask the application administrator to restore it to its old value.</small>"
-          )
-        )
-      }
-    }
-  } else {
-    error_message <- shiny::HTML(
-      sprintf("Error listing the contents of folder <t>%s</t>: <q>%s</q>.", folder_name, folder_listing[["error"]])
+  direct_children_mask <- (dirname(paths) == ".")
+  direct_children_names <- paths[direct_children_mask]
+  if (any(endsWith(direct_children_names, ".base")) || any(endsWith(direct_children_names, ".review")) || 
+      any(endsWith(direct_children_names, ".codes"))) {
+    error_message <- paste(
+      "The selected storage folder is a subfolder of the target folder.",
+      "Please select its parent instead."
     )
+  } else if (any(startsWith(paths, REV$ID$APP_ID_prefix))) {
+    storage_app_id_fname <- paths[startsWith(paths, REV$ID$APP_ID_prefix)][[1]]
+    storage_app_id <- gsub(paste0("^", REV$ID$APP_ID_prefix), "", storage_app_id_fname)
+    if (nchar(app_id) > 0 && # This check allows users that run the application locally to skip this test
+        !identical(storage_app_id, app_id)) {
+      error_message <- shiny::HTML(
+        paste(
+          "This storage folder seems to belong to a different application.<br>",
+          sprintf("<small>The ID of the <b>current running application</b> is: <tt>%s</tt>.<br>", app_id),
+          sprintf("The ID of the <b>application that created that storage folder</b> is: <tt>%s</tt>.<br>", storage_app_id),
+          "If the ID of the application as been accidentally updated, you can",
+          "ask the application administrator to restore it to its old value.</small>"
+        )
+      )
+    }
   }
   
   return(error_message)
 }
     
-REV_main_logic <- function(state, input, review, datasets, fs_client, fs_callbacks) {
+REV_main_logic <- function(ns, state, input, review, datasets, fs_client) {
   state[["connected"]] <- shiny::reactiveVal(FALSE)
   state[["contents_ready"]] <- shiny::reactiveVal(FALSE)
   state[["folder"]] <- NULL
   state[["annotation_info"]] <- NULL
 
-  shiny::observeEvent(input[[REV$ID$CONNECT_STORAGE]], {    
-    fs_client[["attach"]]()    
-  }, ignoreNULL = FALSE, ignoreInit = TRUE)
+  fs_state <- fs_client[["state"]]
+  fs_contents <- fs_state[["contents"]]
+  
+  shiny::observeEvent(input[[REV$ID$CONNECT_STORAGE]], {
+    fs_client[["list"]](callback = list_callback)
+  }, ignoreNULL = TRUE, ignoreInit = TRUE)
 
-  shiny::observeEvent(fs_callbacks[["attach"]](), {
-    attach_status <- fs_callbacks[["attach"]]()
-    shiny::req(is.list(attach_status))
-    state[["connected"]](attach_status[["connected"]])
-    state[["folder"]] <- attach_status[["name"]]    
+  list_callback <- shiny::reactiveVal(0L)
+  shiny::observeEvent(list_callback(), {
+    shiny::req(list_callback() > 0L)
+    
+    connected <- (length(fs_state[["error"]]) == 0)
+    state[["connected"]](connected)
+    state[["folder"]] <- fs_state[["path"]]
     shiny::updateActionButton(inputId = REV$ID$CONNECT_STORAGE, label = paste("Storage:", state[["folder"]]))        
 
-    if (attach_status[["connected"]] == TRUE) {
-      fs_client[["list"]]()
-    } else {
-      if (!is.null(attach_status[["error"]])) shiny::showNotification(attach_status[["error"]], type = "error")
+    if (!isTRUE(connected)) {
+      error_message <- "Could not connect to storage"
+      if (length(fs_state[["error"]]) > 0) error_message <- paste0(error_message, ": ", fs_state[["error"]][[1]])
+      shiny::showNotification(error_message, type = "error")
       state[["annotation_info"]] <- NULL
       state[["contents_ready"]](FALSE) # Edge case where a correct folder was chosen before
+      shiny::req(FALSE)
     }
-  })
-  
-  shiny::observeEvent(fs_callbacks[["list"]](), {
-    folder_listing <- fs_callbacks[["list"]]()
-    shiny::req(is.list(folder_listing))
     
     error_message <- REV_compute_storage_folder_error_message(
-      folder_name = state[["folder"]], folder_listing = folder_listing, app_id = Sys.getenv("CONNECT_CONTENT_GUID")
+      paths = rownames(fs_state[["listing"]]), app_id = Sys.getenv("CONNECT_CONTENT_GUID")
     )
     
     if (length(error_message) == 0) {
-      fs_client[["read_folder"]](names(datasets))
+      listing <- fs_state[["listing"]]
+      paths <- rownames(listing[!listing[["isdir"]], ])
+      paths_to_read_mask <- (endsWith(paths, ".base") | endsWith(paths, ".delta") | 
+                               endsWith(paths, ".review") | endsWith(paths, ".codes"))
+      paths_to_read <- paths[paths_to_read_mask]
+      fs_client[["read"]](paths = paths_to_read, callback = read_callback)
     } else {
       shiny::showNotification(error_message, duration = NULL, closeButton = TRUE, type = "error")
       state[["annotation_info"]] <- NULL
@@ -587,21 +580,30 @@ REV_main_logic <- function(state, input, review, datasets, fs_client, fs_callbac
       shiny::updateActionButton(inputId = REV$ID$CONNECT_STORAGE, label = "Storage:")
       # If we leave the original attach value and the user selects the same folder, the reactiveVal 
       # will optimize the change away and the user will not see the error message a second time.
-      fs_callbacks[["attach"]](0)
+      list_callback(0L)
     }
   })
 
-  shiny::observeEvent(fs_callbacks[["read_folder"]](), {
-    folder_contents <- fs_callbacks[["read_folder"]]()
-    shiny::req(is.list(folder_contents))
-    load_results <- REV_load_annotation_info(folder_contents, review, datasets)
-    if (length(load_results[["error"]])) {
+  read_callback <- shiny::reactiveVal(0L)
+  shiny::observeEvent(read_callback(), {
+    shiny::req(read_callback() > 0L)
+
+    load_results <- NULL
+    error_messages <- fs_state[["error"]]
+    if (length(error_messages) == 0) {
+      REV_show_blocker(ns(TBL$TABLE_ID), message = paste(REV$MESSAGE$LOADING_REVIEW_DATA))
+      on.exit(REV_hide_blocker(ns(TBL$TABLE_ID)))
+      load_results <- REV_load_annotation_info(fs_contents, review, datasets)
+      error_messages <- load_results[["error"]]
+    }
+      
+    if (length(error_messages) > 0) {
       showNotification(
         ui = shiny::HTML(
           paste(
             "<h4>FAILED TO START REVIEW INTERFACE</h4>",
             paste(
-              paste("\u2022", load_results[["error"]]), 
+              paste("\u2022", error_messages), 
               collapse = "<br>")
           )
         ),
@@ -609,50 +611,44 @@ REV_main_logic <- function(state, input, review, datasets, fs_client, fs_callbac
       )
       # NOTE: We remain in this state while we wait for the user to select an appropriate alternative folder
     } else {
-      # extend `folder_IO_plan` to write the APP_ID file if necessary
+      # extend `IO_plan` to write the APP_ID file if necessary
       connect_id <- Sys.getenv("CONNECT_CONTENT_GUID")
       if (nchar(connect_id) > 0) {
-        file_name_listing <- names(fs_callbacks[["list"]]()[["list"]]) # Available from previous listing step
+        file_name_listing <- rownames(fs_state[["listing"]])
         app_id_fname <- paste0(REV$ID$APP_ID_prefix, connect_id)
         if (!(app_id_fname %in% file_name_listing)) {
-          load_results[["folder_IO_plan"]][[length(load_results[["folder_IO_plan"]]) + 1]] <- list(
-            type = "write_file", mode = "bin", path = ".", fname = app_id_fname, contents = raw(0)
+          load_results[["IO_plan"]][[length(load_results[["IO_plan"]]) + 1]] <- list(
+            kind = "write", path = app_id_fname, offset = 0L, contents = raw(0)
           )
         }
       }
       
       state[["annotation_info"]] <- load_results[["loaded_annotation_info"]]
-      fs_client[["execute_IO_plan"]](IO_plan = load_results[["folder_IO_plan"]], is_init = TRUE)
+      fs_client[["execute_IO_plan"]](IO_plan = load_results[["IO_plan"]], callback = execute_IO_plan_callback)
     }
   })
 
-  # TODO: fs_client[["execute_IO_plan"]][["v"]] if we use the execute IO plan in more places this observer will run
-  # more times than it should. Check how this can be avoided, including extra element in status, create a new input?
-  shiny::observeEvent(fs_callbacks[["execute_IO_plan"]](),
-    {
-      plan_result <- fs_callbacks[["execute_IO_plan"]]()
-      if (isTRUE(plan_result[["is_init"]])) {
-        plan_status <- plan_result[["status"]]
-        error <- FALSE
-        for (entry in plan_status) {
-          if (!is.null(entry[["error"]])) {
-            error <- TRUE
-            error_message <- entry[["error"]]
-            break
-          }
-        }
-
-        if (!error) {
-          state[["contents_ready"]](TRUE)
-        } else {
-          shiny::showNotification("Error in initial read and write operation", type = "error")
-          stop(sprintf("Error reading and writing: %s", error_message))
-        }
-      }
-    },
-    ignoreNULL = FALSE,
-    ignoreInit = TRUE
-  )
+  execute_IO_plan_callback <- shiny::reactiveVal(0L)
+  shiny::observeEvent(execute_IO_plan_callback(), {
+    shiny::req(execute_IO_plan_callback() > 0L)
+    
+    error_messages <- fs_state[["error"]]
+    if (length(error_messages) > 0) {
+      showNotification(
+        ui = shiny::HTML(
+          paste(
+            "<h4>ERROR IN INITIAL READ AND WRITE OPERATION</h4>",
+            paste(
+              paste("\u2022", error_messages), 
+              collapse = "<br>")
+          )
+        ),
+        duration = NULL, closeButton = TRUE, type = "error"
+      )
+    } else {
+      state[["contents_ready"]](TRUE)
+    }
+  })
 }
 
 REV_produce_IO_plan_for_review_action <- function(
@@ -670,11 +666,10 @@ REV_produce_IO_plan_for_review_action <- function(
   
   IO_plan <- list(
     list(
-      type = "append_file",
-      mode = "bin",
-      path = dataset_list_name,
-      fname = paste0(dataset_name, "_", role, ".review"),
-      contents = contents
+      kind = "write",
+      path = file.path(dataset_list_name, paste0(dataset_name, "_", role, ".review")),
+      contents = contents,
+      offset = FS$WRITE_OFFSET_APPEND
     )
   )
   
@@ -704,48 +699,171 @@ REV_compute_review_changes <- function(data, row_indices, annotation_info, choic
     canonical_row_indices, role, choice_index, timestamp, dataset_list_name, dataset_name
   )
   
-  # NOTE: We could cache the modified table and avoid repeating this operation 
-  #       if it turns out to be a performance bottleneck
-  # TODO: This loop can be too long when there are too many rows
-  # Writing is done in one step but by row update is done one by one.
-  for (i in seq_along(row_indices)) {
-    curr_i_row <- row_indices[[i]]
-    curr_defiltered_i_row <- defiltered_row_indices[[i]]
+  data[[REV$ID$REVIEW_COL]][row_indices] <- choices[[choice_index]]
+  data[[REV$ID$ROLE_COL]][row_indices] <- role
     
-    last_review_entry <- data[curr_i_row, ][[REV$ID$LATEST_REVIEW_COL]][[1]]
-    last_review_entry[["reviews"]][[role]][["role"]] <- role
-    last_review_entry[["reviews"]][[role]][["review"]] <- choices[[choice_index]]
-    last_review_entry[["reviews"]][[role]][["timestamp"]] <- timestamp
-    
-    # Fixed columns
-    data[curr_i_row, ][[REV$ID$REVIEW_COL]] <- choices[[choice_index]]
-    data[curr_i_row, ][[REV$ID$ROLE_COL]] <- role
-    data[curr_i_row, ][[REV$ID$LATEST_REVIEW_COL]][[1]] <- last_review_entry
-    
-    # - data_time does not change when reviewed
-    
-    # `REV_load_annotation_info()` would return this same (modified) state, but we do manual synchronization
-    # to avoid potentially expensive data reloading
-    row_contents <- annotation_info[curr_defiltered_i_row, ]
-    row_contents[["review"]] <- choices[[choice_index]]
-    row_contents[["timestamp"]] <- timestamp
-    row_contents[["role"]] <- role    
-    row_contents[["latest_reviews"]][[1]] <- last_review_entry
-    # > row_contents[["data_timestamp"]] # unchanged
-    
-    annotation_info[curr_defiltered_i_row, ] <- row_contents
-  }
+  latest_reviews <- attr(data, "latest_reviews")
+  latest_reviews[[role]][["review"]][row_indices] <- choices[[choice_index]]
+  latest_reviews[[role]][["timestamp"]][row_indices] <- timestamp
   
+  attr(data, "latest_reviews") <- latest_reviews 
+  attr(annotation_info, "latest_reviews") <- latest_reviews
+  
+  # `REV_load_annotation_info()` would return this same (modified) state, but we do manual synchronization
+  # to avoid potentially expensive data reloading
+  annotation_info[["review"]][row_indices] <- choices[[choice_index]]
+  annotation_info[["timestamp"]][row_indices] <- timestamp
+  annotation_info[["role"]][row_indices] <- role
+ 
   res[["data"]] <- data 
   res[["annotation_info"]] <- annotation_info
   res[["IO_plan"]] <- IO_plan
   
   return(res)
 }
+
+REV_compute_undo_action_info <- function(contents, role, domain) {
+  internal_res <- RS_parse_review_reviews_and_apply_undo(contents, expected_role = role, expected_domain = domain)
+  canonical_indices <- internal_res[["canonical_indices"]]
+  review_indices <- internal_res[["review_indices"]]
+  timestamps  <- internal_res[["timestamps"]]
   
+  res <- list(canonical_indices = integer(0), review_decision = NULL, timestamp = NULL)
+  if (length(timestamps) > 0) {
+    last_timestamp <- timestamps[[length(timestamps)]]
+    last_review_index <- review_indices[[length(timestamps)]]
+    last_action_indices <- which(timestamps == last_timestamp & review_indices == last_review_index)
+    
+    ; if (length(last_action_indices) > 1) {
+      contiguous <- (all(diff(last_action_indices)) == 1)
+      if (!isTRUE(contiguous)) {
+        error_message <-  paste0("Found several actions to undo, but they are not contiguous.<br>",
+                                 "This is somewhat unexpected, so the undo functionality has been disabled.<br>",
+                                 "If you believe this is a problem, please contact the package maintainer.")
+        return(simpleCondition(error_message)) # NOTE: Early out
+      }
+    }
+    
+    res <- list(
+      canonical_indices = canonical_indices[last_action_indices],
+      review_decision = last_review_index,
+      timestamp = last_timestamp
+    )
+  }
+  
+  return(res)
+}
+
+REV_describe_undo_action <- function(
+    review, REV_state, # TODO? Narrow down to what's explicitly needed instead of using the whole `REV_state`
+    fs_contents, dataset_list_name, dataset_name, role) {
+  
+  review_path <- file.path(dataset_list_name, sprintf("%s_%s.review", dataset_name, role))
+  contents <- fs_contents[[review_path]]
+  
+  res <- list(
+    text = character(0),
+    info = REV_compute_undo_action_info(contents = contents, role = role, domain = dataset_name)
+  )
+  
+  if (inherits(res[["info"]], "simpleCondition")) {
+    res[["text"]] <- shiny::HTML(res[["info"]][["message"]])
+  } else if (length(res[["info"]][["canonical_indices"]]) == 0) {
+    res[["text"]] <- "No action to undo"
+  } else {
+    canonical_indices <- res[["info"]][["canonical_indices"]]
+    current_row_index_from_canonical_row_index <- attr(
+      REV_state[["annotation_info"]][[dataset_list_name]][[dataset_name]], "map_canonical_indices_into_current_order"
+    )
+    current_row_indices <- current_row_index_from_canonical_row_index(canonical_indices)
+    if (any(current_row_indices == 0)) {
+      # NOTE: Some of the canonical indices are not present in the current revision of the dataset.
+      #       This means we can't display any data associated to them.
+      # TODO: Explain the situation to the user?
+      #       We haven't done this because it adds some complexity for very little value. We expect most undo actions to
+      #       target mistaken bulk actions, and not to target actions that happened on a prior session, while reviewing
+      #       an older version of the dataset.
+    }
+    
+    data <- review[["data"]][[dataset_list_name]][[dataset_name]]
+    id_vars <- review[["datasets"]][[dataset_name]][["id_vars"]]
+    target_data <- data[current_row_indices, ]
+    undo_table <- target_data[id_vars]
+    #> undo_table[["Previous review"]] <- second_to_last_review_choices # TODO? Would be nice to see the old values, but not mandatory
+   
+    if (nrow(undo_table) <= 11L) {
+      undo_table_s <- utils::capture.output(print(undo_table, row.names = FALSE))
+    } else {
+      head_rows <- utils::capture.output(print(utils::head(undo_table, n = 5L), row.names = FALSE))
+      tail_rows <- utils::capture.output(print(utils::tail(undo_table, n = 5L), row.names = FALSE)) |> utils::tail(n = 5L)
+      tail_rows <- utils::tail(tail_rows, n = 5) # discards column names
+      undo_table_s <- c(head_rows, sprintf("(omitted %d rows)", nrow(undo_table) - 10L), tail_rows)
+    }
+    undo_table_s <- paste0("<pre>", paste(undo_table_s, collapse = "<br>"), "</pre>") 
+    
+    # TODO: Replace ID column names with labels if available
+    
+    last_review_choice <- review[["choices"]][[res[["info"]][["review_decision"]]]]
+    last_timestamp <- res[["info"]][["timestamp"]]
+    time <- structure(last_timestamp, class = c("POSIXct", "POSIXt"), tzone = "UTC")
+    undo_header <- paste('<p style="margin:10px">', "Marked as <b>", last_review_choice,
+                         "</b> on <b>", time, "UTC</b></p>")
+    
+    text <- shiny::HTML(paste(undo_header, undo_table_s))
+    res[["text"]] <- text
+  }
+  
+  return(res)
+}
+
+REV_serialize_undo_action <- function(undo_info, timestamp) {
+  UNDO_MARKER <- 0L 
+  action_count <- length(undo_info[["canonical_indices"]])
+ 
+  canonical_indices <- undo_info[["canonical_indices"]][[1]]
+  review_decision <- undo_info[["review_decision"]]
+  original_timestamp <- undo_info[["timestamp"]]
+  
+  contents <- c(
+    # FIRST HALF
+    SH$integer_to_raw(UNDO_MARKER),
+    SH$integer_to_raw(action_count),
+    SH$double_to_raw(timestamp),
+    # SECOND HALF
+    SH$integer_to_raw(-canonical_indices[[1]]),
+    SH$integer_to_raw(review_decision),
+    SH$double_to_raw(original_timestamp)
+  )
+  
+  return(contents)
+}
+
+REV_produce_IO_plan_for_review_undo_action <- function(undo_info, timestamp, role, dataset_list_name, dataset_name) {
+  contents <- REV_serialize_undo_action(undo_info = undo_info, timestamp)
+  
+  IO_plan <- list(
+    list(
+      kind = "write",
+      path = file.path(dataset_list_name, paste0(dataset_name, "_", role, ".review")),
+      contents = contents,
+      offset = FS$WRITE_OFFSET_APPEND
+    )
+  )
+    
+  return(IO_plan)
+}
+
+REV_replace_undo_description <- function(ns, contents) {
+  shiny::removeUI(selector = paste0("#", ns(REV$ID$UNDO_DESCRIPTION)))
+  shiny::insertUI(selector = paste0("#", ns(REV$ID$UNDO_DESCRIPTION_ANCHOR)), where = "afterEnd", 
+                  ui = shiny::div(contents, id = ns(REV$ID$UNDO_DESCRIPTION))
+  )
+}
 
 REV_respond_to_user_review <- function(ns, state, input, review, selected_dataset_list_name, selected_dataset_name, data,
-                                       dt_proxy, fs_execute_IO_plan, table_data_rw) {
+                                       dt_proxy, fs_execute_IO_plan, fs_state) {
+  fs_contents <- fs_state[["contents"]]
+  
   shiny::observeEvent(input[[REV$ID$REVIEW_SELECT]], {
     role <- input[[REV$ID$ROLE]]
 
@@ -768,6 +886,11 @@ REV_respond_to_user_review <- function(ns, state, input, review, selected_datase
       info[["row"]] <- input[[paste0(TBL$TABLE_ID, "_rows_all")]]
     }
     shiny::req(length(info[["row"]]) > 0)
+    
+    if (length(info[["row"]]) >= REV$CONSTANT$MULTIPLE_REVIEW_THRESHOLD) {
+      REV_show_blocker(ns(TBL$TABLE_ID), message = paste(REV$MESSAGE$MULTIPLE_REVIEW))
+      on.exit(REV_hide_blocker(ns(TBL$TABLE_ID)))
+    }
 
     i_rows <- as.numeric(info[["row"]])
     annotation_info <- state[["annotation_info"]][[dataset_list_name]][[dataset_name]]
@@ -779,25 +902,28 @@ REV_respond_to_user_review <- function(ns, state, input, review, selected_datase
       shiny::req(FALSE)
     }
     
-    
     new_data <- changes[["data"]]
     timestamp <- SH$get_UTC_time_in_seconds()
     choice_index <- as.integer(info[["option"]])
     
-    subres <- REV_compute_review_changes(
+    changes <- REV_compute_review_changes(
       data = new_data, row_indices = i_rows, annotation_info = annotation_info, 
       choices = review[["choices"]], choice_index = choice_index,  role = role, 
       timestamp = timestamp, dataset_list_name = dataset_list_name, dataset_name = dataset_name
     )
     
-    new_data <- subres[["data"]]
-    annotation_info <- subres[["annotation_info"]]
+    new_data <- changes[["data"]]
+    annotation_info <- changes[["annotation_info"]]
     state[["annotation_info"]][[dataset_list_name]][[dataset_name]] <- annotation_info
-    IO_plan <- subres[["IO_plan"]]
+    IO_plan <- changes[["IO_plan"]]
+    
+    latest_reviews <- attr(changes[["data"]], "latest_reviews")
+    data_timestamps <- attr(changes[["data"]], "data_timestamps")
 
     # TODO: Benchmark to decide if this is a bottleneck for bigger datasets
-    new_data[[REV$ID$STATUS_COL]] <- REV_compute_status(new_data, role)
-    new_data[[REV$ID$LATEST_REVIEW_COL]] <- REV_review_var_to_json(new_data[[REV$ID$LATEST_REVIEW_COL]])
+    new_data[[REV$ID$STATUS_COL]] <- REV_compute_status(new_data, role, latest_reviews, data_timestamps)
+    new_data[[REV$ID$LATEST_REVIEW_COL]] <- REV_review_var_to_json(latest_reviews, data_timestamps)
+    new_data <- relocate_column(new_data, REV$ID$LATEST_REVIEW_COL, 4L)
 
     new_data <- local({
       # TODO: rewrite REV_include_highlight_info to avoid this clumsy wrapper
@@ -815,27 +941,151 @@ REV_respond_to_user_review <- function(ns, state, input, review, selected_datase
     # > table.columns()[0].length;
     # > tmp[9] = '2';
     # > table.row(5).data(tmp).invalidate();
-    DT::replaceData(dt_proxy, new_data, resetPaging = FALSE, clearSelection = "none")    
+    DT::replaceData(dt_proxy, new_data, resetPaging = FALSE, clearSelection = "none")
     
-    fs_execute_IO_plan(IO_plan, is_init = FALSE)
+    fs_execute_IO_plan(IO_plan, callback = update_undo_description_callback)
+    
+    update_undo_resolved_reactives <<- list(
+      dataset_list_name = dataset_list_name, dataset_name = dataset_name, role = role
+    )
+    
+    REV_replace_undo_description(ns, "Computing undo description...") # overwritten by #deihee
+  })
+  
+  update_undo_description_callback <- shiny::reactiveVal(0L)
+  update_undo_resolved_reactives <- list()
+  shiny::observeEvent(update_undo_description_callback(), {
+    shiny::req(update_undo_description_callback() > 0L)
+    
+    error_messages <- fs_state[["error"]]
+    if (length(error_messages) > 0) {
+      showNotification(
+        ui = shiny::HTML(
+          paste("<h4>ERROR DURING REVIEW</h4>", paste(paste("\u2022", error_messages), collapse = "<br>"))
+        ), duration = NULL, closeButton = TRUE, type = "error"
+      )
+    }
+
+    undo_desc <- REV_describe_undo_action(
+      review = review, REV_state = state, fs_contents = fs_contents,
+      dataset_list_name = update_undo_resolved_reactives[["dataset_list_name"]], 
+      dataset_name = update_undo_resolved_reactives[["dataset_name"]],
+      role = update_undo_resolved_reactives[["role"]]
+    )
+    REV_replace_undo_description(ns, undo_desc[["text"]]) # overwrites #deihee
+  })
+  
+  shiny::observeEvent(input[[REV$ID$UNDO]], {
+    role <- input[[REV$ID$ROLE]]
+    
+    dataset_list_name <- selected_dataset_list_name()
+    dataset_name <- selected_dataset_name()
+   
+    undo_desc <- REV_describe_undo_action(review, REV_state = state, fs_contents, dataset_list_name, dataset_name, role)
+    
+    action_count <- length(undo_desc[["info"]][["canonical_indices"]])
+    
+    shiny::req(action_count > 0)
+    
+    timestamp <- SH$get_UTC_time_in_seconds()
+    
+    IO_plan <- REV_produce_IO_plan_for_review_undo_action(undo_desc[["info"]], timestamp, role, dataset_list_name, dataset_name)
+    fs_execute_IO_plan(IO_plan, callback = update_table_and_undo_description_callback)
+    
+    update_table_and_undo_resolved_reactives <<- list(
+      dataset_list_name = dataset_list_name, dataset_name = dataset_name, role = role
+    )
+    REV_replace_undo_description(ns, "Computing undo description...") # overwritten by #eegega
+  })
+  
+  update_table_and_undo_description_callback <- shiny::reactiveVal(0L)
+  update_table_and_undo_resolved_reactives <- list()
+  shiny::observeEvent(update_table_and_undo_description_callback(), {
+    shiny::req(update_table_and_undo_description_callback() > 0L)
+    
+    error_messages <- fs_state[["error"]]
+    if (length(error_messages) > 0) {
+      showNotification(
+        ui = shiny::HTML(
+          paste("<h4>ERROR DURING UNDO</h4>", paste(paste("\u2022", error_messages), collapse = "<br>"))
+        ), duration = NULL, closeButton = TRUE, type = "error"
+      )
+    }
+
+    REV_show_blocker(ns(TBL$TABLE_ID), message = paste(REV$MESSAGE$UNDO_REVIEW))
+    on.exit(REV_hide_blocker(ns(TBL$TABLE_ID)))
+    
+    # NOTE: compute data and reload through proxy
+    if (TRUE) { # FIXME: Partially repeats #weilae 
+      datasets <- review[["data"]]
+      
+      dataset_list_name <- update_table_and_undo_resolved_reactives[["dataset_list_name"]]
+      dataset_name <- update_table_and_undo_resolved_reactives[["dataset_name"]]
+      role <- update_table_and_undo_resolved_reactives[["role"]]
+      
+      load_results <- REV_load_annotation_info(fs_contents, review, datasets)
+      state[["annotation_info"]] <- load_results[["loaded_annotation_info"]]
+      annotation_info <- state[["annotation_info"]][[dataset_list_name]][[dataset_name]]
+      
+      data <- data()
+      changes <- REV_include_review_info(annotation_info = annotation_info, data = data, col_names = list())
+      shiny::validate(shiny::need(!inherits(changes, "simpleCondition"), changes[["message"]]))
+      
+      latest_reviews <- attr(changes[["data"]], "latest_reviews")
+      data_timestamps <- attr(changes[["data"]], "data_timestamps")
+      changes[["data"]][[REV$ID$STATUS_COL]] <- REV_compute_status(
+        changes[["data"]], role, latest_reviews, data_timestamps
+      )
+      changes[["data"]][[REV$ID$LATEST_REVIEW_COL]] <- REV_review_var_to_json(latest_reviews, data_timestamps)        
+      changes[["data"]] <- relocate_column(changes[["data"]], REV$ID$LATEST_REVIEW_COL, 4L)
+      
+      data <- changes[["data"]]
+      
+      # TODO: rewrite REV_include_highlight_info to avoid this clumsy wrapper
+      table_data <- list(data = data, col_names = character(0))
+      table_data <- REV_include_highlight_info(
+        table_data, annotation_info, tracked_vars = review[["datasets"]][[dataset_name]][["tracked_vars"]]
+      )
+      
+      DT::replaceData(dt_proxy, table_data[["data"]], resetPaging = FALSE, clearSelection = "none")
+    }
+    
+    undo_desc <- REV_describe_undo_action(review, REV_state = state, fs_contents, dataset_list_name, dataset_name, role)
+    REV_replace_undo_description(ns, undo_desc[["text"]]) # overwritten by #eegega
   })
   
   return(NULL)
 }
 
-REV_review_var_to_json <- function(col) {
-  res <- vector(mode = "character", length = length(col))
-  for (idx in seq_along(col)) {
-    curr_entry <- col[[idx]]
-    # Careful autounbox works with this particular structure
-    # TODO: (Optimize?) toJSON by hand given the simplicity of the structure
-    res[[idx]] <- jsonlite::toJSON(curr_entry, auto_unbox = TRUE)
+REV_review_var_to_json <- function(latest_reviews, data_timestamps) {
+  # Output has this format (newlines added for legibility):
+  # > '{
+  # >   "reviews":{
+  # >     "ROLE_1":{"review":"Reviewed with no issues","timestamp":1771937907.9553},
+  # >     "ROLE_2":{},"ROLE_3":{},"ROLE_4":{}
+  # >    },
+  # >   "data_timestamp":1769537142.1378
+  # >  }'
+ 
+  elem_count <- length(data_timestamps)
+  review_pieces <- list() 
+  for (role in names(latest_reviews)){
+    na_mask <- is.na(latest_reviews[[role]][["review"]])
+    s <- character(elem_count)
+    s[na_mask] <- sprintf('"%s":{}', role)
+    s[!na_mask] <- sprintf(
+      '"%s":{"review":"%s", "timestamp":%.3f}',
+      role, latest_reviews[[role]][["review"]][!na_mask], latest_reviews[[role]][["timestamp"]][!na_mask]
+    )
+    review_pieces <- c(review_pieces, list(s))
   }
-  res
+  reviews <- do.call(paste, c(review_pieces, sep = ","))
+  
+  res <- paste0('{"reviews":{', reviews, sprintf('},"data_timestamp":%.3f}', data_timestamps))
+  return(res)
 }
 
-REV_compute_status <- function(dataset_review, role) {
-
+REV_compute_status <- function(dataset_review, role, latest_reviews_by_role, data_timestamps) {
   # Does this function make sense with no role? Yes it does because the latest review is the one that may be outdated,
   # conflicting, unreviewed, etc.
   # Optionally, we could indicate if the current role does have a conflict or is it someone else?
@@ -843,53 +1093,56 @@ REV_compute_status <- function(dataset_review, role) {
   # Include the button if the selected role has this problem, basically we have a different review and we want to 
   # change to the currently selected.
 
-  # Should conflict only appear with respect to the selected role? Then this column should be recalculated everytime.
+  # Should conflict only appear with respect to the selected role? Then this column should be recalculated every time.
   # Conflict with me conflict with others?
-  # For now we say conflict but we don't say with whom.
+  # For now we indicate conflicts but not with whom.
 
-  res <- dataset_review
-  unclassed_status_levels <- unclass(REV$STATUS_LEVELS) # Get rid of poc class, otherwise factor levels errors
-  res[[REV$ID$STATUS_COL]] <- factor(rep(REV$STATUS_LEVELS$OK, length = nrow(res)), levels = unclassed_status_levels)
-  pending_mask <- dataset_review[[REV$ID$REVIEW_COL]] == levels(dataset_review[[REV$ID$REVIEW_COL]])[[1]] # First level is always default
-  reviewed_status_idx <- which(dataset_review[[REV$ID$ROLE_COL]] != "")
+  row_count <- nrow(dataset_review)
   
-  conflict_with_latest_mask <- rep_len(FALSE, nrow(res))
-  conflict_with_role_mask <- rep_len(FALSE, nrow(res))
-  outdated_latest_mask <- rep_len(FALSE, nrow(res))
-  outdated_role_mask <- rep_len(FALSE, nrow(res))
-  for (idx in reviewed_status_idx) {
-    if (dataset_review[[REV$ID$ROLE_COL]][[idx]] != "") { # There has been at least one review
-      curr_reviews <- dataset_review[[REV$ID$LATEST_REVIEW_COL]][[idx]][["reviews"]]
-      data_timestamp <- dataset_review[[REV$ID$LATEST_REVIEW_COL]][[idx]][["data_timestamp"]]
-      latest_review <- dataset_review[[REV$ID$REVIEW_COL]][[idx]]
-      latest_reviewer <- dataset_review[[REV$ID$ROLE_COL]][[idx]]
-      latest_timestamp <- curr_reviews[[as.character(latest_reviewer)]][["timestamp"]]
-
-      # latest is outdated      
-      outdated_latest_mask[[idx]] <- data_timestamp > latest_timestamp
-
-      for (role_nm in names(curr_reviews)) {
-        curr_entry <- curr_reviews[[role_nm]]
-        if (!is.null(curr_entry)) { # role_nm has reviewed this row
-          curr_review_timestamp <- curr_entry[["timestamp"]]
-          curr_review <- curr_entry[["review"]]
-          # current is outdated
-          conflict_with_latest_mask[[idx]] <- conflict_with_latest_mask[[idx]] || curr_review != latest_review
-          if (!is.na(role) && role_nm == role) {
-            outdated_role_mask[[idx]] <- data_timestamp > curr_review_timestamp
-            conflict_with_role_mask[[idx]] <- curr_entry[["review"]] != latest_review
-          }
-        }
-      }
+  pending_mask <- dataset_review[[REV$ID$REVIEW_COL]] == levels(dataset_review[[REV$ID$REVIEW_COL]])[[1]] # First level is always default
+ 
+  outdated_latest_mask <- local({
+    latest_review_timestamps <- rep(-Inf, row_count)
+    for (rev in latest_reviews_by_role){
+      latest_review_timestamps <- pmax(latest_review_timestamps, rev[["timestamp"]], na.rm = TRUE)
     }
-  }
-
-  res[[REV$ID$STATUS_COL]][pending_mask] <- REV$STATUS_LEVELS$PENDING
-  res[[REV$ID$STATUS_COL]][outdated_latest_mask] <- REV$STATUS_LEVELS$LATEST_OUTDATED
-  res[[REV$ID$STATUS_COL]][conflict_with_latest_mask & !outdated_latest_mask] <- REV$STATUS_LEVELS$CONFLICT
-  res[[REV$ID$STATUS_COL]][conflict_with_role_mask & !outdated_latest_mask] <- REV$STATUS_LEVELS$CONFLICT_ROLE
-    
-  return(res[[REV$ID$STATUS_COL]])
+    res <- (data_timestamps > latest_review_timestamps) & !pending_mask
+    return(res)
+  })
+  
+  conflict_with_latest_mask <- local({
+    res <- rep_len(FALSE, row_count)
+    for (rev in latest_reviews_by_role){
+      mask <- dataset_review[[REV$ID$REVIEW_COL]] != rev[["review"]]
+      res <- pmax(res, mask, na.rm = TRUE)
+    }
+    res <- as.logical(res)
+    return(res)
+  })
+  
+  conflict_with_role_mask <- local({
+    res <- rep_len(FALSE, row_count)
+    if (!is.na(role)) {
+      role_review <- latest_reviews_by_role[[role]][["review"]]
+      res <- ((role_review != REV$CONSTANT$DEFAULT_REVIEW_VALUE) & (role_review != dataset_review[[REV$ID$REVIEW_COL]]))
+    }
+    return(res)
+  })
+ 
+  # NOTE: Assignments in ascending order of priority (0..4)
+  # [0] All rows are OK...
+  res <- factor(rep(REV$STATUS_LEVELS$OK, length = nrow(dataset_review)), 
+                levels = unclass(REV$STATUS_LEVELS)) # Strips POC class away to prevent factor level errors
+  # [1] Except for pending rows
+  res[pending_mask] <- REV$STATUS_LEVELS$PENDING
+  # [2] A conflicting row deserves attention
+  res[conflict_with_latest_mask] <- REV$STATUS_LEVELS$CONFLICT
+  # [3] A conflict in which the current role participates deserves even more attention
+  res[conflict_with_role_mask] <- REV$STATUS_LEVELS$CONFLICT_ROLE
+  # [4] But a review based on outdated information is the most relevant
+  res[outdated_latest_mask] <- REV$STATUS_LEVELS$LATEST_OUTDATED
+  
+  return(res)
 }
 
 # Collect hashes that were known prior to the times indicated by `review_timestamps` 
@@ -963,7 +1216,7 @@ REV_report_changes <- function(h0, h1, verbose = FALSE) {
 #' 
 #' Configuration of the experimental data review feature. Please refer to `vignette("data_review")`.
 #'
-#' @param error `[environment]`
+#' @param err `[environment]`
 #' This environment has at least one element named "messages". It is a character vector. Diagnostic messages related to
 #' the configuration of the review parameter will be placed here.
 #' 
@@ -978,12 +1231,27 @@ check_review_parameter <- function(datasets, dataset_names, review, err) {
   ) &&
     CM$assert(
       container = err,
-      cond = (checkmate::test_list(review[["datasets"]], names = "unique") &&
+      cond = (checkmate::test_list(review[["datasets"]]) &&
                 checkmate::test_subset(names(review[["datasets"]]), dataset_names)),
       msg = sprintf(
         "`review$datasets` should be a list and its elements should be named after the following dataset names: %s",
         paste(dataset_names, collapse = ", ")
       )
+    ) &&
+    CM$assert(
+      container = err,
+      cond = checkmate::test_list(review[["datasets"]], names = "unique"),
+      msg = local({
+        res <- sprintf(
+          "`review$datasets` should be a list and its elements should be <b>uniquely</b> named after the 
+          following dataset names: %s.<br>", paste(dataset_names, collapse = ", "))
+      
+        dataset_names <- names(review[["datasets"]])
+        repeat_names <- unique(sort(dataset_names[duplicated(dataset_names)]))
+        res <- paste0(res, sprintf("However, the following dataset names appear more than once: %s", 
+                                   paste(repeat_names, collapse = ",")))
+        return(res)
+      })
     ) &&
     CM$assert(
       container = err,
@@ -1054,7 +1322,34 @@ check_review_parameter <- function(datasets, dataset_names, review, err) {
         )
       )
       
+      all_vars <- union(info[["id_vars"]], info[["tracked_vars"]])
+      
+      encodings <- RS_compute_data_frame_variable_types(dataset, all_vars)
+      
+      CM$assert(
+        container = err,
+        cond = !any(encodings == UNKNOWN_VARIABLE_TYPE_ENCODING),
+        msg = local({
+          res <- "The following variables are of types currently not supported by the review feature:"
+          indices <- which(encodings == UNKNOWN_VARIABLE_TYPE_ENCODING)
+          for (index in indices){
+            var_name <- all_vars[[index]]
+            res <- paste(res, var_name, sprintf("(class: %s)", paste(class(dataset[[var_name]]), collapse = ",")))
+          }
+          
+          res <- paste0(res, ".<br>")
+          
+          supported_data_types <- character(0)
+          for (encoding in RS_variable_type_encoding){
+            if (encoding[["code"]] != UNKNOWN_VARIABLE_TYPE_ENCODING) { 
+              supported_data_types <- c(supported_data_types, encoding[["desc"]])
+            }
+          }
+          res <- paste(res, sprintf("Supported data types are: %s.", paste(supported_data_types, collapse = ", ")))
+          
+          return(res)
+        })
+      )
     }
   }
 }
-

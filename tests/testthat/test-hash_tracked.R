@@ -134,19 +134,14 @@ test_that("SH$hash_tracked exhibits no false negatives and few false positives" 
 
 test_that("Row changes can be attributed to specific modified columns" |>
             vdoc[["add_spec"]](specs$review_change_attribution), {
-  folder_contents <- NULL
-  fs_callbacks <- list(
-    attach = function(arg) NULL, list = function(arg) NULL, read = function(arg) NULL, write = function(arg) NULL,
-    append = function(arg) NULL, execute_IO_plan = function(arg) NULL,
-    read_folder = function(arg) folder_contents <<- arg
-  )
-  
   store_path <- file.path(tempdir(), "data_checks")
   dir.create(store_path, showWarnings = FALSE)
   on.exit(unlink(store_path, recursive = TRUE), add = TRUE, after = FALSE)
   
-  fs_client <- fs_init(callbacks = fs_callbacks, store_path)
-  fs_client[["read_folder"]](subfolder_candidates = "dataset_list")
+  fs_client <- fs_init(store_path)
+  fs_state <- fs_client[["state"]]
+  fs_contents <- fs_state[["contents"]]
+  fs_client[["list"]]()
   
   tracked_vars <- c(
     "AESEV", "AETERM", "AEHLGT", "AEHLT", "AELLT", 
@@ -166,19 +161,16 @@ test_that("Row changes can be attributed to specific modified columns" |>
     )
   )
   
-  info <- REV_load_annotation_info(folder_contents, review, dataset_lists)
+  info <- REV_load_annotation_info(fs_contents, review, dataset_lists)
   expect_length(info[["error"]], 0)
-  fs_client[["execute_IO_plan"]](IO_plan = info[["folder_IO_plan"]], is_init = TRUE)
-  fs_client[["read_folder"]](subfolder_candidates = "dataset_list")
-  
+  fs_client[["execute_IO_plan"]](IO_plan = info[["IO_plan"]])
   Sys.sleep(1)
   
   # The severity of the first record changes on the first dataset update (#first_change)
   
   dataset_lists[["dataset_list"]][["ae"]][["AESEV"]][[1]] <- "SEVERE"
-  info <- REV_load_annotation_info(folder_contents, review, dataset_lists)
-  fs_client[["execute_IO_plan"]](IO_plan = info[["folder_IO_plan"]], is_init = TRUE)
-  fs_client[["read_folder"]](subfolder_candidates = "dataset_list")
+  info <- REV_load_annotation_info(fs_contents, review, dataset_lists)
+  fs_client[["execute_IO_plan"]](IO_plan = info[["IO_plan"]])
   
   Sys.sleep(1)
  
@@ -187,9 +179,8 @@ test_that("Row changes can be attributed to specific modified columns" |>
   # On the same update two new rows appear _before_ the two already known rows
   dataset_lists[["dataset_list"]][["ae"]] <- rbind(safetyData::sdtm_ae[3:4,], dataset_lists[["dataset_list"]][["ae"]])
   
-  info <- REV_load_annotation_info(folder_contents, review, dataset_lists)
-  fs_client[["execute_IO_plan"]](IO_plan = info[["folder_IO_plan"]], is_init = TRUE)
-  fs_client[["read_folder"]](subfolder_candidates = "dataset_list")
+  info <- REV_load_annotation_info(fs_contents, review, dataset_lists)
+  fs_client[["execute_IO_plan"]](IO_plan = info[["IO_plan"]])
   
   # Compute which columns have changed
   revisions <- attr(info[["loaded_annotation_info"]][["dataset_list"]][["ae"]], "revisions")

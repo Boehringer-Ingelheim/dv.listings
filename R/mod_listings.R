@@ -209,11 +209,6 @@ listings_UI <- function(module_id) { # nolint
 #'
 #' Column corresponding to subject ID. Default value is 'USUBJID'
 #'
-#' @param receiver_id `[character(1) | NULL]`
-#'
-#' Character string defining the ID of the module to which to send a subject ID. The
-#' module must exist in the module list. The default is NULL which disables communication.
-#'
 #' @param on_sbj_click `[function()]`
 #'
 #' Function to invoke when a subject ID is clicked in a listing
@@ -416,22 +411,13 @@ listings_server <- function(module_id,
     show_review_columns <- function() FALSE
     REV_state <- new.env(parent = emptyenv())
     if (enable_review) {
-
-      fs_callbacks <- list(
-        attach = shiny::reactiveVal(NULL),
-        list = shiny::reactiveVal(NULL),
-        read = shiny::reactiveVal(NULL),
-        write = shiny::reactiveVal(NULL),
-        append = shiny::reactiveVal(NULL),
-        read_folder = shiny::reactiveVal(NULL),
-        execute_IO_plan = shiny::reactiveVal(NULL)
-      )
-     
       fs_client <- NULL 
       if (is.null(review[["store_path"]])) {
-        fs_client <- fsa_init(input, TBL$FSA_CLIENT, fs_callbacks)
+        fs_client <- fsa_init(input, TBL$FSA_CLIENT)
       } else {
-        fs_client <- fs_init(fs_callbacks, review[["store_path"]])
+        fs_client <- fs_init(review[["store_path"]])
+        # NOTE: It's possible for the app creator to configure a folder that does not exist yet, so we create it here
+        dir.create(review[["store_path"]], showWarnings = FALSE, recursive = TRUE)
       }
       
       # Overly restrictive sanitization of role strings, as they will be used for file names:
@@ -439,14 +425,12 @@ listings_server <- function(module_id,
       review[["roles"]] <- gsub("[^a-zA-Z0-9 _.-]", "", review[["roles"]]) # Accepts alpha+num+space+'.'+'_'+'-'
 
       output[[TBL$REVIEW_UI_ID]] <- shiny::renderUI({
-
         review_ui <- shinyWidgets::dropdownButton(
           inputId = ns(TBL$REVIEW_DROPDOWN_ID), label = shiny::textOutput(ns("review_label"), inline = TRUE), circle = FALSE,
           REV_UI(ns = ns, roles = review[["roles"]])[["ui"]]
         )
 
         review_ui
-
       })
 
       review_button_label <- shiny::reactive({
@@ -462,7 +446,7 @@ listings_server <- function(module_id,
 
       shiny::outputOptions(output, TBL$REVIEW_UI_ID, suspendWhenHidden = FALSE)
 
-      REV_main_logic(REV_state, input, review, review[["data"]], fs_client, fs_callbacks)
+      REV_main_logic(ns, REV_state, input, review, review[["data"]], fs_client)
       show_review_columns <- REV_state[["contents_ready"]]
     }
 
@@ -555,7 +539,8 @@ listings_server <- function(module_id,
         selected_dataset_name = shiny::reactive(input[[TBL$DATASET_ID]]),
         data = shiny::reactive(output_table_data()[["data"]]),
         dt_proxy = dt_proxy,
-        fs_execute_IO_plan = fs_client[["execute_IO_plan"]]
+        fs_execute_IO_plan = fs_client[["execute_IO_plan"]],
+        fs_state = fs_client[["state"]]
       )
     }
     
@@ -592,9 +577,16 @@ listings_server <- function(module_id,
           col_names = table_data[["col_names"]]
         )
         shiny::validate(shiny::need(!inherits(changes, "simpleCondition"), changes[["message"]]))
+        
+        latest_reviews <- attr(changes[["data"]], "latest_reviews")
+        data_timestamps <- attr(changes[["data"]], "data_timestamps")
 
-        changes[["data"]][[REV$ID$STATUS_COL]] <- REV_compute_status(changes[["data"]], role)
-        changes[["data"]][[REV$ID$LATEST_REVIEW_COL]] <- REV_review_var_to_json(changes[["data"]][[REV$ID$LATEST_REVIEW_COL]])        
+        changes[["data"]][[REV$ID$STATUS_COL]] <- REV_compute_status(
+          changes[["data"]], role, latest_reviews, data_timestamps
+        )
+        
+        changes[["data"]][[REV$ID$LATEST_REVIEW_COL]] <- REV_review_var_to_json(latest_reviews, data_timestamps)
+        changes[["data"]] <- relocate_column(changes[["data"]], REV$ID$LATEST_REVIEW_COL, 4L)
         
         review_col_count <- ncol(changes[["data"]]) - ncol(table_data[["data"]])
         table_data[["data"]] <- changes[["data"]]
@@ -622,13 +614,20 @@ listings_server <- function(module_id,
           )
         )
 
-        # TODO: find a place for this if
         if (checkmate::test_string(input[[REV$ID$ROLE]], min.chars = 1)) {
-          bulk_render <- sprintf(
-            "dv_listings.render_bulk_menu(settings.sTableId + \"_wrapper\", [%s], '%s');",
-            paste(paste0("'", review[["choices"]], "'"), collapse = ", "), ns(REV$ID$REVIEW_SELECT)
+          fs_contents <- fs_client[["state"]][["contents"]]
+          initial_undo_description <- shiny::div(
+            REV_describe_undo_action(
+              review, REV_state, fs_contents, selected_dataset_list_name, selected_dataset_name, role
+            )[["text"]], id = sprintf("%s", ns(REV$ID$UNDO_DESCRIPTION))
           )
-          init_complete_payloads <- c(init_complete_payloads, bulk_render)
+          
+          bulk_and_undo_render <- sprintf(
+            "dv_listings.render_bulk_menu_and_undo_button(settings.sTableId + \"_wrapper\", [%s], '%s', '%s', '%s', '%s');",
+            paste(paste0("'", review[["choices"]], "'"), collapse = ", "), ns(REV$ID$REVIEW_SELECT), 
+            ns(REV$ID$UNDO), ns(REV$ID$UNDO_DESCRIPTION_ANCHOR), initial_undo_description
+          )
+          init_complete_payloads <- c(init_complete_payloads, bulk_and_undo_render)
         }
       }
       
@@ -651,6 +650,8 @@ listings_server <- function(module_id,
           # TODO: Update to use new recommended API: https://datatables.net/reference/option/layout
           dom = "<'top'<'top-title'>>rtilp", # Buttons, filtering, processing display element, table, information summary, length, pagination
           fixedColumns = list(left = review_col_count),
+          colResize = list(),
+          processing = TRUE,
           initComplete = htmlwidgets::JS(init_complete_js),
           drawCallback = htmlwidgets::JS("
             function (settings) {  
@@ -678,7 +679,22 @@ listings_server <- function(module_id,
             }
           ") # Keep filtering enabled even for columns that have a unique value
         ),
+        class = "display dv-listings-table",
         selection = "none"
+      )
+      
+      res$dependencies <- c(
+        # Inject the JS/CSS `colResize` dependency directly into the table to force it to load after jQuery
+        res$dependencies, list(
+          htmltools::htmlDependency(
+            name = "colResize",
+            version = "1.6.1",
+            src = system.file("www/", package = "dv.listings", mustWork = TRUE),
+            script = "js/jquery.dataTables.colResize.js",
+            stylesheet = "css/jquery.dataTables.colResize.css",
+            all_files = FALSE
+          )
+        )
       )
       
       if (show_review_columns()) {
@@ -731,6 +747,11 @@ listings_server <- function(module_id,
 #' Name(s) of the dataset(s) that will be displayed.
 #'
 #' @inheritParams listings_server
+#' 
+#' @param receiver_id `[character(1) | NULL]`
+#'
+#' Character string defining the ID of the module to which to send a subject ID. The
+#' module must exist in the module list. The default is NULL which disables communication.
 #'
 #' @template module_id-arg
 #'

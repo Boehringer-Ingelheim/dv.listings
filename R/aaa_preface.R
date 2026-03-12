@@ -1,6 +1,9 @@
 # THIS FILE IS NAMED aaa_preface.R SO IT IS LOADED BEFORE ALL OTHER FILES
 # DO NOT CHANGE ITS NAME. IT MUST BE THE FIRST ONE ALPHABETICALLY.
 
+#' @useDynLib dv.listings, .registration=TRUE
+NULL
+
 #' Build a collection of named constants
 #'
 #' @param ... Named parameters to be collected as constants

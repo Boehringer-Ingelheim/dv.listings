@@ -1,7 +1,7 @@
 Package: dv.listings
 Type: Package
 Title: Data listings module
-Version: 4.3.1
+Version: 4.3.2
 Authors@R: 
     c(
       person("Boehringer-Ingelheim Pharma GmbH & Co.KG", role = c("cph", "fnd")),
@@ -26,7 +26,8 @@ Suggests:
     pharmaverseadam (>= 0.1.0),
     shinytest2 (>= 0.3.1),
     testthat (>= 3.0.2),
-    safetyData
+    safetyData,
+    jsonlite
 Config/testthat/edition: 3
 Imports: 
     checkmate (>= 2.1.0),
@@ -41,13 +42,11 @@ Imports:
     shinyFeedback (>= 0.4.0),
     shinyjs (>= 2.1.0),
     shinyWidgets (>= 0.8.0),
-    tibble (>= 3.2.1),
-    xxhashlite,
     base64enc,
-    htmltools,
-    jsonlite
+    htmltools
 Depends: R (>= 4.1.0)
 RoxygenNote: 7.3.2
 Roxygen: list(markdown = TRUE)
-Remotes: boehringer-ingelheim/dv.manager@main
+Remotes: boehringer-ingelheim/dv.manager
 VignetteBuilder: knitr
+URL: https://github.com/Boehringer-Ingelheim/dv.listings, https://boehringer-ingelheim.github.io/dv.listings

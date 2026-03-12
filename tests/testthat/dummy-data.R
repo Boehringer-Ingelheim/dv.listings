@@ -89,10 +89,6 @@ attributes(dm_dummy$ARM)$label <- "Description of Planned Arm"
 attributes(dm_dummy$COUNTRY)$label <- "Country"
 attributes(dm_dummy$RACE)$label <- "Race"
 
-# Rewrite data frame as tibble
-dm_dummy <- tibble::as_tibble(dm_dummy)
-
-
 ##########################
 # Adverse Events dataset #
 ##########################
@@ -140,6 +136,3 @@ attributes(ae_dummy$AESER)$label <- "Serious Event"
 attributes(ae_dummy$AEREL)$label <- "Causality"
 attributes(ae_dummy$AESTDTC)$label <- "Start Date/Time of Adverse Event"
 attributes(ae_dummy$AEENDTC)$label <- "End Date/Time of Adverse Event"
-
-# Rewrite data frame as tibble
-ae_dummy <- tibble::as_tibble(ae_dummy)

@@ -1,5 +1,4 @@
 const dv_listings = (function () {
-
   const latest_reviews_json_idx = 4;
   const latest_review_idx = 1;
   const role_idx = 2;
@@ -224,7 +223,7 @@ const dv_listings = (function () {
     }
   }
 
-  const render_bulk_menu = function(id, choices, input_id) {    
+  const render_bulk_menu_and_undo_button = function(id, choices, bulk_input_id, undo_input_id, undo_description_anchor_id, initial_undo_description) {
     const container = $("#" + id).find('.top');
 
     let choices_menu = '';
@@ -242,7 +241,7 @@ const dv_listings = (function () {
     const apply_bulk_split = `
     <div class="btn-group" style = "display:inline-flex">
     <button type="button" class="btn btn-outline-primary" 
-            onclick="dv_listings.apply_bulk_visible('${id}', '${input_id}')">
+            onclick="dv_listings.apply_bulk_visible('${id}', '${bulk_input_id}')">
       Apply selected
     </button>
     <button type="button" class="btn btn-primary dropdown-toggle dropdown-toggle-split" data-bs-toggle="dropdown" data-toggle="dropdown" aria-expanded="false">
@@ -251,12 +250,26 @@ const dv_listings = (function () {
     </button>
     <ul class="dropdown-menu" role="menu">
       <li>
-        <a href="#" onclick="dv_listings.apply_bulk_filtered('${id}', '${input_id}'); return false;">
+        <a href="#" onclick="dv_listings.apply_bulk_filtered('${id}', '${bulk_input_id}'); return false;">
           Apply full table
         </a>
       </li>
     </ul>
-  </div>    
+    </div>    
+    `;
+
+    const undo_element = `
+    <div class="btn-group" style = "display:inline-flex">
+    <button type="button" class="btn btn-outline-primary" onclick="dv_listings.apply_undo('${undo_input_id}')">Undo</button>
+    <button type="button" class="btn btn-primary dropdown-toggle dropdown-toggle-split" data-bs-toggle="dropdown" data-toggle="dropdown" aria-expanded="false">
+      <span class="caret"></span>
+      <span class="sr-only">Toggle Dropdown</span>
+    </button>
+    <ul class="dropdown-menu" role="menu">
+        <div id='${undo_description_anchor_id}'></div>
+        ${initial_undo_description}
+    </ul>
+    </div>    
     `;
 
     const html = `
@@ -264,8 +277,11 @@ const dv_listings = (function () {
         ${select_all_visible}
         ${choices_menu}
         ${apply_bulk_split}
-        
-      </div>`;
+      </div>
+      <div class='undo-button-wrapper'>
+        ${undo_element}
+      </div>
+      `;
     container.prepend(html);
   }
 
@@ -349,56 +365,125 @@ const dv_listings = (function () {
     Shiny.setInputValue(input_id, {row:null, option:choice_value, bulk:'filtered'}, {priority: 'event'})
   };
 
+  const apply_undo = function(input_id) {
+    Shiny.setInputValue(input_id, {contents:'dummy'}, {priority: 'event'})
+  };
+
   const res = {
     review_column_render: review_column_render,
     render_selection: render_selection,
     render_identity: render_identity,
     render_status: render_status,
-    render_bulk_menu: render_bulk_menu,
+    render_bulk_menu_and_undo_button: render_bulk_menu_and_undo_button,
     refresh_bulk_select_all_checkbox: refresh_bulk_select_all_checkbox,
     on_change_select_all_checkbox: on_change_select_all_checkbox,
     on_change_table_checkbox: on_change_table_checkbox,
     apply_bulk_visible: apply_bulk_visible,
     apply_bulk_filtered: apply_bulk_filtered,
+    apply_undo: apply_undo,
     show_child: show_child
   }
   return (res)
-})()
+})();
+
+const dv_listings_blocker = (function () {
+  Shiny.addCustomMessageHandler('dv-listings-toggle-dt-processing', function(message) {
+    let container = $('#' + message.id);
+    let loader = container.find('.dataTables_processing');
+   
+    let null_event = null;
+    if(message.show) {
+      // update or prepend text with the contents of `message`
+      let text_node = loader.contents().filter(function() {
+        return this.nodeType === Node.TEXT_NODE;
+      })[0];
+      
+      if(text_node) {
+        text_node.nodeValue = message.msg;
+      } else{ // text node does not exist, so we create one
+        loader.prepend(document.createTextNode(message.msg));
+      }
+      
+      loader.show().css({'visibility': 'visible', 'display': 'block'});
+      container.find('table').trigger('processing.dt', [null_event, true]);
+    } else {
+      loader.hide().css('visibility', 'hidden');
+      container.find('table').trigger('processing.dt', [null_event, false]);
+    }
+  });
+})();
 
 const dv_fsa = (function() {
-
-  const g_directory = {handle: null, error: "unattached"};  
+  const FS_WRITE_OFFSET_APPEND = -1;
   let overlay_id = "dv_fsa_overlay";
 
-  const attach = async function({status_input_id}) {
+  let g_directory_handle = null;
+  let g_cached_listing = {}; // name (string) : {kind ("directory"/"file"), size (numeric)}
+  let g_cached_contents = {}; // name (string) : contents (ArrayBuffer)
+  let g_error = "Not listed yet";
+
+  const list = async function({ status_input_id }) {
+    g_directory_handle = null;
+    g_error = null;
+    
     show_overlay({message: "Attaching..."});
-    if(window.showDirectoryPicker) {
-      g_directory.handle = null;
-      g_directory.error = null;
-
+    if(window.showDirectoryPicker){
       try {
-        g_directory.handle = await window.showDirectoryPicker({mode: 'readwrite'});
+        g_directory_handle = await window.showDirectoryPicker({mode: 'readwrite'});
+        if(g_directory_handle === null) throw new Error("null dir handle");
       } catch (error) {
-        g_directory.error = 'Could not gain write access to folder' ;
+        g_error = 'Could not gain write access to folder';
       }    
-      
     } else {
-      g_directory.error = 'The File System Access API is not supported by this browser';
-    }  
+      g_error = 'The File System Access API is not supported by this browser';
+    }
 
-    let status = { 
-      connected: g_directory.handle !== null, 
-      name: g_directory.handle !== null ? g_directory.handle.name: null, 
-      error: g_directory.error
+    hide_overlay();
+    
+    const _dir_list = async function(path, dir_handle) {
+      let res = {};
+      if(g_error !== null) return res;
+      
+      let entries_async = dir_handle.entries();
+      let entries = await _Array_fromAsync(entries_async);
+      for (let i = 0; i < entries.length; i++) {
+        let [name, handle] = entries[i];
+
+        if (handle.kind === 'file') {
+          try {
+            // NOTE: This is a wasteful way of getting the file size, but there's no easy alternative. See:
+            //   https://github.com/WICG/file-system-access/issues/253
+            // Reading the whole file into memory is mitigated by the fact that we will likely access it
+            // later and it will be in the filesystem cache.
+            let file = await handle.getFile();
+            res[path+name] = {
+              kind: 'file',
+              size: file.size
+            };
+          } catch (err) {
+            console.warn(`Failed to read file "${name}": ${err.message}`);
+          }
+        } else if (handle.kind === 'directory') {
+          res[path+name] = {
+            kind: 'directory'
+          };
+          let subres = await _dir_list(path+name+'/', handle);
+          Object.assign(res, subres) // merges listings
+        }
+      }
+      return res;
     };
 
-    Shiny.setInputValue(status_input_id, status, {priority: 'event'});    
-    hide_overlay();
-  };
+    g_cached_listing = await _dir_list('', g_directory_handle);
+   
+    let status = {
+      path: g_directory_handle === null ? null : g_directory_handle.name,
+      list: g_cached_listing,
+      error: g_error
+    };
 
-  const _assert_init_and_attached = function() {    
-    if(g_directory.error === "unattached") throw new Error("g_directory is `unattached`. call `init`");
-    return;
+    Shiny.setInputValue(status_input_id, status, { priority: 'event' });
+    return (status);
   };
 
   const _Array_fromAsync = async function(asyncIterator){ 
@@ -406,68 +491,108 @@ const dv_fsa = (function() {
     for await(const i of asyncIterator) arr.push(i); 
     return arr;
   };
-
-  const _get_file = async function (dir_handle, file_name, mode){
-    _assert_init_and_attached();
-    let res = {handle: null, error: null};
   
-    let flags = null
-    if(mode == 'read') flags = {};
-    else if(mode == 'write') flags = {create: true}; // TODO: Remove
-    else if(mode == 'append') flags = {create: true};
-    else debugger;
-  
-    if(dir_handle.error){
-      res.error = 'Could not open ' + file_name + ' because folder failed with error: ' + dir_handle.error;
-    } else {
-      try {
-        res.handle = await g_directory.handle.getFileHandle(file_name, flags); // FileSystemFileHandle {kind: 'file', name: 'hello_world.txt'}
-      } catch(error) {
-        res.error = 'Error getting handle of `' + file_name + '`: ' + error.message
+  const write = async function(file_path, contents_b64, offset){
+    let status = {offset:offset, error: g_error};
+    if(status.error !== null) return status;
+    
+    // show_overlay({message: "Writing file..."}); // TODO: Consider reintroducing as non-visible element to avoid flashing for every action
+    
+    try { // NOTE: Follows the same logic as #isoaxo
+      let path_components = file_path.split('/');
+      let fname = path_components.pop();
+      
+      if(path_components.length == 0) path_components = ['.']; // file with no path trips getDirectoryHandle otherwise
+      let folder_path = path_components.join('/');
+
+      let contents = await _base64_to_buffer(contents_b64);
+    
+      // 0 - ensure folder exists
+      let dir_handle = null;
+      if(folder_path === ".") dir_handle = g_directory_handle;
+      else{
+        // NOTE: Directory creation only handles immediate, singly nested subfolders
+        // TODO: Consider before repurposing this file system abstraction layer
+        dir_handle = await g_directory_handle.getDirectoryHandle(folder_path, {create: true});
       }
-    }
-    return res;
-  };
-
-  const _read_file = async function(file_handle){
-    let res = null;
-    if(!file_handle.error){
-
-      try {
-        let file = await file_handle.handle.getFile()
-        res = await file.arrayBuffer();
-      } catch(error) {
-        debugger; // TODO: message
-        file_handle.error = 'Could not read contents of handle'
-      }
-    }
-    return res;
-  };
-
-  const _write_file = async function(file_handle, contents){ // TODO: Remove
-    if(!file_handle.error){      
+    
+      // 1 - write to temp file to the same folder, because we rely on `file.move` to place the file on its Final Destination
+      let temp_fname = fname + "_" + crypto.randomUUID() + ".tmp";
+      let temp_handle = await dir_handle.getFileHandle(temp_fname, {create: true});
+     
+      let orig_contents = new ArrayBuffer(0);
       try{
-        const writable = await file_handle.handle.createWritable();
-        await writable.write(contents);
-        await writable.close();
-      } catch(error){
-        file_handle.error = 'Could not write file: ', error.message;
+        let orig_file_handle = await dir_handle.getFileHandle(fname, {create: false});
+        let orig_file = await orig_file_handle.getFile();
+        orig_contents = await orig_file.arrayBuffer();
+      } catch(unexamined_error){ /* original file does not exist; nothing to copy */ }
+      
+      let writable = await temp_handle.createWritable();
+      await writable.write(orig_contents);
+      await writable.close();
+      
+      // 2 - get file size
+      let file_size = (await temp_handle.getFile()).size;
+     
+      // 3 - patch and check offset
+      if(offset == FS_WRITE_OFFSET_APPEND){
+        offset = file_size; // append without checking offset
       }
+    
+      if(offset > file_size)
+        throw new Error(`Write operation to offset "${offset}" would create a hole in '"${file_path}"'.`);
+      
+      // 4 - compare known cached contents to current contents
+      let cached_contents = new ArrayBuffer(0);
+      if(g_cached_contents[file_path] !== undefined) cached_contents = g_cached_contents[file_path];
+      
+      let range_contents_old = cached_contents.slice(offset, offset+contents.byteLength);
+      let range_contents_new = orig_contents.slice(offset, offset+contents.byteLength);
+      
+      let ranges_are_identical = (indexedDB.cmp(range_contents_new, range_contents_old) === 0); // NOTE: From https://stackoverflow.com/a/76795132
+      if(!ranges_are_identical){
+        throw new Error(`Write operation to '${file_path}' would overwrite contents of unknown origin.`);
+      }
+      
+      // 5 - write proper
+      writable = await temp_handle.createWritable({keepExistingData:true});
+      writable.seek(offset)
+      await writable.write(contents);
+      await writable.close();
+      
+      // 6 - overwrite target file with temp contents
+      await temp_handle.move(dir_handle, fname);
+      
+      let file = await temp_handle.getFile(); // FIXME? Wasteful - could approximate with file_size + contents + offset
+      file_size = file.size;
+      
+      // 7 - Update local cached contents
+      //  TODO: Consider simply re-reading whole file instead. It may not be that expensive (see also #laafai)
+      
+      // In-place update of the cached contents of file_path. The `transfer(size)` and the casting to an `Uint8Array` 
+      // view are confusing to the untrained eyes of a non-js programmer, so the best way to follow this code might be 
+      // to place a debugger call and step through it interactively.
+      let start = offset;
+      let end = offset+contents.byteLength;
+      if(cached_contents.byteLength < end){
+        cached_contents = cached_contents.transfer(end); // resize/realloc
+      }
+      
+      let cached_contents_view = new Uint8Array(cached_contents);
+      cached_contents_view.set(new Uint8Array(contents), start);
+      g_cached_contents[file_path] = cached_contents;
+      
+      // 8 - Update local cached listing 
+      g_cached_listing[file_path] = {kind:'file', size:file_size};
+    } catch(error) {
+      g_error = status.error = `Error writing ${file_path}: ${error}`;
+      console.error(error);
     }
-  };
 
-  const _append_file = async function(file_handle, contents){
-    if(!file_handle.error){
-      try{
-        let writable = await file_handle.handle.createWritable({keepExistingData:true});
-        let offset = (await file_handle.handle.getFile()).size
-        writable.seek(offset)
-        await writable.write(contents);
-        await writable.close();
-      } catch(error){
-        file_handle.error = 'Could not append to file: ', error.message;
-      }
-    }
+    status.offset = offset;
+    
+    // hide_overlay(); // TODO: Consider reintroducing as non-visible element to avoid flashing for every action
+    return status;
   };
 
   // From https://stackoverflow.com/a/66046176
@@ -488,256 +613,81 @@ const dv_fsa = (function() {
     return await (await fetch("data:application/octet;base64," + base64)).arrayBuffer();
   };
 
-  const _read_all_contents = async function (subfolder_candidates) {    
-    const results = {};
-  
-    for (const subfolder of subfolder_candidates) {
-      let folder_handle;
-      try {
-        folder_handle = await g_directory.handle.getDirectoryHandle(subfolder, { create: false });
-      } catch (err) {
-        console.warn(`Subfolder "${subfolder}" does not exist, skipping.`);
-        continue;
-      }
-  
-      results[subfolder] = {};
-  
-      for await (const [file_name, file_handle] of folder_handle.entries()) {
-        if (file_handle.kind === 'file') {
-          try {
-            const file = await file_handle.getFile();
-            const contents = await _buffer_to_base64(await file.arrayBuffer());
-            results[subfolder][file_name] = {
-              size: file.size,
-              time: file.lastModified / 1000,
-              contents: contents,
-              error: null
-            };
-          } catch (err) {
-            console.warn(`Failed to read "${subfolder}/${file_name}": ${err.message}`);
-            results[subfolder][file_name] = {
-              size: null,
-              time: null,
-              contents: null,
-              error: `Failed to read "${subfolder}/${file_name}": ${err.message}`
-            };
-          }
-        }
-      }  
+  const read = async function({status_input_id, paths}){
+    let status = {contents:{}, error: g_error};
+    if(g_error !== null) return status;
+
+    show_overlay({message: "Reading files..."});
+
+    try {
+      // NOTE: Logic repeats in #thaegh
+      let invalid_paths = new Set(paths).difference(new Set(Object.keys(g_cached_listing)));
+      if(invalid_paths.size > 0)
+        throw new Error("Paths " + Array.from(invalid_paths).join(', ') + " are invalid.");
       
-      if (Object.keys(results[subfolder]).length === 0) {
-        delete results[subfolder];
-      }
-    }
-  
-    return results;
-  }
+      for(let path of paths){
+        let path_components = path.split('/');
+        let fname = path_components.pop();
+        if(path_components.length == 0) path_components = ['.']; // file with no path trips getDirectoryHandle otherwise
 
-  const _execute_IO_plan = async function(plan) {
-    for (let idx=0; idx<plan.length;idx++) {
-      let entry = plan[idx];
-      if(entry.type === "create_dir") {
-        try {
-          await g_directory.handle.getDirectoryHandle(entry.dname, {create: true});          
-          entry.error = null;
-        } catch (error) {
-          entry.error = "Error creating dir: " + entry.path;
-          console.error(entry.error);
-        }
-      } else if (entry.type === "write_file") {
-        // FIXME(miguel)? This abstraction sits unnaturally close to the FSA API.
-        //                The `entry` could be simply {full_path + contents}; no need for dir+fname or mode
-        if(entry.mode === "bin"){
-          try {
-            const buffer = await _base64_to_buffer(entry.contents);
-            let dir_handle = null;
-            if(entry.path === ".") dir_handle = g_directory.handle;
-            else dir_handle = await g_directory.handle.getDirectoryHandle(entry.path, {create: false});
-            const file_handle = await dir_handle.getFileHandle(entry.fname, {create: true});
-  
-            const writable = await file_handle.createWritable();
-            await writable.write(buffer);
-            await writable.close();
-            entry.error = null;
-          } catch (error) {
-            debugger;
-            entry.error = "Error writing: " + entry.path + "/" + entry.fname;
-            console.error(entry.error);
-          } finally {
-            entry.contents = null;
-          }
-        } else {
-          console.error("Uknown mode: " + entry.mode)
-        }        
-      } else if(entry.type === "append_file") {
-        // FIXME(miguel)? This abstraction sits unnaturally close to the FSA API.
-        //                The `entry` could be simply {full_path + contents}; no need for dir+fname or mode
-        if(entry.mode === "bin"){
-          try {
-            const buffer = await _base64_to_buffer(entry.contents);
-            const dir_handle = await g_directory.handle.getDirectoryHandle(entry.path, {create: false});
-            const file_handle = await dir_handle.getFileHandle(entry.fname, {create: false});
-            const file = await file_handle.getFile();
-            const file_contents = new Uint8Array(await file.arrayBuffer());
-
-            const combined_contents = new Uint8Array(file_contents.length + buffer.byteLength);
-            combined_contents.set(file_contents, 0);
-            combined_contents.set(new Uint8Array(buffer), file_contents.length);
-
-            const temp_file_name = entry.fname + "_" + crypto.randomUUID() + ".tmp"  
-            const temp_handle = await dir_handle.getFileHandle(temp_file_name, {create: true});
-            const writable = await temp_handle.createWritable();
-            await writable.write(combined_contents);
-            await writable.close();
-            await temp_handle.move(dir_handle, entry.fname);
-
-            entry.error = null;
-          } catch (error) {
-            entry.error = "Error writing: " + entry.path + "/" + entry.fname;
-            console.error(entry.error);
-          } finally {
-            entry.contents = null;
-          }
-        } else {
-          console.error("Uknown mode: " + entry.mode)
-        }        
-      } else {        
-        console.error("Uknown type: " + entry.type)
-      }
-    }
-
-    return(plan);
-  }
-
-  const list = async function ({ status_input_id, folder }) {
-    _assert_init_and_attached();
-    let entries_async = g_directory.handle.entries();
-    let entries = await _Array_fromAsync(entries_async);
-
-    let list = {};
-    for (let i = 0; i < entries.length; i++) {
-      let [name, handle] = entries[i];
-
-      if (handle.kind === 'file') {
-        try {
-          let file = await handle.getFile();
-          list[name] = {
-            kind: 'file',
-            size: file.size,
-            time: file.lastModified / 1000
-          };
-        } catch (err) {
-          console.warn(`Failed to read file "${name}": ${err.message}`);
-        }
-      } else if (handle.kind === 'directory') {
-        list[name] = {
-          kind: 'directory'          
-        };
-      }
-    }
-
-    let status = {
-      list: list,
-      error: g_directory.error
-    };
-    Shiny.setInputValue(status_input_id, status, { priority: 'event' });
-    return (status);
-  };
-
-  const read = async function({status_input_id, file_name}){
-    _assert_init_and_attached();
-    show_overlay({message: "Reading file..."});
-    let file = await _get_file(g_directory, file_name, 'read');
-    let contents_binary = await _read_file(file);
-    let contents = null;
-    
-    if(!file.error){
-      let t0 = Date.now()
-      contents = await _buffer_to_base64(contents_binary)
-      let t1 = Date.now()
-      console.log('Time in base64 encoding: '+(t1-t0)/1000)
-    }
-    
-    let status = {file_name: file_name, contents: contents, error: file.error};
-    
-    let t0 = Date.now()
-    Shiny.setInputValue(status_input_id, status, {priority: 'event'});
-    let t1 = Date.now()
-    console.log('Time in setInputValue: '+(t1-t0)/1000)
-    hide_overlay();
-    return(status);
-  };
-
-  const read_folder = async function({status_input_id, subfolder_candidates}){
-    _assert_init_and_attached();
-    show_overlay({message: "Reading all files..."});
-    let status = await _read_all_contents(subfolder_candidates);
+        let dir_handle = g_directory_handle;
         
+        for(subdirname of path_components){
+          if(subdirname === ".") {}
+          else dir_handle = await dir_handle.getDirectoryHandle(subdirname);
+        }
+
+        let file_handle = await dir_handle.getFileHandle(fname);
+
+        let expected_size_in_bytes = g_cached_listing[path].size;
+        let file = await file_handle.getFile();
+
+        if (file.size != expected_size_in_bytes)
+          throw new Error(`Expected ${expected_size_in_bytes} bytes and got ${file.size} instead.`);
+        
+        let contents = await file.arrayBuffer();
+        g_cached_contents[path] = contents;
+
+        status['contents'][path] = await _buffer_to_base64(contents);
+      }
+    } catch(error) {
+      g_error = status.error = `Error writing: ${path}/${fname}: ${error}`;
+      status.contents = {};
+      console.error(status.error);
+    }
+
+    hide_overlay();
+
     let t0 = Date.now()
     Shiny.setInputValue(status_input_id, status, {priority: 'event'});
     let t1 = Date.now()
     console.log('Time in setInputValue: '+(t1-t0)/1000)
-    hide_overlay();
-    return(status);
-  };
-  
-  const append = async function ({status_input_id, file_name, contents}){
-    // TODO: Rename file as temp; append and move back?
-    show_overlay({message: "Appending to file..."});
-    let file = await get_file(g_directory, args.file_name, 'append');
-    // TODO: check size_known_to_client
-    
-    let contents_base64 = await _base64_to_buffer(contents);
-    await _append_file(file, contents_base64);
-    
-    if(file.error){
-      console.error(file.error);
-      alert('Error appending to file: ' + file.error);
-    }
-    
-    let status = {name: file_name, error: file.error};
-    Shiny.setInputValue(status_input_id, status, {priority: 'event'});
-    hide_overlay();
+
+    return status;
   };
 
-  const write = async function ({status_input_id, file_name, contents}){
-    show_overlay({message: "Writing file..."});
-    // TODO: Rename file as temp; append and move back?
-    let file = await get_file(g_directory, args.file_name, 'append');
-    // TODO: check size_known_to_client
-    
-    let contents_base64 = await _base64_to_buffer(contents);
-    await _write_file(file, contents_base64);
-    
-    if(file.error){
-      console.error(file.error);
-      alert('Error appending to file: ' + file.error);
+  const execute_IO_plan = async function({status_input_id, plan}) {
+    // TODO: We could reintroduce the blocking overlay for plans with more than `n` actions
+    for (let idx=0; idx<plan.length; idx++) {
+      let entry = plan[idx];
+      if(entry.kind === "write") {
+        let status = await write(entry.path, entry.contents, entry.offset);
+        plan[idx].error = status.error;
+        plan[idx].offset = status.offset; // Patched inside write if entry.offset == FS_WRITE_OFFSET_APPEND
+        plan[idx].contents = null;
+      } else {
+        entry.error = g_error = `Unknown IO action kind: ${entry.kind}`;
+        console.error(entry.error);
+      }
     }
-    
-    let status = {name: file_name, error: file.error};
-    Shiny.setInputValue(status_input_id, status, {priority: 'event'});
-    hide_overlay("Writing file...");
-  };
 
-  const execute_IO_plan = async function({status_input_id, plan, is_init}) {
-    _assert_init_and_attached();
-    const status = await _execute_IO_plan(plan);
-    const res = {
-      status: status,
-      is_init: is_init
-    }    
+    const res = { status: plan };
     Shiny.setInputValue(status_input_id, res, {priority: 'event'});
   }
 
   const init = function() {    
-    Shiny.addCustomMessageHandler('dv_fsa_attach', attach);
     Shiny.addCustomMessageHandler('dv_fsa_list', list);
     Shiny.addCustomMessageHandler('dv_fsa_read', read);
-    Shiny.addCustomMessageHandler('dv_fsa_write', write);
-    Shiny.addCustomMessageHandler('dv_fsa_append', append);    
-    Shiny.addCustomMessageHandler('dv_fsa_show_overlay', append);
-    Shiny.addCustomMessageHandler('dv_fsa_remove_overlay', append);
-    Shiny.addCustomMessageHandler('dv_fsa_read_folder', read_folder);
     Shiny.addCustomMessageHandler('dv_fsa_execute_io_plan', execute_IO_plan);
   };
 
@@ -768,19 +718,32 @@ const dv_fsa = (function() {
       document.body.removeChild(overlay);
     }
   };
+  
+  const remove = async function(path) {
+    let path_components = path.split('/');
+    let fname = path_components.pop();
+    if(path_components.length == 0) path_components = ['.']; // file with no path trips getDirectoryHandle otherwise
+
+    let dir_handle = g_directory_handle;
     
+    for(subdirname of path_components){
+      if(subdirname === ".") {}
+      else dir_handle = await dir_handle.getDirectoryHandle(subdirname);
+    }
+    await dir_handle.removeEntry(fname);
+    return;
+  }
+  
   const res = {
     init: init,
-    attach: attach,    
     list: list,
     read: read,
-    append: append,
-
-    write: write
+    write: write, // only used by execute_IO_plan; exported here for testing
+    remove: remove, // exported here for testing
+    execute_IO_plan: execute_IO_plan,
   };
 
   return (res);
-
 })();
 
 dv_fsa.init();

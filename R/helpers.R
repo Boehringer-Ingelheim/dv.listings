@@ -229,9 +229,7 @@ convert_data <- function(dataset) {
 #' @param dataset  `[data.frame]`
 #'
 #' Single data.frame
-#' @param selected_cols `[character(0+)]`
 #'
-#' Character vector of a selection of column names from the dataset
 #' @param pagination `[logical(1) | NULL]`
 #'
 #' Either a boolean indicating if pagination should be activated, or

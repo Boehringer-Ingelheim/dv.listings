@@ -1,3 +1,13 @@
+# dv.listings 4.3.2
+
+- Limited support for column width resizing
+- Remove dependencies on jsonlite and lastpage.sty latex package
+- Review functionality:
+  - Per-role undo of review actions
+  - Faster response to review actions
+  - Progress indicators during long review actions
+  - Improved checks for asynchronous javascript-mediated review write actions
+
 # dv.listings 4.3.1
 
 - Guard against selection of nested or conflicting review storage location.

@@ -19,7 +19,7 @@ Names of the datasets provided by the previous parameter.}
 
 Configuration of the experimental data review feature. Please refer to \code{vignette("data_review")}.}
 
-\item{error}{\verb{[environment]}
+\item{err}{\verb{[environment]}
 This environment has at least one element named "messages". It is a character vector. Diagnostic messages related to
 the configuration of the review parameter will be placed here.}
 }

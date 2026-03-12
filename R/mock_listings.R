@@ -263,43 +263,43 @@ mock_synthetic_review <- function() {
  
   if (version == 1) {
     df <- data.frame(
-      ID =        c(1L,  2L,  3L),
-      TRACKED_1 = c(2L,  4L,  6L), 
-      TRACKED_2 = c(3L,  6L,  9L), 
-      TRACKED_3 = c(5L, 10L, 15L), 
-      UNTRACKED = c(7L, 14L, 21L)
+      ID =        c("1",  "2",  "3"),
+      TRACKED_1 = c( 2L,   4L,   6L), 
+      TRACKED_2 = c( 3L,   6L,   9L), 
+      TRACKED_3 = c( 5L,  10L,  15L), 
+      UNTRACKED = c( 7L,  14L,  21L)
     )
   } else if (version == 2) {
     df <- data.frame(
-      ID =        c(1L,  3L),
-      TRACKED_1 = c(2L,  6L), 
-      TRACKED_2 = c(3L,  9L), 
-      TRACKED_3 = c(5L, 15L), 
-      UNTRACKED = c(7L, 21L)
+      ID =        c("1",  "3"),
+      TRACKED_1 = c( 2L,   6L), 
+      TRACKED_2 = c( 3L,   9L), 
+      TRACKED_3 = c( 5L,  15L), 
+      UNTRACKED = c( 7L,  21L)
     )
   } else if (version == 3) {
     df <- data.frame(
-      ID =        c( 3L, 1L),
-      TRACKED_1 = c( 6L, 2L), 
-      TRACKED_2 = c( 9L, 3L), 
-      TRACKED_3 = c(15L, 5L), 
-      UNTRACKED = c(21L, 7L)
+      ID =        c("3", "1"),
+      TRACKED_1 = c( 6L,  2L), 
+      TRACKED_2 = c( 9L,  3L), 
+      TRACKED_3 = c(15L,  5L), 
+      UNTRACKED = c(21L,  7L)
     )
   } else if (version == 4) {
     df <- data.frame(
-      ID =        c( 3L, 1L, 2L ),
-      TRACKED_1 = c( 6L, 2L, 4L ), 
-      TRACKED_2 = c( 9L, 3L, 6L ), 
-      TRACKED_3 = c(15L, 5L, 10L), 
-      UNTRACKED = c(21L, 7L, 14L)
+      ID =        c("3", "1", "2"),
+      TRACKED_1 = c( 6L,  2L,  4L), 
+      TRACKED_2 = c( 9L,  3L,  6L), 
+      TRACKED_3 = c(15L,  5L, 10L), 
+      UNTRACKED = c(21L,  7L, 14L)
     )
   } else if (version == 5) {
     df <- data.frame(
-      ID =        c(1L,  2L,  3L),
-      TRACKED_1 = c(3L,  4L,  6L), 
-      TRACKED_2 = c(3L,  7L,  9L), 
-      TRACKED_3 = c(5L, 10L, 16L), 
-      UNTRACKED = c(7L, 14L, 21L)
+      ID =        c("1",  "2",  "3"),
+      TRACKED_1 = c( 3L,   4L,   6L), 
+      TRACKED_2 = c( 3L,   7L,   9L), 
+      TRACKED_3 = c( 5L,  10L,  16L), 
+      UNTRACKED = c( 7L,  14L,  21L)
     )
   }
   

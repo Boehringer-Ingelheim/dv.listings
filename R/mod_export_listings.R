@@ -163,10 +163,13 @@ mod_export_listings_server <- function(module_id,
                 activate_checkbox = !is.null(intended_use_label)
               ),
               title = EXP$EXPORT_WINDOW_TITLE,
-              footer = list(shiny::fluidRow(
-                shiny::column(5, shinyjs::disabled(shiny::downloadButton(ns(EXP$DOWNLOADBTN_ID))), offset = 5),
-                shiny::column(1, shiny::modalButton("Cancel"))
-              )),
+              footer = list(
+                shiny::div(
+                  class = "ms-auto",
+                  shinyjs::disabled(shiny::downloadButton(ns(EXP$DOWNLOADBTN_ID))),
+                  shiny::modalButton("Cancel")
+                )
+              ),
               easyClose = TRUE
             )
           )

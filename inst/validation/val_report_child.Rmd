@@ -62,7 +62,13 @@ render_spec_table <- function(t) {
   t <- t[trac_matrix_col]
   colnames(t) <- names(trac_matrix_col)
   t <- t[order(t[["Spec ID"]]), ]
-  DT::datatable(t, options = list(dom = "ltp"), filter = list(position = "top"))
+  DT::datatable(t, options = list(dom = "ltp"), filter = list(position = "top")) |>
+  DT::formatStyle(
+    columns = c("Spec ID", "Spec", "Test Desc", "File"),
+    whiteSpace = "normal",
+    wordBreak = "break-word",
+    overflowWrap = "break-word"
+  )
 }
 
 data_frame_by_row <- function(colnames, data) {
@@ -87,18 +93,13 @@ title <- paste(result_symbol, params[["package"]], params[["version"]])
 ## `r title`
 Date: `r format(Sys.time(), "%Y-%b-%d %H:%M:%S")`
 
-The following document generates a report for R packages, to satisfy the criteria of a "Released" status under the **Non-GxP** project. The QC report contains the following information:
+This document provides the Quality Control (QC) report for the R package to confirm that it fulfills the criteria required for a "released" status. The QC report contains the following information:
 
 - **Specifications (specs):** These can be attached to every test that the user adds.
 - **Traceability matrix:** Contains test cases with passed, failed, or skipped expectations.
 - **Uncovered or undeclared specs**
 - **Session Info and System Configuration**
 
-::: {.infobox .warning}
-Please be advised that the QC report generated for this module does not imply validation according to any other GxP criteria. 
-The QC report only satisfies our internally developed quality checks for non-GxP criteria.
-For clinical reporting purposes, it is essential to note that any outputs generated using this module must be checked and verified within a validated system that adheres to the appropriate GxP guidelines.
-:::
 
 ----
 # Traceability matrix
