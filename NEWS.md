@@ -1,28 +1,12 @@
-# dv.listings 4.3.1-9008
-- Remove dependency from lastpage.sty latex package
+# dv.listings 4.3.2
 
-# dv.listings 4.3.1-9007
-- Show DT progress indicators during long review actions
-- Fix FSA file creation regression
-
-# dv.listings 4.3.1-9006
-- Faster response to review actions
-
-# dv.listings 4.3.1-9005
-- Improved checks of asynchronous review write actions
-
-# dv.listings 4.3.1-9004
-- Limited column width resizing support
-
-# dv.listings 4.3.1-9003
-- Faster response to review actions
-- Remove dependency on jsonlite
-
-# dv.listings 4.3.1-9002
-- Vendor xxhashlite library to remove package dependency.
-
-# dv.listings 4.3.1-9001
-- Per-role review undo.
+- Limited support for column width resizing
+- Remove dependencies on jsonlite and lastpage.sty latex package
+- Review functionality:
+  - Per-role undo of review actions
+  - Faster response to review actions
+  - Progress indicators during long review actions
+  - Improved checks for asynchronous javascript-mediated review write actions
 
 # dv.listings 4.3.1
 
