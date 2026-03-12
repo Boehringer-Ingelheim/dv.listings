@@ -57,11 +57,6 @@ Function to invoke when a subject ID is clicked in a listing}
 Configuration of the experimental data review feature.
 Only one instance of the listings module can use this feature on any given app.
 For more details, please refer to \code{vignette("data_review")}.}
-
-\item{receiver_id}{\verb{[character(1) | NULL]}
-
-Character string defining the ID of the module to which to send a subject ID. The
-module must exist in the module list. The default is NULL which disables communication.}
 }
 \description{
 This module displays a given dataset as listing. It allows switching between datasets if it receives

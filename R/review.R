@@ -23,7 +23,7 @@ REV <- pack_of_constants(
   ),
   MESSAGE = pack_of_constants(
     LOADING_REVIEW_DATA = "Loading review data...",
-    MULTIPLE_REVIEW = "Aplying reviews...",
+    MULTIPLE_REVIEW = "Applying reviews...",
     UNDO_REVIEW = "Undoing latest review..."
   ),
   STATUS_LEVELS = pack_of_constants(
@@ -792,11 +792,11 @@ REV_describe_undo_action <- function(
     #> undo_table[["Previous review"]] <- second_to_last_review_choices # TODO? Would be nice to see the old values, but not mandatory
    
     if (nrow(undo_table) <= 11L) {
-      undo_table_s <- capture.output(print(undo_table, row.names = FALSE))
+      undo_table_s <- utils::capture.output(print(undo_table, row.names = FALSE))
     } else {
-      head_rows <- capture.output(print(head(undo_table, n = 5L), row.names = FALSE))
-      tail_rows <- capture.output(print(tail(undo_table, n = 5L), row.names = FALSE)) |> tail(n = 5L)
-      tail_rows <- tail(tail_rows, n = 5) # discards column names
+      head_rows <- utils::capture.output(print(utils::head(undo_table, n = 5L), row.names = FALSE))
+      tail_rows <- utils::capture.output(print(utils::tail(undo_table, n = 5L), row.names = FALSE)) |> utils::tail(n = 5L)
+      tail_rows <- utils::tail(tail_rows, n = 5) # discards column names
       undo_table_s <- c(head_rows, sprintf("(omitted %d rows)", nrow(undo_table) - 10L), tail_rows)
     }
     undo_table_s <- paste0("<pre>", paste(undo_table_s, collapse = "<br>"), "</pre>") 
@@ -1216,7 +1216,7 @@ REV_report_changes <- function(h0, h1, verbose = FALSE) {
 #' 
 #' Configuration of the experimental data review feature. Please refer to `vignette("data_review")`.
 #'
-#' @param error `[environment]`
+#' @param err `[environment]`
 #' This environment has at least one element named "messages". It is a character vector. Diagnostic messages related to
 #' the configuration of the review parameter will be placed here.
 #' 
@@ -1358,4 +1358,3 @@ check_review_parameter <- function(datasets, dataset_names, review, err) {
     }
   }
 }
-

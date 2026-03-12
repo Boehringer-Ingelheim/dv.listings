@@ -1,6 +1,3 @@
-# Load dummy data for testing purpose
-source("dummy-data.R")
-
 test_that("fill_default_vars() throws an error when dataset argument type mismatches", {
   # Correct default_vars argument
   default_vars <- NULL

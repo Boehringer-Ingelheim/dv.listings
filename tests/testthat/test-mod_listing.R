@@ -486,6 +486,7 @@ test_that("mod_listings displays no table when handed an empty data.frame", {
     app_dir = "./apps/mm_no_data_app", name = "test_no_data_app"
   )
   
+  app$wait_for_idle()
   dataset <- app$get_value(export = "single-output_table")
   actual <- nrow(dataset)
   
@@ -511,6 +512,7 @@ test_that("selecting all columns works correctly" |>
 
   # CHECK ALL COLS SELECTED
   app$click("listings-select_all_cols_btn")
+  app$wait_for_idle()
   actual <- app$get_value(input = "listings-col_sel")
   app$stop()
 

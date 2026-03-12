@@ -209,11 +209,6 @@ listings_UI <- function(module_id) { # nolint
 #'
 #' Column corresponding to subject ID. Default value is 'USUBJID'
 #'
-#' @param receiver_id `[character(1) | NULL]`
-#'
-#' Character string defining the ID of the module to which to send a subject ID. The
-#' module must exist in the module list. The default is NULL which disables communication.
-#'
 #' @param on_sbj_click `[function()]`
 #'
 #' Function to invoke when a subject ID is clicked in a listing
@@ -756,6 +751,11 @@ listings_server <- function(module_id,
 #' Name(s) of the dataset(s) that will be displayed.
 #'
 #' @inheritParams listings_server
+#' 
+#' @param receiver_id `[character(1) | NULL]`
+#'
+#' Character string defining the ID of the module to which to send a subject ID. The
+#' module must exist in the module list. The default is NULL which disables communication.
 #'
 #' @template module_id-arg
 #'

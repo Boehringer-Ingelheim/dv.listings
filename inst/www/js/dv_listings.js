@@ -502,7 +502,7 @@ const dv_fsa = (function() {
       let path_components = file_path.split('/');
       let fname = path_components.pop();
       
-      if(path_components.length == 0) path_components = ['.'];
+      if(path_components.length == 0) path_components = ['.']; // file with no path trips getDirectoryHandle otherwise
       let folder_path = path_components.join('/');
 
       let contents = await _base64_to_buffer(contents_b64);
@@ -628,7 +628,7 @@ const dv_fsa = (function() {
       for(let path of paths){
         let path_components = path.split('/');
         let fname = path_components.pop();
-        if(path_components.length == 0) path_components = ['.'];
+        if(path_components.length == 0) path_components = ['.']; // file with no path trips getDirectoryHandle otherwise
 
         let dir_handle = g_directory_handle;
         
@@ -722,7 +722,7 @@ const dv_fsa = (function() {
   const remove = async function(path) {
     let path_components = path.split('/');
     let fname = path_components.pop();
-    if(path_components.length == 0) path_components = ['.'];
+    if(path_components.length == 0) path_components = ['.']; // file with no path trips getDirectoryHandle otherwise
 
     let dir_handle = g_directory_handle;
     
