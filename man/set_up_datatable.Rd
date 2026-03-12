@@ -16,10 +16,6 @@ Single data.frame}
 
 Either a boolean indicating if pagination should be activated, or
 NULL for which pagination will be activated for large datasets (nrows > 1000) automatically.}
-
-\item{selected_cols}{\verb{[character(0+)]}
-
-Character vector of a selection of column names from the dataset}
 }
 \value{
 List containing character vectors for column names and row names and

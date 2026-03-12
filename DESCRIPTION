@@ -1,7 +1,7 @@
 Package: dv.listings
 Type: Package
 Title: Data listings module
-Version: 4.3.1-9007
+Version: 4.3.1-9008
 Authors@R: 
     c(
       person("Boehringer-Ingelheim Pharma GmbH & Co.KG", role = c("cph", "fnd")),
@@ -26,7 +26,8 @@ Suggests:
     pharmaverseadam (>= 0.1.0),
     shinytest2 (>= 0.3.1),
     testthat (>= 3.0.2),
-    safetyData
+    safetyData,
+    jsonlite
 Config/testthat/edition: 3
 Imports: 
     checkmate (>= 2.1.0),

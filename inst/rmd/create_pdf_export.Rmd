@@ -14,7 +14,6 @@ title: "`r params$set_title`"
 subtitle: "`r params$set_subtitle`"
 header-includes:
 - \usepackage{fancyhdr}  # LaTeX package for constructing headers and footers
-- \usepackage{lastpage}  # LaTeX package to allow page numbering as "page x of y"
 - \pagenumbering{gobble} # to avoid page numbering on title page
 - \setlength{\headheight}{14pt}    
 - \pagestyle{fancy} 
@@ -25,7 +24,7 @@ header-includes:
 - \fancyhead[L]{`r params$dataset_name`}
 - \fancyhead[R]{`r params$trial_name`}
 - \fancyfoot[L]{`r params$snap_shot_name`}
-- \fancyfoot[C]{Page \thepage\ of \pageref{LastPage}}
+- \fancyfoot[C]{Page \thepage\ of \thetotalpages}
 - \fancyfoot[R]{`r params$time_stamp`}
 ---
 

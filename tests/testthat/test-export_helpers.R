@@ -1,6 +1,3 @@
-# Load dummy data for testing purpose
-source("dummy-data.R")
-
 test_that("export_modal_content() throws an error when argument types mismatch", {
   # arguments
   ns_valid <- function(id) {}

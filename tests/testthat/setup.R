@@ -83,3 +83,5 @@ test_communication_with_papo <- function(mod, data, trigger_input_id, papo_spec_
     app$stop()
   })
 }
+
+source("dummy-data.R")
