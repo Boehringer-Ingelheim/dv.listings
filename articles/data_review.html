@@ -20,7 +20,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">dv.listings</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">4.3.1</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">4.3.2</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -45,6 +45,7 @@
 <li class="nav-item"><form class="form-inline" role="search">
  <input class="form-control" type="search" name="search-input" id="search-input" autocomplete="off" aria-label="Search site" placeholder="Search for" data-search-index="../search.json">
 </form></li>
+<li class="nav-item"><a class="external-link nav-link" href="https://github.com/Boehringer-Ingelheim/dv.listings/" aria-label="GitHub"><span class="fa fab fa-github fa-lg"></span></a></li>
       </ul>
 </div>
 
@@ -61,7 +62,7 @@
       <h1>Data review (experimental feature)</h1>
             
       
-
+      <small class="dont-index">Source: <a href="https://github.com/Boehringer-Ingelheim/dv.listings/blob/main/vignettes/data_review.Rmd" class="external-link"><code>vignettes/data_review.Rmd</code></a></small>
       <div class="d-none name"><code>data_review.Rmd</code></div>
     </div>
 
@@ -142,10 +143,14 @@ team and allows to investigate and resolve them.</li>
 filters.</li>
 </ul>
 </li>
+<li>See a description of the latest review action (either single or
+bulk) for the current role and undo it.</li>
 </ol>
 </li>
 </ul>
-<p><img src="images/review00.jpg"></p>
+<div class="float">
+<img src="images/review00.jpg" alt="Overview of the review interface"><div class="figcaption">Overview of the review interface</div>
+</div>
 <p>These three review columns behave similarly to the regular listing
 columns, as they allow filtering and sorting. Thus, they make it easy to
 find which reviews are pending or to list reviews that conflict across
@@ -163,7 +168,9 @@ previous reviews outdated.</p>
 whole row is highlighted as outdated.</p>
 <p>In the picture below, you can see that the “Severity” of the first
 adverse event has changed.</p>
-<p><img src="images/review01.jpg"></p>
+<div class="float">
+<img src="images/review01.jpg" alt="Outdated review highlight example"><div class="figcaption">Outdated review highlight example</div>
+</div>
 <p>The user can isolate all reviewed, and later altered, rows by
 selecting “Latest Outdated” on the “Status” column. These rows will be
 cleared of the orange highlighting once a reviewer confirms them as
@@ -386,12 +393,56 @@ encoding” below)</li>
 </ul></details><details><summary><code>xyz_&lt;ROLE&gt;.review</code> (one per domain and ROLE)
 </summary><ul>
 <li>1 file magic code (“LISTREVI”)</li>
-<li>1 format version number (0)</li>
+<li>1 format version number (1)</li>
 <li>1 role string</li>
 <li>1 domain string (“xyz”)</li>
-<li>n reviews: row index + <code>review_index</code> + delta
-timestamp</li>
-</ul></details><details><summary><code>review.codes</code> (one per app):
+<li>n reviews:
+<ul>
+<li>
+<code>[4-byte integer]</code> canonical row index</li>
+<li>
+<code>[4-byte integer]</code> <code>review_index</code>
+</li>
+<li>
+<code>[8-byte numeric]</code> delta timestamp</li>
+</ul>
+</li>
+</ul>
+<p><b>New in version 1 of the <code>.review</code> format:</b></p>
+<p>Reviews can be undone. Their records are not erased from the
+<code>.review</code> file. Instead, new “undo” records are appended
+indicating that the original actions should have no effect. The format
+of an undo action record is the following:</p>
+<ul>
+<li>
+<code>[4-byte integer]</code> <code>0</code> (undo action
+marker)</li>
+<li>
+<code>[4-byte integer]</code> amount of actions to undo (1 for
+single review, &gt;1 for bulk review)</li>
+<li>
+<code>[8-byte numeric]</code> timestamp of undo action</li>
+<li>
+<code>[4-byte integer]</code> (<code>-</code>)canonical row index of
+first action to undo</li>
+<li>
+<code>[4-byte integer]</code> review decision to undo</li>
+<li>
+<code>[8-byte numeric]</code> timestamp of original action to
+undo</li>
+</ul>
+<p>Review and undo records coexist inside the same file. If the first
+four bytes of a record are zero, the reader knows to interpret it as
+32-byte (double-width) undo record. The last two elements of an undo
+record are used as a redundancy check against the original target
+action.</p>
+<p>This representation is backwards-compatible with that of version 0,
+as it imbues the unused zero value of the first field with new
+meaning.</p>
+This representation <em>is not</em> forwards compatible. Older versions
+of the <code>dv.listings</code> module are not capable of interpreting
+undo actions, and they will refuse to load this new file format.
+</details><details><summary><code>review.codes</code> (one per app):
 </summary><ul>
 <li>1 file magic code (“LISTCODE”)</li>
 <li>1 format version number (0)</li>
@@ -451,9 +502,8 @@ IDs.</p>
 <h4 id="choice-of-hash-function">Choice of hash function<a class="anchor" aria-label="anchor" href="#choice-of-hash-function"></a>
 </h4>
 <p>A popular choice for non-cryptographic hashing is the
-<code>xxh</code> family of function (<a href="https://github.com/Cyan4973/xxHash/tree/dev?tab=readme-ov-file#xxhash---extremely-fast-hash-algorithm" class="external-link uri">https://github.com/Cyan4973/xxHash/tree/dev?tab=readme-ov-file#xxhash---extremely-fast-hash-algorithm</a>)
-for its balance of speed and perceived hash quality. Three independent R
-packages implement them:</p>
+<code>xxh</code> family of function (<a href="https://xxhash.com/" class="external-link uri">https://xxhash.com/</a>) for its balance of speed and
+perceived hash quality. Three independent R packages implement them:</p>
 <ul>
 <li>rlang: Provides no control over serialization, so hashes are
 potentially not stable across R versions.</li>
@@ -574,7 +624,7 @@ users have to concern themselves about the underlying
 </div>
 
 <div class="pkgdown-footer-right">
-  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.1.2.</p>
+  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.0.</p>
 </div>
 
     </footer>

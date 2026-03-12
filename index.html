@@ -22,7 +22,7 @@
 
     <a class="navbar-brand me-2" href="index.html">dv.listings</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">4.3.1</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">4.3.2</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -47,6 +47,7 @@
 <li class="nav-item"><form class="form-inline" role="search">
  <input class="form-control" type="search" name="search-input" id="search-input" autocomplete="off" aria-label="Search site" placeholder="Search for" data-search-index="search.json">
 </form></li>
+<li class="nav-item"><a class="external-link nav-link" href="https://github.com/Boehringer-Ingelheim/dv.listings/" aria-label="GitHub"><span class="fa fab fa-github fa-lg"></span></a></li>
       </ul>
 </div>
 
@@ -58,7 +59,7 @@
 <div class="page-header"><h1 id="dvlistings">dv.listings<a class="anchor" aria-label="anchor" href="#dvlistings"></a>
 </h1></div>
 <p>The listings module from DaVinci’s {dv.listings} package displays arbitrary datasets as listings. Users can select the dataset to be shown, and specify which columns of the dataset should be displayed as well as their order. The displayed columns can be sorted and filtered. Moreover, the listing can be filtered to show only entries containing a keyword specified by the user. The module is not limited to usage of one data source, most notably, it can handle data from ADaM or SDTM.</p>
-<p><img src="reference/figures/table_main_view.PNG" width="100%"></p>
+<p><img src="reference/figures/table_main_view.PNG" width="100%" alt="Sample listing"></p>
 <p>The module is prepared to be used in combination with DaVinci’s {dv.manager} package and supports its bookmarking functionality.</p>
 <div class="section level2">
 <h2 id="installation">Installation<a class="anchor" aria-label="anchor" href="#installation"></a>
@@ -91,7 +92,7 @@
 </ol>
 <p>The following example contains the listed steps. For data protection purposes, the example uses dummy data from {pharmaverseadam}.</p>
 <div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va">dv.listings</span><span class="op">)</span></span>
+<code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/Boehringer-Ingelheim/dv.listings" class="external-link">dv.listings</a></span><span class="op">)</span></span>
 <span></span>
 <span><span class="co"># 1. Create a data list with example data</span></span>
 <span><span class="va">data_list</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span></span>
@@ -150,7 +151,7 @@
   </main><aside class="col-md-3"><div class="links">
 <h2 data-toc-skip>Links</h2>
 <ul class="list-unstyled">
-<li><a href="https://github.com/Boehringer-Ingelheim/dv.listings" class="external-link">Browse source code</a></li>
+<li><a href="https://github.com/Boehringer-Ingelheim/dv.listings/" class="external-link">Browse source code</a></li>
 </ul>
 </div>
 
@@ -191,7 +192,7 @@
 </div>
 
 <div class="pkgdown-footer-right">
-  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.1.2.</p>
+  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.0.</p>
 </div>
 
     </footer>

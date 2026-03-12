@@ -1,8 +1,11 @@
-pandoc: '3.8'
-pkgdown: 2.1.2
+pandoc: '3.9'
+pkgdown: 2.2.0
 pkgdown_sha: ~
 articles:
   Communication_jumping_feature: Communication_jumping_feature.html
   data_review: data_review.html
   qc: qc.html
-last_built: 2025-12-10T11:14Z
+last_built: 2026-03-12T09:35Z
+urls:
+  reference: https://boehringer-ingelheim.github.io/dv.listings/reference
+  article: https://boehringer-ingelheim.github.io/dv.listings/articles
