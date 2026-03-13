@@ -333,6 +333,7 @@ REV_load_annotation_info <- function(folder_contents, review, dataset_lists) {
             error_strings <- new_delta_and_errors[["error"]]
             if (length(error_strings)) { # Error conditions prevent generation of delta files
               error <- c(error, paste0("[", dataset_review_name, "] ", error_strings))
+              return(list(error = error))
             } else {
               new_delta_contents <- new_delta_and_errors[["contents"]]
               
