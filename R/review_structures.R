@@ -325,7 +325,8 @@ RS_compute_delta_memory <- function(state, df, allow_row_deletion) {
             "&emsp;&emsp;<b>3a</b> If the loss of data is a mistake, re-run the application once the missing data has been reinstated.<br>",
             "&emsp;&emsp;<b>3b</b> If the loss of data is expected and should be expected from now on, ", 
             "append the following field to the `review` parameter of `mod_listings()`:<br>",
-            "<pre>review = list(..., <b>allow_row_deletion = TRUE</b>)</pre>"
+            "<pre>review = list(..., <b>allow_row_deletion = TRUE</b>)</pre>",
+            "Other datasets may also have missing rows. App creators should check the module documentation for further details."
           )
         )
       }
