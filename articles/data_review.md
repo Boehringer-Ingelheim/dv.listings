@@ -120,6 +120,7 @@ hypothetical demographics (`dm`) and adverse events (`ae`) SDTM domains:
         ),
         choices = c("Pending", "Action required", "Reviewed"),
         roles = c("TSTAT", "SP", "Safety", "CTL"),
+        allow_row_deletion = FALSE,
         store_path = NULL
       )
     )
@@ -147,6 +148,12 @@ The `review` parameter is itself divided into four subfields:
 - `roles`: `[character(n)]` Names of reviewer roles. These names can
   only include the following characters: alphanumerical, space, dot,
   underscore and dash.
+
+- `allow_row_deletion`: `[logical(1)]` If FALSE (default), the review
+  feature will guard against dataset updates that remove previously
+  known rows (as identified by the `id_vars` subfield). This check can
+  be disabled by setting `allow_row_deletion` to TRUE. Reversing this
+  action is not supported at the moment.
 
 - `store_path`: `[character(1)]` Optional. If specified, files
   associated to the review process will be stored on this path on the
