@@ -328,11 +328,12 @@ REV_load_annotation_info <- function(folder_contents, review, dataset_lists) {
         
         dataset_hash <- RS_hash_data_frame(dataset)
         if (!identical(dataset_hash, base_info[["contents_hash"]])) {
-            new_delta_and_errors <- RS_compute_delta_memory(state = base_info, dataset)
+            new_delta_and_errors <- RS_compute_delta_memory(state = base_info, dataset, review[["allow_row_deletion"]])
            
             error_strings <- new_delta_and_errors[["error"]]
             if (length(error_strings)) { # Error conditions prevent generation of delta files
               error <- c(error, paste0("[", dataset_review_name, "] ", error_strings))
+              return(list(error = error))
             } else {
               new_delta_contents <- new_delta_and_errors[["contents"]]
               
@@ -1262,6 +1263,11 @@ check_review_parameter <- function(datasets, dataset_names, review, err) {
       container = err,
       cond = checkmate::test_character(review[["roles"]], min.len = 1, min.chars = 1, unique = TRUE),
       msg = "`review$roles` should be a non-empty character vector of unique, non-empty strings"
+    ) &&
+    CM$assert(
+      container = err,
+      cond = checkmate::test_logical(review[["allow_row_deletion"]], len = 1, null.ok = TRUE, any.missing = FALSE),
+      msg = "`review$allow_row_deletion` should be TRUE, FALSE or NULL"
     )
   
   if (!ok) return(NULL)

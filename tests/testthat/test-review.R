@@ -97,7 +97,7 @@ local({
       TRACKED_3 = c(1L, 3L)
     )
     
-    info <- RS_compute_delta_memory(state, new_df)
+    info <- RS_compute_delta_memory(state, new_df, allow_row_deletion = TRUE)
     expect_length(info[["error"]], 0)
     
     delta <- RS_parse_delta(info[['contents']], length(tracked_vars))

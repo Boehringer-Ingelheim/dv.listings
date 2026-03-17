@@ -110,12 +110,24 @@ local({
     )
   })
   
-  test_that("No error message when previously known row is dropped" |>
-              vdoc[["add_spec"]](specs$review_accept_removal_of_rows), {
+  test_that("There is an error message when previously known rows are dropped" |>
+              vdoc[["add_spec"]](specs$review_reject_removal_of_rows_by_default), {
     dataset_lists2 <- dataset_lists
     dataset_lists2[["dataset_list"]][["ae"]] <- head(dataset_lists2[["dataset_list"]][["ae"]], 1)
     
     info <- REV_load_annotation_info(fs_contents, review, dataset_lists2)
+    expect_true(any(grepl("allow_row_deletion", info[["error"]])))
+  })
+  
+  test_that("The missing data error message can be bypassed by configuring the `allow_row_deletion` flag" |>
+              vdoc[["add_spec"]](specs$review_accept_removal_of_rows_when_instructed_so), {
+    dataset_lists2 <- dataset_lists
+    dataset_lists2[["dataset_list"]][["ae"]] <- head(dataset_lists2[["dataset_list"]][["ae"]], 1)
+   
+    review_config_that_allows_row_deletion <- review
+    review_config_that_allows_row_deletion[["allow_row_deletion"]] <- TRUE
+    
+    info <- REV_load_annotation_info(fs_contents, review_config_that_allows_row_deletion, dataset_lists2)
     expect_true(length(info[["error"]]) == 0)
   })
 })

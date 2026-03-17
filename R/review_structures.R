@@ -279,7 +279,7 @@ RS_parse_base <- function(contents) {
   return(res)
 }
 
-RS_compute_delta_memory <- function(state, df) {
+RS_compute_delta_memory <- function(state, df, allow_row_deletion) {
   # NOTE:
   # The logic of this function is a bit tricky to grasp. Our recommendation is that you start from the contents of the 
   # `res` variable (whose structure is described in the Data Review vignette, "Structured of stored files" section) and
@@ -305,6 +305,33 @@ RS_compute_delta_memory <- function(state, df) {
   id_hashes_df <- RS_compute_id_hashes(df, state$id_vars) |> c() |> array(dim = c(16L, nrow(df)))
   tracked_hashes_df <- (SH$hash_tracked(df[state$tracked_vars]) |> c() |> 
                            array(dim = c(BYTES_PER_TRACKED_HASH * length(state$tracked_vars), nrow(df))))
+
+  if (!isTRUE(allow_row_deletion)) {
+    local({
+      merged <- cbind(id_hashes_df, state$id_hashes, deparse.level = 0)
+      dropped_row_mask <- !duplicated(merged, MARGIN = 2) |> c() |> tail(n = ncol(state$id_hashes))
+      dropped_row_count <- sum(dropped_row_mask)
+      if (dropped_row_count > 0) {
+        error <<- c(
+          error, 
+          paste0(
+            sprintf("This dataset is <b>missing %s previously known row%s after the latest data update</b>.\n<br>", 
+                    dropped_row_count, ifelse(dropped_row_count == 1L, "", "s")),
+            "By default, the review functionality guards against the removal of data, but the app creator can decide to override this behavior.<br>",
+            "Here are the recommended steps:<br>",
+            "&emsp;<b>1</b> Locate the rows (identified by the variable(s) ",
+            paste(sprintf("`%s`", state[["id_vars"]]), collapse = ", "), ") that are no longer present in the current version of this dataset.<br>",
+            "&emsp;<b>2</b> Decide if the absence of those rows is a mistake or a legitimate situation and then:<br>",
+            "&emsp;&emsp;<b>3a</b> If the loss of data is a mistake, re-run the application once the missing data has been reinstated.<br>",
+            "&emsp;&emsp;<b>3b</b> If the loss of data is expected and should be expected from now on, ", 
+            "append the following field to the `review` parameter of `mod_listings()`:<br>",
+            "<pre>review = list(..., <b>allow_row_deletion = TRUE</b>)</pre>",
+            "Other datasets may also have missing rows. App creators should check the module documentation for further details."
+          )
+        )
+      }
+    })
+  }
   
   indices_new_df <- local({
     # NOTE: `state$id_hashes` and `id_hashes_df` are matrices of 16-byte long hashes (dim() returns "16 n" and "16 m")

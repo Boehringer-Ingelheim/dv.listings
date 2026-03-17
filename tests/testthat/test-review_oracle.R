@@ -9,7 +9,7 @@ set.seed(int_seed)
 test_that(sprintf("Running random review tests with seed: %dL", int_seed) |>
             vdoc[["add_spec"]](c(
               specs$review, specs$review_per_row, specs$review_per_role,
-              specs$review_delta_detection, specs$review_accept_removal_of_rows,
+              specs$review_delta_detection, specs$review_accept_removal_of_rows_when_instructed_so,
               specs$review_undo)), {
               
   # Sane sample (`base::sample` without the weird edge case)
@@ -32,7 +32,8 @@ test_that(sprintf("Running random review tests with seed: %dL", int_seed) |>
     review_param = list(
       datasets = list(df = list(id_vars = c("ID"), tracked_vars = c("TRACKED_1", "TRACKED_2", "TRACKED_3"))),
       choices = c("choiceA", "choiceB"),
-      roles = c("roleA", "roleB")
+      roles = c("roleA", "roleB"),
+      allow_row_deletion = TRUE
     )
     
     # This function summarizes the latest changes (related either to the tracking of new dataset (`.base`) or to its 
