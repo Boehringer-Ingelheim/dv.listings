@@ -1,3 +1,7 @@
+# dv.listings 4.3.3
+- Review functionality:
+  - Guard against the removal of known rows and provide parameter to disable this check
+
 # dv.listings 4.3.2
 
 - Limited support for column width resizing

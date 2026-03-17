@@ -419,7 +419,11 @@ listings_server <- function(module_id,
         # NOTE: It's possible for the app creator to configure a folder that does not exist yet, so we create it here
         dir.create(review[["store_path"]], showWarnings = FALSE, recursive = TRUE)
       }
-      
+
+      if (is.null(review[["allow_row_deletion"]])) {
+        review[["allow_row_deletion"]] <- FALSE
+      }
+
       # Overly restrictive sanitization of role strings, as they will be used for file names:
       # TODO: Consider adapting https://github.com/r-lib/fs/blob/main/R/sanitize.R instead to allow alternative charsets
       review[["roles"]] <- gsub("[^a-zA-Z0-9 _.-]", "", review[["roles"]]) # Accepts alpha+num+space+'.'+'_'+'-'

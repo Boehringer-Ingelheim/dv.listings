@@ -301,6 +301,14 @@ mock_synthetic_review <- function() {
       TRACKED_3 = c( 5L,  10L,  16L), 
       UNTRACKED = c( 7L,  14L,  21L)
     )
+  } else if (version == 6) {
+    df <- data.frame(
+      ID =        c("1",  "3",  "4"),
+      TRACKED_1 = c( 2L,   6L,   8L), 
+      TRACKED_2 = c( 3L,   9L,  12L), 
+      TRACKED_3 = c( 5L,  15L,  20L), 
+      UNTRACKED = c( 7L,  21L,  28L)
+    )
   }
   
   data_list <- list(df = df)
