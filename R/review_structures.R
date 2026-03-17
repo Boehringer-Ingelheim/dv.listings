@@ -309,7 +309,7 @@ RS_compute_delta_memory <- function(state, df, allow_row_deletion) {
   if (!isTRUE(allow_row_deletion)) {
     local({
       merged <- cbind(id_hashes_df, state$id_hashes, deparse.level = 0)
-      dropped_row_mask <- !duplicated(merged, MARGIN = 2) |> c() |> tail(n = ncol(state$id_hashes))
+      dropped_row_mask <- !duplicated(merged, MARGIN = 2) |> c() |> utils::tail(n = ncol(state$id_hashes))
       dropped_row_count <- sum(dropped_row_mask)
       if (dropped_row_count > 0) {
         error <<- c(
