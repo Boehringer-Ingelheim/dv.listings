@@ -100,7 +100,7 @@ The `review` parameter is itself divided into four subfields:
   - `tracked_vars`: `[character(3+)]` Variables to track across dataset updates. If the contents of one of this columns changes on an already reviewed row, that review will be marked as potentially outdated. This vector should list at least three variables.
 - `choices`: `[character(n)]` Review choices available to assign to each listing row.
 - `roles`: `[character(n)]` Names of reviewer roles. These names can only include the following characters: alphanumerical, space, dot, underscore and dash.
-- `allow_row_deletion`: `[logical(1)]` If FALSE (default), the review feature will guard against dataset updates that remove previously known rows (as identified by the `id_vars` subfield). This check can be disabled by setting `allow_row_deletion` to TRUE.
+- `allow_row_deletion`: `[logical(1)]` If FALSE (default), the review feature will guard against dataset updates that remove previously known rows (as identified by the `id_vars` subfield). This check can be disabled by setting `allow_row_deletion` to TRUE. Reversing this action is not supported at the moment.
 
 - `store_path`: `[character(1)]` Optional. If specified, files associated to the review process will be stored on this path on the server. If left unspecified, those files will be stored on a folder of the _client_'s computer. The users of the app will have the opportunity to choose the path when they launch it.
 
