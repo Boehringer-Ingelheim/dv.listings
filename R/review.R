@@ -58,14 +58,9 @@ REV_time_from_timestamp <- function(v) {
 }
 
 REV_include_review_info <- function(annotation_info, data, col_names) {
-  if (nrow(data) < nrow(annotation_info)) {
-    filter_mask <- attr(data, "filter_mask")
-    annotation_info <- annotation_info[filter_mask, ]
-  }
-
-  if (nrow(data) > nrow(annotation_info)) 
+  if (nrow(data) != nrow(annotation_info)) 
     return(
-      simpleCondition("Internal error in `REV_include_review_info`: Annotation info has fewer rows than data listing.")
+      simpleCondition("Internal error in `REV_include_review_info`: Annotation info should have the same number of rows as the data listing.")
     )
   
   reviews <- annotation_info[["review"]]
@@ -74,7 +69,7 @@ REV_include_review_info <- function(annotation_info, data, col_names) {
   
   # include review-related columns
   res <- data.frame(reviews, roles) # FIXME: (maybe) Can't pass latest review as argument. List confuses data.frame
-  res[["status"]] <- rep(status, nrow(res)) # Explicit `rep` avoids assignment error when `nrow(res) == 0`
+  res[["status"]] <- rep(status, nrow(data)) # Explicit `rep` avoids assignment error when `nrow(data) == 0`
   names(res)[[1]] <- REV$ID$REVIEW_COL
   names(res)[[2]] <- REV$ID$ROLE_COL
   names(res)[[3]] <- REV$ID$STATUS_COL
@@ -86,12 +81,6 @@ REV_include_review_info <- function(annotation_info, data, col_names) {
  
   attributes_to_restore <- setdiff(ls(attributes(data)), c("class", "names"))
   for (e in attributes_to_restore) attr(res, e) <- attr(data, e)
- 
-  # TODO: Consider returning these as regular members of the output list
-  # TODO: Consider attaching these from the caller site instead
-  # TODO: Consider taking latest_reviews as separate input variable
-  attr(res, "latest_reviews") <- attr(annotation_info, "latest_reviews") # pass-through
-  attr(res, "data_timestamps") <- annotation_info[["data_timestamps"]] # pass-through
 
   return(list(data = res, col_names = res_col_names))
 }
@@ -106,12 +95,6 @@ REV_include_highlight_info <- function(table_data, annotation_info, tracked_vars
       review_timestamps = annotation_info[["timestamp"]]
     )
     h1 <- revisions$tracked_hashes[[length(revisions$tracked_hashes)]]
-    
-    if (nrow(data) < nrow(annotation_info)) {
-      filter_mask <- attr(data, "filter_mask")
-      h0 <- h0[, filter_mask, drop = FALSE]
-      h1 <- h1[, filter_mask, drop = FALSE]
-    }
     
     res <- REV_report_changes(h0, h1)
     for (i_row in seq_along(res)){
@@ -682,17 +665,10 @@ REV_compute_review_changes <- function(data, row_indices, annotation_info, choic
                                        dataset_list_name, dataset_name) {
   res <- list()
   
-  defiltered_row_indices <- local({
-    # `row_indices` relative to the filtered data sent to the client ...
-    filter_mask <- attr(data, "filter_mask")
-    res <- which(filter_mask)[row_indices]
-    return(res)
-  })
-  
   canonical_row_indices <- local({
-    # ... and that `row_indices` needs to be mapped into a base+deltas (stable) index
+    # `row_indices` need to be mapped into a base+deltas (stable) indices
     map_current_indices_into_canonical_order <- attr(annotation_info, "map_current_indices_into_canonical_order")
-    res <- map_current_indices_into_canonical_order(defiltered_row_indices)
+    res <- map_current_indices_into_canonical_order(row_indices)
     return(res)
   })
   
@@ -703,7 +679,7 @@ REV_compute_review_changes <- function(data, row_indices, annotation_info, choic
   data[[REV$ID$REVIEW_COL]][row_indices] <- choices[[choice_index]]
   data[[REV$ID$ROLE_COL]][row_indices] <- role
     
-  latest_reviews <- attr(data, "latest_reviews")
+  latest_reviews <- attr(annotation_info, "latest_reviews")
   latest_reviews[[role]][["review"]][row_indices] <- choices[[choice_index]]
   latest_reviews[[role]][["timestamp"]][row_indices] <- timestamp
   
@@ -878,7 +854,7 @@ REV_respond_to_user_review <- function(ns, state, input, review, selected_datase
     dataset_list_name <- selected_dataset_list_name() 
     dataset_name <- selected_dataset_name()
     
-    new_data <- data()
+    unfiltered_data <- review[["data"]][[dataset_list_name]][[dataset_name]]
     
     info <- input[[REV$ID$REVIEW_SELECT]]
 
@@ -892,11 +868,9 @@ REV_respond_to_user_review <- function(ns, state, input, review, selected_datase
       REV_show_blocker(ns(TBL$TABLE_ID), message = paste(REV$MESSAGE$MULTIPLE_REVIEW))
       on.exit(REV_hide_blocker(ns(TBL$TABLE_ID)))
     }
-
-    i_rows <- as.numeric(info[["row"]])
-    annotation_info <- state[["annotation_info"]][[dataset_list_name]][[dataset_name]]
     
-    changes <- REV_include_review_info(annotation_info = annotation_info, data = new_data, col_names = list())
+    annotation_info <- state[["annotation_info"]][[dataset_list_name]][[dataset_name]]
+    changes <- REV_include_review_info(annotation_info = annotation_info, data = unfiltered_data, col_names = list())
     if (inherits(changes, "simpleCondition")) {
       shiny::showNotification(changes[["message"]], type = "warning")
       warning(changes[["message"]])
@@ -907,19 +881,27 @@ REV_respond_to_user_review <- function(ns, state, input, review, selected_datase
     timestamp <- SH$get_UTC_time_in_seconds()
     choice_index <- as.integer(info[["option"]])
     
+    defiltered_row_indices <- local({
+      row_indices <- as.integer(info[["row"]]) # relative to the filtered data sent to the client
+      filter_mask <- attr(data(), "filter_mask")
+      res <- which(filter_mask)[row_indices]
+      return(res)
+    })
+    
     changes <- REV_compute_review_changes(
-      data = new_data, row_indices = i_rows, annotation_info = annotation_info, 
+      data = new_data, row_indices = defiltered_row_indices, annotation_info = annotation_info, 
       choices = review[["choices"]], choice_index = choice_index,  role = role, 
       timestamp = timestamp, dataset_list_name = dataset_list_name, dataset_name = dataset_name
     )
     
     new_data <- changes[["data"]]
     annotation_info <- changes[["annotation_info"]]
+    # IMPORTANT: overwrites global state; it has to be the _unfiltered_ annotation_info!
     state[["annotation_info"]][[dataset_list_name]][[dataset_name]] <- annotation_info
     IO_plan <- changes[["IO_plan"]]
     
     latest_reviews <- attr(changes[["data"]], "latest_reviews")
-    data_timestamps <- attr(changes[["data"]], "data_timestamps")
+    data_timestamps <- annotation_info[["data_timestamps"]]
 
     # TODO: Benchmark to decide if this is a bottleneck for bigger datasets
     new_data[[REV$ID$STATUS_COL]] <- REV_compute_status(new_data, role, latest_reviews, data_timestamps)
@@ -933,7 +915,10 @@ REV_respond_to_user_review <- function(ns, state, input, review, selected_datase
         table_data, annotation_info, 
         tracked_vars = review[["datasets"]][[dataset_name]][["tracked_vars"]]
       )
-      return(table_data[["data"]])
+      
+      # Filter rows down to those present
+      filter_mask <- attr(data(), "filter_mask")
+      return(table_data[["data"]][filter_mask, ])
     })
    
     # If we were doing pure client-side rendering of DT, maybe we could do a lighter upgrade with javascript:
@@ -942,6 +927,7 @@ REV_respond_to_user_review <- function(ns, state, input, review, selected_datase
     # > table.columns()[0].length;
     # > tmp[9] = '2';
     # > table.row(5).data(tmp).invalidate();
+    rownames(new_data) <- NULL # otherwise row numbers returned from DT are not relative to presented table
     DT::replaceData(dt_proxy, new_data, resetPaging = FALSE, clearSelection = "none")
     
     fs_execute_IO_plan(IO_plan, callback = update_undo_description_callback)
@@ -1028,12 +1014,13 @@ REV_respond_to_user_review <- function(ns, state, input, review, selected_datase
       state[["annotation_info"]] <- load_results[["loaded_annotation_info"]]
       annotation_info <- state[["annotation_info"]][[dataset_list_name]][[dataset_name]]
       
-      data <- data()
-      changes <- REV_include_review_info(annotation_info = annotation_info, data = data, col_names = list())
+      unfiltered_data <- review[["data"]][[dataset_list_name]][[dataset_name]]
+      changes <- REV_include_review_info(annotation_info = annotation_info, data = unfiltered_data, col_names = list())
       shiny::validate(shiny::need(!inherits(changes, "simpleCondition"), changes[["message"]]))
       
-      latest_reviews <- attr(changes[["data"]], "latest_reviews")
-      data_timestamps <- attr(changes[["data"]], "data_timestamps")
+      latest_reviews <- attr(annotation_info, "latest_reviews")
+      data_timestamps <- annotation_info[["data_timestamps"]]
+
       changes[["data"]][[REV$ID$STATUS_COL]] <- REV_compute_status(
         changes[["data"]], role, latest_reviews, data_timestamps
       )
@@ -1043,11 +1030,15 @@ REV_respond_to_user_review <- function(ns, state, input, review, selected_datase
       data <- changes[["data"]]
       
       # TODO: rewrite REV_include_highlight_info to avoid this clumsy wrapper
-      table_data <- list(data = data, col_names = character(0))
+      table_data <- list(data = changes[["data"]], col_names = character(0))
       table_data <- REV_include_highlight_info(
         table_data, annotation_info, tracked_vars = review[["datasets"]][[dataset_name]][["tracked_vars"]]
       )
       
+      filter_mask <- attr(data(), "filter_mask")
+      table_data[["data"]] <- table_data[["data"]][filter_mask, ]
+      
+      rownames(table_data[["data"]]) <- NULL # otherwise row numbers returned from DT are not relative to presented table
       DT::replaceData(dt_proxy, table_data[["data"]], resetPaging = FALSE, clearSelection = "none")
     }
     
