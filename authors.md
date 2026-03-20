@@ -21,13 +21,13 @@ Source:
 [`DESCRIPTION`](https://github.com/Boehringer-Ingelheim/dv.listings/blob/main/DESCRIPTION)
 
 Glauss I, Matthias K, Morís Fernández L (2026). *dv.listings: Data
-listings module*. R package version 4.3.3,
+listings module*. R package version 4.3.4,
 <https://github.com/Boehringer-Ingelheim/dv.listings>.
 
     @Manual{,
       title = {dv.listings: Data listings module},
       author = {Isabel Glauss and Korbinian Matthias and Luis {Morís Fernández}},
       year = {2026},
-      note = {R package version 4.3.3},
+      note = {R package version 4.3.4},
       url = {https://github.com/Boehringer-Ingelheim/dv.listings},
     }
