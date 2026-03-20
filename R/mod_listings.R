@@ -511,6 +511,7 @@ listings_server <- function(module_id,
       }
      
       # NOTE: Pass the reconstructed `filter_mask` as an attribute of `data` itself to ensure they're synchronized
+      # TODO: Take the filter_mask from dv.manager 3.x.x instead
       if (enable_review) {
         attr(data, "filter_mask") <- local({
           selected_dataset_list_name <- review[["selected_dataset"]]()
@@ -575,6 +576,12 @@ listings_server <- function(module_id,
 
         # NOTE: Partially repeats #weilae 
         annotation_info <- REV_state[["annotation_info"]][[selected_dataset_list_name]][[selected_dataset_name]]
+        
+        filter_mask <- attr(table_data[["data"]], "filter_mask")
+        if (!all(filter_mask)) { # subset `annotation_info` to match data filter
+          annotation_info <- REV_filter_annotation_info(annotation_info, filter_mask)
+        } 
+        
         changes <- REV_include_review_info(
           annotation_info = annotation_info,
           data = table_data[["data"]],
@@ -582,14 +589,17 @@ listings_server <- function(module_id,
         )
         shiny::validate(shiny::need(!inherits(changes, "simpleCondition"), changes[["message"]]))
         
-        latest_reviews <- attr(changes[["data"]], "latest_reviews")
-        data_timestamps <- attr(changes[["data"]], "data_timestamps")
-
         changes[["data"]][[REV$ID$STATUS_COL]] <- REV_compute_status(
-          changes[["data"]], role, latest_reviews, data_timestamps
+          dataset_review = changes[["data"]], 
+          role = role, 
+          latest_reviews_by_role = attr(annotation_info, "latest_reviews"), 
+          data_timestamps = annotation_info[["data_timestamps"]]
         )
         
-        changes[["data"]][[REV$ID$LATEST_REVIEW_COL]] <- REV_review_var_to_json(latest_reviews, data_timestamps)
+        changes[["data"]][[REV$ID$LATEST_REVIEW_COL]] <- REV_review_var_to_json(
+          latest_reviews = attr(annotation_info, "latest_reviews"), 
+          data_timestamps = annotation_info[["data_timestamps"]]
+        )
         changes[["data"]] <- relocate_column(changes[["data"]], REV$ID$LATEST_REVIEW_COL, 4L)
         
         review_col_count <- ncol(changes[["data"]]) - ncol(table_data[["data"]])
