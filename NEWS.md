@@ -1,3 +1,7 @@
+# dv.listings 4.3.3-9000
+- Review functionality:
+  - Fix regression when global filter is active
+
 # dv.listings 4.3.3
 - Review functionality:
   - Guard against the removal of known rows and provide parameter to disable this check
