@@ -1,6 +1,6 @@
-# dv.listings 4.3.3-9000
+# dv.listings 4.3.4
 - Review functionality:
-  - Fix regression when global filter is active
+  - Fix regressions when global filter is active
 
 # dv.listings 4.3.3
 - Review functionality:
