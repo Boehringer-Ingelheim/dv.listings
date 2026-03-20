@@ -57,6 +57,8 @@ REV_time_from_timestamp <- function(v) {
   return(res)
 }
 
+# Prepends review columns to those of the `data` table
+# Prepends review column names to `col_names`
 REV_include_review_info <- function(annotation_info, data, col_names) {
   if (nrow(data) != nrow(annotation_info)) 
     return(
@@ -75,7 +77,7 @@ REV_include_review_info <- function(annotation_info, data, col_names) {
   names(res)[[3]] <- REV$ID$STATUS_COL
   res_col_names <- c(REV$LABEL$REVIEW_COLS)
  
-  # add actual data
+  # append actual data columns
   res <- cbind(res, data)
   res_col_names <- c(res_col_names, col_names)
  
@@ -85,6 +87,13 @@ REV_include_review_info <- function(annotation_info, data, col_names) {
   return(list(data = res, col_names = res_col_names))
 }
 
+# Append columns named "__<NAME_OF_COLUMN>_highlight__" for each of the tracked columns, indicating
+# altered cell data. Example:
+# >   ID TRACKED_1 TRACKED_2 UNTRACKED __TRACKED_1_highlight__ __TRACKED_2_highlight__ 
+# > 1  1         3         3         7                    TRUE                   FALSE 
+# > 2  2         4         7        14                   FALSE                   FALSE 
+# > 3  3         6         9        21                   FALSE                   FALSE 
+# Row 1 of the TRACKED_1 column has been altered after review.
 REV_include_highlight_info <- function(table_data, annotation_info, tracked_vars) {
   data <- table_data[["data"]]
   # Compute dataset changes that make current reviews obsolete
@@ -683,7 +692,6 @@ REV_compute_review_changes <- function(data, row_indices, annotation_info, choic
   latest_reviews[[role]][["review"]][row_indices] <- choices[[choice_index]]
   latest_reviews[[role]][["timestamp"]][row_indices] <- timestamp
   
-  attr(data, "latest_reviews") <- latest_reviews 
   attr(annotation_info, "latest_reviews") <- latest_reviews
   
   # `REV_load_annotation_info()` would return this same (modified) state, but we do manual synchronization
@@ -900,10 +908,9 @@ REV_respond_to_user_review <- function(ns, state, input, review, selected_datase
     state[["annotation_info"]][[dataset_list_name]][[dataset_name]] <- annotation_info
     IO_plan <- changes[["IO_plan"]]
     
-    latest_reviews <- attr(changes[["data"]], "latest_reviews")
+    latest_reviews <- attr(annotation_info, "latest_reviews")
     data_timestamps <- annotation_info[["data_timestamps"]]
 
-    # TODO: Benchmark to decide if this is a bottleneck for bigger datasets
     new_data[[REV$ID$STATUS_COL]] <- REV_compute_status(new_data, role, latest_reviews, data_timestamps)
     new_data[[REV$ID$LATEST_REVIEW_COL]] <- REV_review_var_to_json(latest_reviews, data_timestamps)
     new_data <- relocate_column(new_data, REV$ID$LATEST_REVIEW_COL, 4L)
