@@ -577,35 +577,9 @@ listings_server <- function(module_id,
         # NOTE: Partially repeats #weilae 
         annotation_info <- REV_state[["annotation_info"]][[selected_dataset_list_name]][[selected_dataset_name]]
         
-        if (nrow(table_data[["data"]]) < nrow(annotation_info)) { # subset `annotation_info` to match data filter
-          annotation_info <- local({
-            res <- annotation_info
-            filter_mask <- attr(table_data[["data"]], "filter_mask")
-            
-            # filter data rows
-            res <- res[filter_mask, ]
-            
-            # filter latest_reviews
-            latest_reviews <- attr(res, "latest_reviews")
-            for (i in seq_along(latest_reviews)){ 
-              latest_reviews[[i]][["review"]] <- latest_reviews[[i]][["review"]][filter_mask]
-              latest_reviews[[i]][["timestamp"]] <- latest_reviews[[i]][["timestamp"]][filter_mask]
-            }
-            attr(res, "latest_reviews") <- latest_reviews
-          
-            # filter revisions 
-            revisions <- attr(res, "revisions")
-            tracked_hashes <- revisions[["tracked_hashes"]]
-            for (i in seq_along(tracked_hashes)){
-              h <- tracked_hashes[[i]]
-              h <- h[, filter_mask, drop = FALSE]
-              tracked_hashes[[i]] <- h
-            }
-            revisions[["tracked_hashes"]] <- tracked_hashes
-            attr(res, "revisions") <- revisions
-            
-            return(res)
-          })
+        filter_mask <- attr(table_data[["data"]], "filter_mask")
+        if (!all(filter_mask)) { # subset `annotation_info` to match data filter
+          annotation_info <- REV_filter_annotation_info(annotation_info, filter_mask)
         } 
         
         changes <- REV_include_review_info(

@@ -57,6 +57,34 @@ REV_time_from_timestamp <- function(v) {
   return(res)
 }
 
+REV_filter_annotation_info <- function(info, mask) {
+  res <- info 
+
+  # filter data rows
+  res <- res[mask, ]
+
+  # filter latest_reviews
+  latest_reviews <- attr(res, "latest_reviews")
+  for (i in seq_along(latest_reviews)){ 
+    latest_reviews[[i]][["review"]] <- latest_reviews[[i]][["review"]][mask]
+    latest_reviews[[i]][["timestamp"]] <- latest_reviews[[i]][["timestamp"]][mask]
+  }
+  attr(res, "latest_reviews") <- latest_reviews
+
+  # filter revisions 
+  revisions <- attr(res, "revisions")
+  tracked_hashes <- revisions[["tracked_hashes"]]
+  for (i in seq_along(tracked_hashes)){
+    h <- tracked_hashes[[i]]
+    h <- h[, mask, drop = FALSE]
+    tracked_hashes[[i]] <- h
+  }
+  revisions[["tracked_hashes"]] <- tracked_hashes
+  attr(res, "revisions") <- revisions
+
+  return(res)
+}
+
 # Prepends review columns to those of the `data` table
 # Prepends review column names to `col_names`
 REV_include_review_info <- function(annotation_info, data, col_names) {
@@ -862,71 +890,95 @@ REV_respond_to_user_review <- function(ns, state, input, review, selected_datase
     dataset_list_name <- selected_dataset_list_name() 
     dataset_name <- selected_dataset_name()
     
-    unfiltered_data <- review[["data"]][[dataset_list_name]][[dataset_name]]
-    
-    info <- input[[REV$ID$REVIEW_SELECT]]
-
-    # Replace in full bulk operation
-    if ("bulk" %in% names(info) && identical(info[["bulk"]], "filtered")) {
-      info[["row"]] <- input[[paste0(TBL$TABLE_ID, "_rows_all")]]
-    }
-    shiny::req(length(info[["row"]]) > 0)
-    
-    if (length(info[["row"]]) >= REV$CONSTANT$MULTIPLE_REVIEW_THRESHOLD) {
-      REV_show_blocker(ns(TBL$TABLE_ID), message = paste(REV$MESSAGE$MULTIPLE_REVIEW))
-      on.exit(REV_hide_blocker(ns(TBL$TABLE_ID)))
-    }
-    
-    annotation_info <- state[["annotation_info"]][[dataset_list_name]][[dataset_name]]
-    changes <- REV_include_review_info(annotation_info = annotation_info, data = unfiltered_data, col_names = list())
-    if (inherits(changes, "simpleCondition")) {
-      shiny::showNotification(changes[["message"]], type = "warning")
-      warning(changes[["message"]])
-      shiny::req(FALSE)
-    }
-    
-    new_data <- changes[["data"]]
-    timestamp <- SH$get_UTC_time_in_seconds()
-    choice_index <- as.integer(info[["option"]])
-    
-    defiltered_row_indices <- local({
-      row_indices <- as.integer(info[["row"]]) # relative to the filtered data sent to the client
-      filter_mask <- attr(data(), "filter_mask")
-      res <- which(filter_mask)[row_indices]
-      return(res)
-    })
-    
-    changes <- REV_compute_review_changes(
-      data = new_data, row_indices = defiltered_row_indices, annotation_info = annotation_info, 
-      choices = review[["choices"]], choice_index = choice_index,  role = role, 
-      timestamp = timestamp, dataset_list_name = dataset_list_name, dataset_name = dataset_name
-    )
-    
-    new_data <- changes[["data"]]
-    annotation_info <- changes[["annotation_info"]]
-    # IMPORTANT: overwrites global state; it has to be the _unfiltered_ annotation_info!
-    state[["annotation_info"]][[dataset_list_name]][[dataset_name]] <- annotation_info
-    IO_plan <- changes[["IO_plan"]]
-    
-    latest_reviews <- attr(annotation_info, "latest_reviews")
-    data_timestamps <- annotation_info[["data_timestamps"]]
-
-    new_data[[REV$ID$STATUS_COL]] <- REV_compute_status(new_data, role, latest_reviews, data_timestamps)
-    new_data[[REV$ID$LATEST_REVIEW_COL]] <- REV_review_var_to_json(latest_reviews, data_timestamps)
-    new_data <- relocate_column(new_data, REV$ID$LATEST_REVIEW_COL, 4L)
-
-    new_data <- local({
-      # TODO: rewrite REV_include_highlight_info to avoid this clumsy wrapper
-      table_data <- list(data = new_data, col_names = character(0))
-      table_data <- REV_include_highlight_info(
-        table_data, annotation_info, 
-        tracked_vars = review[["datasets"]][[dataset_name]][["tracked_vars"]]
+    # NOTE: This local computes updates to the state of the app (annotation_info, IO_plan), independent from rendering
+    changes_based_on_unfiltered_data <- local({
+      unfiltered_data <- review[["data"]][[dataset_list_name]][[dataset_name]]
+      
+      info <- input[[REV$ID$REVIEW_SELECT]]
+      
+      # Replace in full bulk operation
+      if ("bulk" %in% names(info) && identical(info[["bulk"]], "filtered")) {
+        info[["row"]] <- input[[paste0(TBL$TABLE_ID, "_rows_all")]]
+      }
+      shiny::req(length(info[["row"]]) > 0)
+      
+      if (length(info[["row"]]) >= REV$CONSTANT$MULTIPLE_REVIEW_THRESHOLD) {
+        REV_show_blocker(ns(TBL$TABLE_ID), message = paste(REV$MESSAGE$MULTIPLE_REVIEW))
+        on.exit(REV_hide_blocker(ns(TBL$TABLE_ID)))
+      }
+      
+      annotation_info <- state[["annotation_info"]][[dataset_list_name]][[dataset_name]]
+      changes <- REV_include_review_info(annotation_info = annotation_info, data = unfiltered_data, col_names = list())
+      if (inherits(changes, "simpleCondition")) {
+        shiny::showNotification(changes[["message"]], type = "warning")
+        warning(changes[["message"]])
+        shiny::req(FALSE)
+      }
+      
+      new_data <- changes[["data"]]
+      timestamp <- SH$get_UTC_time_in_seconds()
+      choice_index <- as.integer(info[["option"]])
+      
+      defiltered_row_indices <- local({
+        row_indices <- as.integer(info[["row"]]) # relative to the filtered data sent to the client
+        filter_mask <- attr(data(), "filter_mask")
+        res <- which(filter_mask)[row_indices]
+        return(res)
+      })
+      
+      changes <- REV_compute_review_changes(
+        data = new_data, row_indices = defiltered_row_indices, annotation_info = annotation_info, 
+        choices = review[["choices"]], choice_index = choice_index, role = role, 
+        timestamp = timestamp, dataset_list_name = dataset_list_name, dataset_name = dataset_name
       )
       
-      # Filter rows down to those present
-      filter_mask <- attr(data(), "filter_mask")
-      return(table_data[["data"]][filter_mask, ])
+      new_data <- changes[["data"]]
+      annotation_info <- changes[["annotation_info"]]
+      return(list(annotation_info = annotation_info, IO_plan = changes[["IO_plan"]]))
     })
+    
+    # IMPORTANT: overwrites global state; it has to be the _unfiltered_ annotation_info!
+    state[["annotation_info"]][[dataset_list_name]][[dataset_name]] <- 
+      changes_based_on_unfiltered_data[["annotation_info"]]
+    IO_plan <- changes_based_on_unfiltered_data[["IO_plan"]]
+    
+    # NOTE: The following code repeats the logic on the main renderDataTable reactive to match its behavior
+    #       It does so on the filtered dataset. This code is in need of deduplication. The addition of explicit filter
+    #       state to dv.manager will prove invaluable to iron out these large wrinkles
+    if (TRUE) { # NOTE: Partially repeats #weilae 
+      table_data <- list(data = data(), col_names = list())
+      filter_mask <- attr(table_data[["data"]], "filter_mask")
+      annotation_info <- state[["annotation_info"]][[dataset_list_name]][[dataset_name]] # IMPORTANT: Includes changes based on review
+      if (!all(filter_mask)) { # subset `annotation_info` to match data filter
+        annotation_info <- REV_filter_annotation_info(annotation_info, filter_mask)
+      } 
+      
+      changes <- REV_include_review_info(
+        annotation_info = annotation_info,
+        data = table_data[["data"]],
+        col_names = table_data[["col_names"]]
+      )
+      shiny::validate(shiny::need(!inherits(changes, "simpleCondition"), changes[["message"]]))
+      changes[["data"]][[REV$ID$STATUS_COL]] <- REV_compute_status(
+        dataset_review = changes[["data"]], 
+        role = role, 
+        latest_reviews_by_role = attr(annotation_info, "latest_reviews"), 
+        data_timestamps = annotation_info[["data_timestamps"]]
+      )
+      changes[["data"]][[REV$ID$LATEST_REVIEW_COL]] <- REV_review_var_to_json(
+        latest_reviews = attr(annotation_info, "latest_reviews"), 
+        data_timestamps = annotation_info[["data_timestamps"]]
+      )
+      changes[["data"]] <- relocate_column(changes[["data"]], REV$ID$LATEST_REVIEW_COL, 4L)
+      
+      table_data[["data"]] <- changes[["data"]]
+      table_data <- REV_include_highlight_info(
+        table_data, annotation_info, 
+        tracked_vars = review[["datasets"]][[selected_dataset_name()]][["tracked_vars"]]
+      )
+      
+      new_data <- table_data[["data"]]
+    }
    
     # If we were doing pure client-side rendering of DT, maybe we could do a lighter upgrade with javascript:
     # > var table = $('#DataTables_Table_0').DataTable();
@@ -1019,34 +1071,47 @@ REV_respond_to_user_review <- function(ns, state, input, review, selected_datase
       
       load_results <- REV_load_annotation_info(fs_contents, review, datasets)
       state[["annotation_info"]] <- load_results[["loaded_annotation_info"]]
-      annotation_info <- state[["annotation_info"]][[dataset_list_name]][[dataset_name]]
-      
-      unfiltered_data <- review[["data"]][[dataset_list_name]][[dataset_name]]
-      changes <- REV_include_review_info(annotation_info = annotation_info, data = unfiltered_data, col_names = list())
-      shiny::validate(shiny::need(!inherits(changes, "simpleCondition"), changes[["message"]]))
-      
-      latest_reviews <- attr(annotation_info, "latest_reviews")
-      data_timestamps <- annotation_info[["data_timestamps"]]
 
-      changes[["data"]][[REV$ID$STATUS_COL]] <- REV_compute_status(
-        changes[["data"]], role, latest_reviews, data_timestamps
-      )
-      changes[["data"]][[REV$ID$LATEST_REVIEW_COL]] <- REV_review_var_to_json(latest_reviews, data_timestamps)        
-      changes[["data"]] <- relocate_column(changes[["data"]], REV$ID$LATEST_REVIEW_COL, 4L)
-      
-      data <- changes[["data"]]
-      
-      # TODO: rewrite REV_include_highlight_info to avoid this clumsy wrapper
-      table_data <- list(data = changes[["data"]], col_names = character(0))
-      table_data <- REV_include_highlight_info(
-        table_data, annotation_info, tracked_vars = review[["datasets"]][[dataset_name]][["tracked_vars"]]
-      )
-      
-      filter_mask <- attr(data(), "filter_mask")
-      table_data[["data"]] <- table_data[["data"]][filter_mask, ]
-      
-      rownames(table_data[["data"]]) <- NULL # otherwise row numbers returned from DT are not relative to presented table
-      DT::replaceData(dt_proxy, table_data[["data"]], resetPaging = FALSE, clearSelection = "none")
+      # NOTE: The following code repeats the logic on the main renderDataTable reactive to match its behavior
+      #       It does so on the filtered dataset. This code is in need of deduplication. The addition of explicit filter
+      #       state to dv.manager will prove invaluable to iron out these large wrinkles
+      if (TRUE) { # NOTE: Partially repeats #weilae 
+        table_data <- list(data = data(), col_names = list())
+        filter_mask <- attr(table_data[["data"]], "filter_mask")
+        annotation_info <- state[["annotation_info"]][[dataset_list_name]][[dataset_name]] # IMPORTANT: Includes changes based on review
+        if (!all(filter_mask)) { # subset `annotation_info` to match data filter
+          annotation_info <- REV_filter_annotation_info(annotation_info, filter_mask)
+        } 
+        
+        changes <- REV_include_review_info(
+          annotation_info = annotation_info,
+          data = table_data[["data"]],
+          col_names = table_data[["col_names"]]
+        )
+        shiny::validate(shiny::need(!inherits(changes, "simpleCondition"), changes[["message"]]))
+        changes[["data"]][[REV$ID$STATUS_COL]] <- REV_compute_status(
+          dataset_review = changes[["data"]], 
+          role = role, 
+          latest_reviews_by_role = attr(annotation_info, "latest_reviews"), 
+          data_timestamps = annotation_info[["data_timestamps"]]
+        )
+        changes[["data"]][[REV$ID$LATEST_REVIEW_COL]] <- REV_review_var_to_json(
+          latest_reviews = attr(annotation_info, "latest_reviews"), 
+          data_timestamps = annotation_info[["data_timestamps"]]
+        )
+        changes[["data"]] <- relocate_column(changes[["data"]], REV$ID$LATEST_REVIEW_COL, 4L)
+        
+        table_data[["data"]] <- changes[["data"]]
+        table_data <- REV_include_highlight_info(
+          table_data, annotation_info, 
+          tracked_vars = review[["datasets"]][[selected_dataset_name()]][["tracked_vars"]]
+        )
+        
+        new_data <- table_data[["data"]]
+      }
+
+      rownames(new_data) <- NULL # otherwise row numbers returned from DT are not relative to presented table
+      DT::replaceData(dt_proxy, new_data, resetPaging = FALSE, clearSelection = "none")
     }
     
     undo_desc <- REV_describe_undo_action(review, REV_state = state, fs_contents, dataset_list_name, dataset_name, role)
