@@ -1073,7 +1073,7 @@ REV_review_var_to_json <- function(latest_reviews, data_timestamps) {
   }
   reviews <- do.call(paste, c(review_pieces, sep = ","))
   
-  res <- paste0('{"reviews":{', reviews, sprintf('},"data_timestamp":%.3f}', data_timestamps))
+  res <- sprintf('{"reviews":{%s},"data_timestamp":%.3f}', reviews, data_timestamps)
   return(res)
 }
 
