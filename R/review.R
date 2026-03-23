@@ -1144,7 +1144,11 @@ REV_review_var_to_json <- function(latest_reviews, data_timestamps) {
     review_pieces <- c(review_pieces, list(s))
   }
   reviews <- do.call(paste, c(review_pieces, sep = ","))
-  
+
+  # FIXME: This call to `sprintf` runs the danger of overflowing the 8192-wide restriction
+  #        on the %s conversion specifier if review texts are long or the role count large.
+  #        A call to `paste0` would be preferable, as long as the length(data_timestamps) == 0
+  #        is treated correctly.
   res <- sprintf('{"reviews":{%s},"data_timestamp":%.3f}', reviews, data_timestamps)
   return(res)
 }
