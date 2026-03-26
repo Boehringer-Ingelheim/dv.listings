@@ -144,15 +144,12 @@ CM <- local({ # _C_hecked _M_odule
               error_count_by_dataset <- integer(0)
               error_count <- 0
               for (i_dataset in seq_len(dataset_count)) {
+                dataset <- afmm[["data"]][[i_dataset]]
+                if(is.function(dataset)) dataset <- dataset()
                 check_args <- append(
                   list(
                     afmm = afmm, # To check receiver_ids, among others
-                    # Allows data checks prior to reactive time
-                    datasets = if (!is.function(afmm[["data"]][[i_dataset]])) {
-                      afmm[["data"]][[i_dataset]]
-                    } else {
-                      afmm[["data"]][[i_dataset]]()
-                    }
+                    datasets = dataset # Allows data checks prior to reactive time
                   ),
                   args
                 )
