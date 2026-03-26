@@ -147,7 +147,12 @@ CM <- local({ # _C_hecked _M_odule
                 check_args <- append(
                   list(
                     afmm = afmm, # To check receiver_ids, among others
-                    datasets = afmm[["data"]][[i_dataset]] # Allows data checks prior to reactive time
+                    # Allows data checks prior to reactive time
+                    datasets = if (!is.function(afmm[["data"]][[i_dataset]])) {
+                      afmm[["data"]][[i_dataset]]
+                    } else {
+                      afmm[["data"]][[i_dataset]]()
+                    }
                   ),
                   args
                 )
