@@ -931,13 +931,12 @@ dataset_info_listings <- function(dataset_names, ...) {
 check_mod_listings <- function(afmm, datasets, module_id, dataset_names, 
                                default_vars, pagination, intended_use_label,
                                subjid_var, receiver_id, review) {
-  warn <- CM$container()
   err <- CM$container()
   
   ok <- check_mod_listings_auto(
     afmm, datasets,
     module_id, dataset_names, default_vars, pagination, intended_use_label,
-    subjid_var, receiver_id, review, warn, err
+    subjid_var, receiver_id, review, err
   )
   
   # default_vars 
@@ -996,7 +995,7 @@ check_mod_listings <- function(afmm, datasets, module_id, dataset_names,
 
   check_review_parameter(datasets, dataset_names, review, err)
   
-  res <- list(warnings = warn[["messages"]], errors = err[["messages"]])
+  res <- list(errors = err[["messages"]])
   return(res)
 }
 

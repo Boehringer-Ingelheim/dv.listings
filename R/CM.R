@@ -1,20 +1,30 @@
-# YT#VH20fe8acb2e57832933eb60226847381a#VHe9395a780f86f7653c9f11cadba1e3f0#
+# YT#VH04ddb3b9e9d0bc00e6606ce5e074418b#VH20fe8acb2e57832933eb60226847381a#
 CM <- local({ # _C_hecked _M_odule
+  # 2026-03-26: [cleanup] Drop hyperspecific `CM$check_unique_sub_cat_par_vis()`
+  #             [cleanup] Drop unused `warning_messages` parameter and related codepaths
+  #             [cleanup] Drop type mapping
+  #             [feature] New `CM$format_inline_asis` helper for custom diagnostic messages
+  #             [feature] Clarify that it is the app creator who is responsible for addressing errors
+  #             [cleanup] Split multi-line strings to silence YT.R warning
   # 2025-07-11: [feature] New `manual_check` flag to tell `CM$generate_check_functions()` to ignore particular elements
-  # 2025-04-09: [fix] Make `generate_map_afmm_function` maps multi-variable parameters (e.g. `visit_vars`)
-  # 2025-03-21: [feature] report errors for all loaded datasets and [fix] dehardcode "PARAM" string and use `par` argument
+  # 2025-04-09: [fix] Make `generate_map_afmm_function` map multi-variable parameters (e.g. `visit_vars`)
+  # 2025-03-21: [feature] report errors for all loaded datasets
+  #             [fix] dehardcode "PARAM" string and use `par` argument
 
   message_well <- function(title, contents, color = "f5f5f5") {
-    style <- sprintf("
-      padding: 0.5rem;
-      padding-left: 1rem;
-      margin-bottom: 20px;
-      background-color: %s;
-      border: 1px solid #e3e3e3;
-      border-radius: 4px;
-      -webkit-box-shadow: inset 0 1px 1px rgba(0,0,0,.05);
-      box-shadow: inset 0 1px 1px rgba(0,0,0,.05);
-    ", color)
+    style <- sprintf(
+      paste0(
+        "padding: 0.5rem;",
+        "padding-left: 1rem;",
+        "margin-bottom: 20px;",
+        "background-color: %s;",
+        "border: 1px solid #e3e3e3;",
+        "border-radius: 4px;",
+        "-webkit-box-shadow: inset 0 1px 1px rgba(0,0,0,.05);",
+        "box-shadow: inset 0 1px 1px rgba(0,0,0,.05);"
+      ),
+      color
+    )
 
     res <- list(shiny::h3(title))
     if (length(contents)) res <- append(res, list(shiny::tags[["div"]](contents, style = style)))
@@ -35,23 +45,21 @@ CM <- local({ # _C_hecked _M_odule
     return(res)
   }
 
-  app_creator_feedback_server <- function(id, warning_messages, error_messages, preface) {
+  app_creator_feedback_server <- function(id, error_messages, preface) {
     id <- paste(c(id, "validator"), collapse = "-")
     module <- shiny::moduleServer(
       id,
       function(input, output, session) {
         output[["ui"]] <- shiny::renderUI({
           res <- list()
-          warn <- warning_messages
-          if (length(warn)) {
-            res[[length(res) + 1]] <-
-              message_well("Module configuration warnings",
-                Map(function(x) htmltools::p(htmltools::HTML(paste("\u2022", x))), warn),
-                color = "#fff7ef"
-              )
-          }
 
           if (length(error_messages)) {
+            app_creator_disclaimer <- htmltools::p(htmltools::HTML(
+              paste("<i>Configuration errors prevent this module from running.",
+                    "<b>The following diagnostic information is meant for the app creator</b>.</i>")
+            ), style = "font-size: small;")
+            
+            error_messages <- append(list(app_creator_disclaimer), error_messages)
             res[[length(res) + 1]] <- message_well("Module configuration errors", error_messages, color = "#f4d7d7")
           }
 
@@ -71,8 +79,7 @@ CM <- local({ # _C_hecked _M_odule
   # Wrap the UI and server of a module so that, once parameterized, they:
   # - go through a check function prior to running
   # - provide `dataset_info` to module manager
-  # - transform afmm arbitrarily to allow simplifying the logic of the module (e.g. mapping character columns to factors)
-  module <- function(module, check_mod_fn, dataset_info_fn, map_afmm_fn = NULL) {
+  module <- function(module, check_mod_fn, dataset_info_fn) {
     local({
       # Make sure that the signature of `check_mod_fn` matches that of `module` except for the expected differences
       check_formals <- names(formals(check_mod_fn))
@@ -126,10 +133,7 @@ CM <- local({ # _C_hecked _M_odule
           fb <- local({
             res <- NULL
             if (!is.null(error_message)) {
-              res <- list(
-                warnings = character(0),
-                errors = error_message
-              )
+              res <- list(errors = error_message)
             } else {
               # NOTE: We check the call here and not inside the module server function because:
               #       - app creators interact with the davinci module and not with the ui-server combo, so
@@ -144,10 +148,12 @@ CM <- local({ # _C_hecked _M_odule
               error_count_by_dataset <- integer(0)
               error_count <- 0
               for (i_dataset in seq_len(dataset_count)) {
+                dataset <- afmm[["data"]][[i_dataset]]
+                if (is.function(dataset)) dataset <- dataset()
                 check_args <- append(
                   list(
                     afmm = afmm, # To check receiver_ids, among others
-                    datasets = afmm[["data"]][[i_dataset]] # Allows data checks prior to reactive time
+                    datasets = dataset # Allows data checks prior to reactive time
                   ),
                   args
                 )
@@ -166,11 +172,6 @@ CM <- local({ # _C_hecked _M_odule
                 res[["errors"]] <- Map(as_items, res[["errors"]])
               } else {
                 # multiple datasets
-                
-                # FIXME(miguel): We don't do merge "warnings" here because it's a feature that goes unused and we will
-                #                remove it soon. We can't remove it _now_ because it would still require minor fixes
-                #                in at least five different packages and we want to roll a CM bugfix (unrelated to
-                #                the "multiple dataset" feature reporting) while avoiding cascading work.
                 errors <- list()
                 
                 dataset_names <- names(afmm[["datasets"]])
@@ -186,11 +187,8 @@ CM <- local({ # _C_hecked _M_odule
                   if (error_count_by_dataset[[i_dataset]] == 0) next
                   
                   details_pre <- htmltools::HTML(
-                    sprintf('
-                      <details %s>
-                        <summary style="display:list-item"><b>%s</b></summary>
-                     ', details_extra, names(afmm[["data"]]))[[i_dataset]]
-                  )
+                    sprintf('<details %s><summary style="display:list-item"><b>%s</b></summary>',
+                            details_extra, names(afmm[["data"]]))[[i_dataset]])
                   details_extra <- ""
                   
                   details_post <- htmltools::HTML("</details>")
@@ -199,8 +197,10 @@ CM <- local({ # _C_hecked _M_odule
                   
                   errors <- c(
                     errors, 
-                    list(htmltools::HTML("<div style='padding: 0.5rem; margin-bottom: 1rem; background-color: #FFFFFF55;
-                                         border: 1px solid #AAAAAA; border-radius: 4px;'>")),
+                    list(htmltools::HTML(paste0(
+                      "<div style='padding: 0.5rem; margin-bottom: 1rem; background-color: #FFFFFF55;",
+                      "border: 1px solid #AAAAAA; border-radius: 4px;'>"
+                    ))),
                     Map(as_items, res_by_dataset[[i_dataset]][["errors"]]),
                     list(htmltools::HTML("</div>"))
                   )
@@ -215,17 +215,9 @@ CM <- local({ # _C_hecked _M_odule
             return(res)
           })
 
-          app_creator_feedback_server(
-            id = module_id, warning_messages = fb[["warnings"]], error_messages = fb[["errors"]], 
-            preface = fb[["preface"]]
-          )
+          app_creator_feedback_server(id = module_id, error_messages = fb[["errors"]], preface = fb[["preface"]])
 
           if (length(fb[["errors"]]) == 0) {
-            if (!is.null(map_afmm_fn)) {
-              afmm_and_args <- append(list(afmm = afmm), args)
-              afmm <- do.call(map_afmm_fn, afmm_and_args)
-            }
-            
             res <- try(module_server(afmm), silent = TRUE)
           }
 
@@ -272,7 +264,7 @@ CM <- local({ # _C_hecked _M_odule
     push("function(afmm, datasets,")
     param_names <- paste(names(spec$elements), collapse = ",")
     push(param_names)
-    push(", warn, err){\n")
+    push(", err){\n")
 
     push("OK <- logical(0)\n")
     push("used_dataset_names <- new.env(parent = emptyenv())\n")
@@ -296,37 +288,37 @@ CM <- local({ # _C_hecked _M_odule
       }
 
       if (elem$kind == "mod") {
-        push(sprintf("OK[['%s']] <- CM$check_module_id('%s', %s, warn, err)\n", elem_name, elem_name, elem_name))
+        push(sprintf("OK[['%s']] <- CM$check_module_id('%s', %s, err)\n", elem_name, elem_name, elem_name))
       } else if (elem$kind == "dataset_name") {
         push(sprintf("flags <- %s\n", deparse(attrs) |> paste(collapse = "")))
         push(sprintf(
-          "OK[['%s']] <- CM$check_dataset_name('%s', %s, flags, datasets, used_dataset_names, warn, err)\n",
+          "OK[['%s']] <- CM$check_dataset_name('%s', %s, flags, datasets, used_dataset_names, err)\n",
           elem_name, elem_name, elem_name
         ))
       } else if (elem$kind == "col") {
         push(sprintf("subkind <- %s\n", deparse(elem$sub_kind) |> paste(collapse = "")))
         push(sprintf("flags <- %s\n", deparse(attrs) |> paste(collapse = "")))
         push(sprintf(
-          "OK[['%s']] <- OK[['%s']] && CM$check_dataset_colum_name('%s', %s, subkind, flags, %s, datasets[[%s]], warn, err)\n",
+          "OK[['%s']] <- OK[['%s']] && CM$check_dataset_colum_name('%s', %s, subkind, flags, %s, datasets[[%s]], err)\n",
           elem_name, elem$dataset_name, elem_name, elem_name, elem$dataset_name, elem$dataset_name
         ))
       } else if (elem$kind == "choice_from_col_contents") {
         dataset_param_name <- spec$elements[[elem$param]]$dataset_name
         push(sprintf("flags <- %s\n", deparse(attrs) |> paste(collapse = "")))
         push(sprintf(
-          "OK[['%s']] <- OK[['%s']] && CM$check_choice_from_col_contents('%s', %s, flags, '%s', datasets[[%s]], %s, warn, err)\n",
+          "OK[['%s']] <- OK[['%s']] && CM$check_choice_from_col_contents('%s', %s, flags, '%s', datasets[[%s]], %s, err)\n",
           elem_name, elem$param, elem_name, elem_name, dataset_param_name, dataset_param_name, elem$param
         ))
       } else if (elem$kind == "choice") {
         push(sprintf("flags <- %s\n", deparse(attrs) |> paste(collapse = "")))
         push(sprintf(
-          "OK[['%s']] <- OK[['%s']] && CM$check_choice('%s', %s, flags, '%s', %s, warn, err)\n",
+          "OK[['%s']] <- OK[['%s']] && CM$check_choice('%s', %s, flags, '%s', %s, err)\n",
           elem_name, elem$param, elem_name, elem_name, elem$param, elem$param
         ))
       } else if (elem$kind == "function") {
         push(sprintf("flags <- %s\n", deparse(attrs) |> paste(collapse = "")))
         push(sprintf(
-          "OK[['%s']] <- CM$check_function('%s', %s, %d, flags, warn, err)\n",
+          "OK[['%s']] <- CM$check_function('%s', %s, %d, flags, err)\n",
           elem_name, elem_name, elem_name, elem$arg_count
         ))
       } else if (elem$kind == "group") {
@@ -349,7 +341,7 @@ CM <- local({ # _C_hecked _M_odule
       subjid_var <- subjid_vars[[1]]
       push("for(ds_name in names(used_dataset_names)){\n")
       push(sprintf(
-        "OK[['%s']] <- OK[['%s']] && CM$check_subjid_col(datasets, ds_name, get(ds_name), '%s', %s, warn, err)",
+        "OK[['%s']] <- OK[['%s']] && CM$check_subjid_col(datasets, ds_name, get(ds_name), '%s', %s, err)",
         subjid_var, subjid_var, subjid_var, subjid_var
       ))
       push("}\n")
@@ -376,7 +368,6 @@ CM <- local({ # _C_hecked _M_odule
 
   # NOTE: For the moment call by running: devtools::load_all(); CM$generate_check_functions()
   generate_check_functions <- function(specs = module_specifications, output_file = "R/check_call_auto.R") {
-    # TODO: Fuse with generate_map_afmm_functions
     styler_off <- "({\n# styler: off"
     styler_on <- "\n\n})\n# styler: on\n"
 
@@ -402,144 +393,12 @@ CM <- local({ # _C_hecked _M_odule
     return(NULL)
   }
   
-  generate_map_afmm_function <- function(spec, module_name) {
-    stopifnot(spec$kind == "group")
-   
-    # TODO: At the time of writing, this code generator is only used by dv.explorer.parameter and it covers its needs.
-    #       It modifies afmm[["filtered_dataset"]] based on parameters flagged as "map_character_to_factor"
-    #       so that specific columns of target datasets are transformed to factors prior to going into a module.
-    #
-    #       In order to complete this functionality, we would have to map afmm[["unfiltered_dataset"]] as well
-    #       as afmm[["data"]]. Moreover, we would have to look for "map_character_to_factor" flags inside possibly 
-    #       nested column definitions, such as those used in papo.
-    
-    res <- character(0)
-    
-    push <- function(s) res <<- c(res, s)
-    push("function(afmm, ")
-    param_names <- paste(names(spec$elements), collapse = ",")
-    push(param_names)
-    push("){\n")
-    
-    push("res <- afmm\n")
-    
-    elements_that_require_mapping <- character(0)
-    for (elem_name in names(spec$elements))
-      if (isTRUE(attr(spec$elements[[elem_name]], "map_character_to_factor")))
-        elements_that_require_mapping <- c(elements_that_require_mapping, elem_name)
-    
-    if (length(elements_that_require_mapping)) {
-      push("mapping_summary <- character(0)\n")
-      push("for(ds_name in names(afmm[['data']])){\n")
-      push("  ds <- afmm[['data']][[ds_name]]\n")  
-      for (elem_name in elements_that_require_mapping){
-        elem <- spec$elements[[elem_name]]
-        stopifnot(elem$kind == "col")
-        dataset_name <- elem[["dataset_name"]]
-        
-        multiple <- (isTRUE(attr(elem, "zero_or_more")) || isTRUE(attr(elem, "one_or_more")))
-        if (multiple) {
-          push(sprintf("for (.elem in %s) {\n", elem_name))
-          push(sprintf("if(is.character(ds[[%s]][[.elem]])){\n", dataset_name))
-          push("mapping_summary <- c(mapping_summary,")
-          push(sprintf("paste0('(', ds_name, ') ', %s, '[[\"', .elem, '\"]]')", dataset_name))
-          push(")\n")
-          push("}\n")
-          push("}\n")
-        } else {
-          push(sprintf("if(is.character(ds[[%s]][[%s]])){\n", dataset_name, elem_name))
-          push("mapping_summary <- c(mapping_summary,")
-          push(sprintf("paste0('(', ds_name, ') ', %s, '[[\"', %s, '\"]]')", dataset_name, elem_name))
-          push(")\n")
-          push("}\n")
-        }
-        
-      }
-      push("}\n")
-      
-      push("if(length(mapping_summary)){\n")
-     
-      push(
-        paste0(
-          "warning_message <- paste0('[", module_name,
-          "] This module will map the following dataset columns from `character` to `factor`:\\n', ",
-          "paste(mapping_summary, collapse = ', '), '.\\nThe extra memory cost associated to this operation can be ",
-          "avoided by turning those columns into factors during data pre-processing.')\n",
-          "warning(warning_message)\n"
-        )
-      )
-      
-      push("res[['filtered_dataset']] <- shiny::reactive({\n")
-      push("  res <- afmm[['filtered_dataset']]()\n")
-      
-      for (elem_name in elements_that_require_mapping){
-        elem <- spec$elements[[elem_name]]
-        dataset_name <- elem[["dataset_name"]]
-        
-        multiple <- (isTRUE(attr(elem, "zero_or_more")) || isTRUE(attr(elem, "one_or_more")))
-        if (multiple) {
-          push(sprintf("for (.elem in %s) {\n", elem_name))
-          push(sprintf("if (is.character(res[[%s]][[.elem]])) {\n", dataset_name))
-          push(sprintf("  res[[%s]][[.elem]] <- ", dataset_name))
-          push(sprintf("    as.factor(res[[%s]][[.elem]])\n", dataset_name))
-          push("}\n")
-          push("}\n")
-        } else {
-          push(sprintf("if (is.character(res[[%s]][[%s]])) {\n", dataset_name, elem_name))
-          push(sprintf("  res[[%s]][[%s]] <- ", dataset_name, elem_name))
-          push(sprintf("    as.factor(res[[%s]][[%s]])\n", dataset_name, elem_name))
-          push("}\n")
-        }
-      }
-      
-      push("  return(res)\n")
-      push("})\n")
-      push("}\n")
-    }
-    
-    push("return(res)\n")
-    push("}\n")
-
-    return(res)
-  }
-
-  # NOTE: For the moment, call by running: devtools::load_all(); CM$generate_map_afmm_functions()
-  generate_map_afmm_functions <- function(specs = module_specifications, output_file = "R/map_afmm_auto.R") {
-    # TODO: Fuse with generate_check_functions
-    styler_off <- "({\n# styler: off"
-    styler_on <- "\n\n})\n# styler: on\n"
-
-    res <- c("# Automatically generated module API afmm mapping functions. Think twice before editing them manually.\n")
-    res <- c(res, styler_off)
-
-    for (spec_name in names(specs)) {
-      if (!grepl("::", spec_name, fixed = TRUE)) stop(paste("Expected API spec name to be namespaced (`::`):", spec_name))
-      denamespaced_spec_name <- strsplit(spec_name, "::")[[1]][[2]]
-      map_afmm_function_name <- paste0("map_afmm_", denamespaced_spec_name, "_auto")
-      res <- c(res, sprintf("\n\n# %s\n", spec_name))
-      
-      res <- c(
-        res,
-        c(map_afmm_function_name, "<-", 
-          generate_map_afmm_function(specs[[spec_name]], module_name = denamespaced_spec_name)) |> style_code()
-      )
-    }
-
-    res <- c(res, styler_on)
-
-    contents <- paste(res, collapse = "")
-    writeChar(contents, output_file, eos = NULL)
-
-    return(NULL)
-  }
-
   test_string <- function(s) {
     is.character(s) && length(s) == 1
   }
 
-  check_module_id <- function(name, value, warn, err) {
-    assert(err, test_string(value), sprintf("`%s` should be a string", name)) &&
-      assert(warn, nchar(value) > 0, sprintf("Consider providing a non-empty `%s`.", name)) &&
+  check_module_id <- function(name, value, err) {
+    assert(err, test_string(value) && nchar(value) > 0, sprintf("`%s` should be a non-empty string", name)) &&
       assert(
         err,
         is_valid_shiny_id(value),
@@ -550,8 +409,8 @@ CM <- local({ # _C_hecked _M_odule
       )
   }
 
-  check_dataset_name <- function(name, value, flags, available_datasets, used_dataset_names, warn, err) {
-    ok <- check_flags(name, value, flags, warn, err)
+  check_dataset_name <- function(name, value, flags, available_datasets, used_dataset_names, err) {
+    ok <- check_flags(name, value, flags, err)
 
     if (ok) {
       zero_or_more <- isTRUE(flags[["zero_or_more"]])
@@ -602,7 +461,7 @@ CM <- local({ # _C_hecked _M_odule
     return(isTRUE(flags[["optional"]]) && length(value) == 0)
   }
 
-  check_dataset_colum_name <- function(name, value, subkind, flags, dataset_name, dataset_value, warn, err) {
+  check_dataset_colum_name <- function(name, value, subkind, flags, dataset_name, dataset_value, err) {
     if (optional_and_empty(flags, value)) {
       return(TRUE)
     }
@@ -686,7 +545,7 @@ CM <- local({ # _C_hecked _M_odule
     return(res)
   }
 
-  check_flags <- function(name, value, flags, warn, err) {
+  check_flags <- function(name, value, flags, err) {
     ok <- FALSE
     min_len <- max_len <- 1L
     if (isTRUE(flags[["optional"]]) && is.null(value)) {
@@ -725,8 +584,8 @@ CM <- local({ # _C_hecked _M_odule
     return(ok)
   }
 
-  check_choice_from_col_contents <- function(name, value, flags, dataset_name, dataset_value, column, warn, err) {
-    ok <- check_flags(name, value, flags, warn, err) &&
+  check_choice_from_col_contents <- function(name, value, flags, dataset_name, dataset_value, column, err) {
+    ok <- check_flags(name, value, flags, err) &&
       assert(
         err, is.null(value) || all(value %in% dataset_value[[column]]),
         sprintf(
@@ -738,8 +597,8 @@ CM <- local({ # _C_hecked _M_odule
     return(ok)
   }
 
-  check_choice <- function(name, value, flags, values_name, values, warn, err) {
-    ok <- check_flags(name, value, flags, warn, err) &&
+  check_choice <- function(name, value, flags, values_name, values, err) {
+    ok <- check_flags(name, value, flags, err) &&
       assert(
         err, all(value %in% values),
         sprintf(
@@ -755,8 +614,8 @@ CM <- local({ # _C_hecked _M_odule
     paste0("<code style='white-space: pre; color:#333'>", s, "</code>")
   }
 
-  check_function <- function(name, value, arg_count, flags, warn, err) {
-    ok <- check_flags(name, value, flags, warn, err)
+  check_function <- function(name, value, arg_count, flags, err) {
+    ok <- check_flags(name, value, flags, err)
     if (ok) {
       if (is.function(value)) {
         value <- list(value) # make single functions behave like vectors of one element, for simplicity
@@ -774,7 +633,7 @@ CM <- local({ # _C_hecked _M_odule
     return(ok)
   }
 
-  check_subjid_col <- function(datasets, ds_name, ds_value, col_name, col_var, warn, err) {
+  check_subjid_col <- function(datasets, ds_name, ds_value, col_name, col_var, err) {
     ok <- assert(
       err, col_var %in% names(datasets[[ds_value]]),
       sprintf(
@@ -785,117 +644,12 @@ CM <- local({ # _C_hecked _M_odule
     return(ok)
   }
 
-  check_unique_sub_cat_par_vis <- function(datasets, ds_name, ds_value, sub, cat, par, vis, warn, err) {
-    ok <- TRUE
-
-    df_to_string <- function(df) {
-      names(df) <- sprintf("[%s] ", names(df))
-      lines <- utils::capture.output(print(as.data.frame(df), right = FALSE, row.names = FALSE, quote = TRUE)) |> trimws()
-      return(paste(lines, collapse = "\n"))
-    }
-
-    dataset <- datasets[[ds_value]]
-
-    unique_cat_par_combinations <- unique(dataset[c(cat, par)])
-    dup_mask <- duplicated(unique_cat_par_combinations[par])
-    
-    ok <- assert(err, !any(dup_mask), {
-      unique_repeat_params <- unique_cat_par_combinations[[par]][dup_mask]
-      dups <- df_to_string(
-        data.frame(
-          check.names = FALSE,
-          Parameter = unique_repeat_params,
-          "Inside categories" = sapply(
-            unique_repeat_params, function(param) {
-              dup_mask <- (unique_cat_par_combinations[[par]] == param)
-              return(paste(unique_cat_par_combinations[dup_mask, ][[cat]], collapse = ", "))
-            }
-          )
-        )
-      )
-      prefix_repeat_params_command <- 
-        sprintf('%s <- dv.explorer.parameter::prefix_repeat_parameters(%s, cat_var = "%s", par_var = "%s")', 
-                ds_value, ds_value, cat, par)
-
-      mask <- unique_cat_par_combinations[[par]] %in% unique_repeat_params
-      deduplicated_table <- df_to_string({
-        cats <- unique_cat_par_combinations[mask, ][[cat]]
-        pars <- unique_cat_par_combinations[mask, ][[par]]
-        data.frame(
-          check.names = FALSE,
-          Category = cats, "Old parameter name" = pars, "New parameter name" = paste0(cats, "-", pars)
-        )
-      })
-
-      paste0(
-        sprintf('The dataset provided by %s ("%s") contains parameter names that repeat across categories.', 
-                format_inline_asis(ds_name), ds_value),
-        "This module expects them to be unique. This is the list of duplicates:",
-        paste0("<pre>", dups, "</pre>"),
-        "In order to bypass this issue, we suggest you preprocess that dataset with this command:",
-        paste0("<pre>", prefix_repeat_params_command, "</pre>"),
-        sprintf('<small><i>In case the dataset labeled as "%s" has a different name in your application code, ', ds_value),
-        "substitute it with the actual name of the variable holding that dataset.</i></small><br>",
-        "The ", format_inline_asis("dv.explorer.parameter::prefix_repeat_parameters"), " function ",
-        "will rename the repeat parameters by prefixing them with the category they belong to, as shown on this table:",
-        "<pre>", deduplicated_table, "</pre>"
-      )
-    })
-
-    supposedly_unique <- dataset[c(sub, cat, par, vis)]
-    dup_mask <- duplicated(supposedly_unique)
-
-    ok <- ok && assert(err, !any(dup_mask), {
-      prefixes <- c(
-        rep("Subject:", length(sub)), rep("Category:", length(cat)),
-        rep("Parameter:", length(par)), rep("Visit:", length(vis))
-      )
-
-      first_duplicates <- utils::head(supposedly_unique[dup_mask, ], 5)
-      names(first_duplicates) <- paste(prefixes, names(first_duplicates))
-      dups <- df_to_string(first_duplicates)
-      
-      unique_repeats <- unique(supposedly_unique[dup_mask, ])
-      target <- unique_repeats[1, ]
-      target_rows <- which(supposedly_unique[[sub]] == target[[sub]] & supposedly_unique[[cat]] == target[[cat]] &
-                             supposedly_unique[[par]] == target[[par]] & supposedly_unique[[vis]] == target[[vis]])
-      
-      row_a <- dataset[target_rows[[1]], ]
-      row_b <- dataset[target_rows[[2]], ]
-      diff_cols <- character(0)
-      for (col in names(row_a)) if (!identical(row_a[[col]], row_b[[col]])) diff_cols <- c(diff_cols, col)
-     
-      col_diff_report <- "are identical." 
-      if (length(diff_cols)) { 
-        col_diff_report <- paste0(
-          "have indeed identical subject, category, parameter and visit values, but differ in columns: ",
-          paste(diff_cols, collapse = ", "), ".",
-          "<pre>", 
-          df_to_string(dataset[target_rows[1:2], c(sub, cat, par, vis, diff_cols)]),
-          "</pre>"
-        )
-      }
-        
-      paste(
-        sprintf("The dataset provided by `%s` (%s) contains repeated rows with identical subject, category, parameter", ds_name, ds_value),
-        sprintf("and visit values. This module expects them to be unique. There are a total of %d duplicates.", sum(dup_mask)),
-        "Here are the first few:",
-        paste0("<pre>", dups, "</pre>"),
-        sprintf("These findings can be partially confirmed by examining that rows <b>%d</b> and <b>%d</b> of that dataset", 
-                target_rows[[1]], target_rows[[2]]),
-        col_diff_report
-      )
-    })
-
-    return(ok)
-  }
-
   list(
     module = module,
     container = container,
     assert = assert,
+    format_inline_asis = format_inline_asis,
     generate_check_functions = generate_check_functions,
-    generate_map_afmm_functions = generate_map_afmm_functions,
     check_module_id = check_module_id,
     check_dataset_name = check_dataset_name,
     check_dataset_colum_name = check_dataset_colum_name,
@@ -904,7 +658,6 @@ CM <- local({ # _C_hecked _M_odule
     check_choice = check_choice,
     check_function = check_function,
     check_subjid_col = check_subjid_col,
-    check_unique_sub_cat_par_vis = check_unique_sub_cat_par_vis,
     message_well = message_well
   )
 })

@@ -1,3 +1,6 @@
+# dv.listings 4.3.4-9000
+- [NOT USER-FACING] Update CM.R snippet
+
 # dv.listings 4.3.4
 - Review functionality:
   - Fix regressions when global filter is active

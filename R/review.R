@@ -1298,7 +1298,7 @@ check_review_parameter <- function(datasets, dataset_names, review, err) {
       cond = (checkmate::test_list(review[["datasets"]]) &&
                 checkmate::test_subset(names(review[["datasets"]]), dataset_names)),
       msg = sprintf(
-        "`review$datasets` should be a list and its elements should be named after the following dataset names: %s",
+        "`review$datasets` should be a list and its elements should be named after the following dataset names: %s.",
         paste(dataset_names, collapse = ", ")
       )
     ) &&
