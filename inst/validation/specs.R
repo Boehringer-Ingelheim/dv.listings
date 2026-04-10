@@ -31,7 +31,7 @@ review <- specs_list(
   , review_per_row = "review feature offers per-row reviews"
   , review_per_role = "review feature offers per-role reviews"
   , review_delta_detection = "review feature detects changes in tracked variables across dataset updates"
-  , review_reject_empty_dataset = "review feature refuses to review empty datasets"
+  , review_accept_empty_dataset = "review feature copes with empty datasets"
   , review_hash_no_false_negatives = "review hash function catches all cell changes up to four changes per row"
   , review_change_attribution = "review hash function changes can be attributed to specific modified cells"
   , review_reject_removal_of_rows_by_default = "review feature flags the removal of previously known rows"

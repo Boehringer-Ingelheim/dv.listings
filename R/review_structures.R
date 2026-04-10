@@ -188,8 +188,6 @@ RS_compute_id_hashes <- function(df, id_vars) {
 RS_compute_base_memory <- function(df_id, df, id_vars, tracked_vars) {
   checkmate::assert_string(df_id, min.chars = 1, max.chars = 65535)
   checkmate::assert_data_frame(df)
-
-  ; if (nrow(df) == 0) return(simpleCondition("Refusing to review 0-row dataset"))
  
   id_vars <- sort(id_vars)
   tracked_vars <- sort(tracked_vars)

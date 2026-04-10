@@ -53,14 +53,14 @@ local({
   })
   
   test_that("Review routines produce a descriptive error when asked to review an empty dataset" |>
-              vdoc[["add_spec"]](specs$review_reject_empty_dataset), {
+              vdoc[["add_spec"]](specs$review_accept_empty_dataset), {
     dataset_lists <- list(
       dataset_list = list(
         ae = head(safetyData::sdtm_ae, 0)
       )
     )
     info <- REV_load_annotation_info(folder_contents = NULL, review, dataset_lists)
-    expect_equal(info[["error"]], "Refusing to review 0-row dataset")
+    expect_length(info[["error"]], 0)
   })
   
   test_that("Review routines cope with 1-row datasets", {
