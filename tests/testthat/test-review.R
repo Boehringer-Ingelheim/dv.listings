@@ -136,6 +136,24 @@ local({
     fs_client[["execute_IO_plan"]](info[["IO_plan"]])
     expect_identical(fs_contents[["dataset_list/ae_roleA.review"]][[zero_based_version_byte_pos+1L]], as.raw(1L))
   })
+  
+  test_that("REV_load_annotation_info rejects all changes to `choices` except for pure append actions" |>
+              vdoc[["add_spec"]](specs$review_allow_extension_of_review_options), {
+    incorrect_review_config <- review
+    incorrect_review_config[["choices"]] <- head(incorrect_review_config[["choices"]], 1) # discard all but first choice
+    info <- REV_load_annotation_info(fs_contents, incorrect_review_config, dataset_lists)
+    expect_length(info[["error"]], 1)
+   
+    correct_review_config <- review
+    correct_review_config[["choices"]] <- c(correct_review_config[["choices"]], "extra review choice")
+    info <- REV_load_annotation_info(fs_contents, correct_review_config, dataset_lists)
+    expect_length(info[["error"]], 0)
+    expect_length(info[["IO_plan"]], 1)
+    action <- info[["IO_plan"]][[1]]
+    expect_true(
+      action[["kind"]] == 'write' && action[["path"]] == 'dataset_list/review.codes' && action[["offset"]] == -1L
+    )
+  })
 })
 
 local({
