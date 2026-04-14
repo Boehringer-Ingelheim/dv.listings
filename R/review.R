@@ -215,7 +215,7 @@ REV_load_annotation_info <- function(folder_contents, review, dataset_lists) {
             df <- data.frame(`Old choices` = old_choices, `New choices` = new_choices, check.names = FALSE)
             return(capture.output(print(df)))
           })
-          undo_table_s <- paste0("<pre>", paste(choices_diff_report, collapse = "<br>"), "</pre>") 
+          undo_table_s <- paste0("<pre style='max-height: 12rem;'>", paste(choices_diff_report, collapse = "<br>"), "</pre>")
           
           error <- c(
             error, 
