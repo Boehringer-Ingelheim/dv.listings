@@ -1,3 +1,7 @@
+# dv.listings 4.3.4-9002
+- Review functionality:
+  - Cope with initially empty datasets
+
 # dv.listings 4.3.4-9001
 - Review functionality:
   - Allow expanding review choices

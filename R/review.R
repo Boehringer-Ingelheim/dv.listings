@@ -451,7 +451,7 @@ REV_load_annotation_info <- function(folder_contents, review, dataset_lists) {
         function(indices) df_map_st[indices]
       })
      
-      dataset_review_df[["timestamp"]] <- base_timestamp
+      dataset_review_df[["timestamp"]] <- rep(base_timestamp, nrow(dataset_review_df)) # rep for `nrow(...) == 0`
       dataset_review_df[["data_timestamps"]] <- map_canonical_data_into_current_order(data_timestamps_st)
       
       # <domain>_<ROLE>.review      
