@@ -34,12 +34,13 @@ local({
   fs_client[["execute_IO_plan"]](info[["IO_plan"]])
   expect_length(fs_state[["error"]], 0L)
   
-  test_that("Review error message when extra choice is provided", {
+  test_that("Review error message when extra choice is provided in a non-trailing position", {
     review2 <- review
-    review2[["choices"]] <- c(review2[["choices"]], "choiceC")
+    review2[["choices"]] <- c("choiceC", review2[["choices"]])
     info <- REV_load_annotation_info(fs_contents, review2, dataset_lists)
     expect_true(length(info[["error"]]) == 1 &&
-                  startsWith(info[["error"]][[1]], "Review choices should remain stable during the course of a trial."))
+                  startsWith(info[["error"]][[1]], 
+                             "Review choices cannot be removed or reordered during the course of a trial."))
   })
     
   test_that("Review error message when `id_vars` is modified", {

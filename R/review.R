@@ -198,16 +198,38 @@ REV_load_annotation_info <- function(folder_contents, review, dataset_lists) {
       contents <- folder_contents[[file_path]]
       review_info <- RS_parse_review_codes(contents)
       if (!identical(review_info, review[["choices"]])) {
-        error <- c(
-          error, 
-          paste0(
-            "Review choices should remain stable during the course of a trial.\n",
-            "The original review choices are: ", paste(sprintf('"%s"', review_info), collapse = ", "), ".\n",
-            "This restriction is likely to be lifted in a future revision of the review feature."
+        # See if the new reviews can be appended cleanly to the old ones
+        new_contents <- RS_compute_review_codes_memory(review[["choices"]])
+        new_review_options_extend_old_ones <- (length(contents) < length(new_contents) && 
+                                                 identical(contents, new_contents[seq_along(contents)]))
+        if (new_review_options_extend_old_ones) {
+          epilogue <- new_contents[(length(contents) + 1):length(new_contents)]
+          append_IO_action(list(kind = "write", path = file_path, contents = epilogue, offset = FS$WRITE_OFFSET_APPEND))
+        } else {
+          choices_diff_report <- local({
+            old_choices <- review_info
+            new_choices <- review[["choices"]]
+            max_len <- max(length(old_choices), length(new_choices))
+            length(old_choices) <- max_len
+            length(new_choices) <- max_len
+            df <- data.frame(`Old choices` = old_choices, `New choices` = new_choices, check.names = FALSE)
+            return(capture.output(print(df)))
+          })
+          undo_table_s <- paste0("<pre style='max-height: 12rem;'>", paste(choices_diff_report, collapse = "<br>"), "</pre>")
+          
+          error <- c(
+            error, 
+            paste0(
+              "Review choices cannot be removed or reordered during the course of a trial.<br>",
+              "Each choice has an associated integer value that should remain constant. These are the old and new ",
+              "review choices:<br>",
+              undo_table_s,
+              "The recommended action is to restore the previous review choices:<br>",
+              paste0("<pre>choices = c(", sprintf('"%s"', review_info) |> paste(collapse = ","), ")</pre>"),
+              "and append any extra desired choices at the end."
+            )
           )
-          # TODO: Combine new review[["choices"]] with old `review.codes`
-          #       while preserving original associated integer codes
-        )
+        }
       }
     } else {
       contents <- RS_compute_review_codes_memory(review[["choices"]])

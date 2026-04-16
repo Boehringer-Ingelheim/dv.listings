@@ -39,6 +39,7 @@ review <- specs_list(
   , review_reject_storage_subfolders = "review feature rejects selection of child storage subfolders"
   , review_reject_conflicting_connect_app_storage = "review feature rejects selection of storage folder initially created by a different Posit Connect app"
   , review_undo = "review feature allows per-role undoing of latest reviews"
+  , review_allow_extension_of_review_options = "review feature allows the extension of review options in ongoing trials"
 )
 # nolint end line_length_linter
 

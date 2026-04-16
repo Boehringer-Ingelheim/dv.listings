@@ -1,3 +1,7 @@
+# dv.listings 4.3.4-9001
+- Review functionality:
+  - Allow expanding review choices
+
 # dv.listings 4.3.4-9000
 - [NOT USER-FACING] Update CM.R snippet
 
