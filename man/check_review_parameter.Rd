@@ -4,9 +4,11 @@
 \alias{check_review_parameter}
 \title{Early error feedback function for the optional review parameter}
 \usage{
-check_review_parameter(datasets, dataset_names, review, err)
+check_review_parameter(afmm, datasets, dataset_names, review, err)
 }
 \arguments{
+\item{afmm}{Pass-through of the server afmm parameter.}
+
 \item{datasets}{\verb{[list(data.frame)]}
 
 Available datasets for review.}

@@ -1,3 +1,7 @@
+# dv.listings 4.3.4-9003
+- Review functionality:
+  - Guard against problematic characters in dataset names
+
 # dv.listings 4.3.4-9002
 - Review functionality:
   - Cope with initially empty datasets
