@@ -1468,7 +1468,7 @@ check_review_parameter <- function(datasets, dataset_names, review, err, afmm = 
     res <- paste(res, collapse = "<br>")
     return(res)
   }
-  if(!is.null(afmm)) {
+  if (!is.null(afmm)) {
     dataset_list_names <- names(afmm[["data"]])
     CM$assert(
       container = err,
