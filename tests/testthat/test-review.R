@@ -247,11 +247,11 @@ test_that("check_review_parameter warns against problematic characters in datase
   
   err <- CM$container()
   check_review_parameter(
-    afmm = mock_afmm, 
     datasets = list(), 
     dataset_names = c("not/allowed"), 
     review = review, 
-    err = err
+    err = err,
+    afmm = mock_afmm
   )
   
   expect_true(any(grepl("Problematic_characters", err[["messages"]])))

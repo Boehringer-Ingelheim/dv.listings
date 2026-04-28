@@ -1289,10 +1289,6 @@ REV_report_changes <- function(h0, h1, verbose = FALSE) {
 }
 
 #' Early error feedback function for the optional review parameter
-#'
-#' @param afmm
-#' 
-#' Pass-through of the server afmm parameter.
 #' 
 #' @param datasets `[list(data.frame)]`
 #'
@@ -1309,9 +1305,13 @@ REV_report_changes <- function(h0, h1, verbose = FALSE) {
 #' @param err `[environment]`
 #' This environment has at least one element named "messages". It is a character vector. Diagnostic messages related to
 #' the configuration of the review parameter will be placed here.
+#'
+#' @param afmm
 #' 
+#' Pass-through of the server afmm parameter.
+#'
 #' @export
-check_review_parameter <- function(afmm, datasets, dataset_names, review, err) {
+check_review_parameter <- function(datasets, dataset_names, review, err, afmm = NULL) {
   if (is.null(review)) return(NULL)
   ok <- CM$assert(
     container = err,
@@ -1468,18 +1468,19 @@ check_review_parameter <- function(afmm, datasets, dataset_names, review, err) {
     res <- paste(res, collapse = "<br>")
     return(res)
   }
-  
-  dataset_list_names <- names(afmm[["data"]])
-  CM$assert(
-    container = err,
-    cond = !any(grepl(problematic_chars_regexp, dataset_list_names)),
-    msg = report_problematic_names(
-      paste('The dataset list name "<b>%s</b>" contains characters (%s) incompatible with the review functionality.',
-            "That string would be used as part of review-related folder names and those characters could cause problems",
-            '<a href="https://en.wikipedia.org/wiki/Filename#Problematic_characters" target="_blank">(details)<a>.',
-            "Please, exclude them."),
-      dataset_list_names)
-  ) 
+  if(!is.null(afmm)) {
+    dataset_list_names <- names(afmm[["data"]])
+    CM$assert(
+      container = err,
+      cond = !any(grepl(problematic_chars_regexp, dataset_list_names)),
+      msg = report_problematic_names(
+        paste('The dataset list name "<b>%s</b>" contains characters (%s) incompatible with the review functionality.',
+              "That string would be used as part of review-related folder names and those characters could cause problems",
+              '<a href="https://en.wikipedia.org/wiki/Filename#Problematic_characters" target="_blank">(details)<a>.',
+              "Please, exclude them."),
+        dataset_list_names)
+    ) 
+  }
   dataset_names <- names(review[["datasets"]])
   CM$assert(
     container = err,

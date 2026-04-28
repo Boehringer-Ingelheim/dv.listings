@@ -993,7 +993,7 @@ check_mod_listings <- function(afmm, datasets, module_id, dataset_names,
     )
   )
 
-  check_review_parameter(afmm, datasets, dataset_names, review, err)
+  check_review_parameter(datasets, dataset_names, review, err, afmm)
   
   res <- list(errors = err[["messages"]])
   return(res)
