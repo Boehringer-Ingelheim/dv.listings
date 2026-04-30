@@ -237,3 +237,23 @@ test_that("REV_compute_status preserves expected behavior", {
   expect_equal(res, factor(c("Conflict", "Pending", "Pending"), levels = res_levels))
 })
 
+test_that("check_review_parameter warns against problematic characters in dataset names", {
+  mock_afmm = list(data = list(`dataset_list/not_allowed` = NULL))
+  review <- list(
+    datasets = list("not/allowed" = list(id_vars = c("USUBJID", "AESEQ"), 
+                                         tracked_vars = c("TRACKED_1", "TRACKED_2", "TRACKED_3"))),
+    choices = c("choiceA", "choiceB"), roles = c("roleA", "roleB")
+  )
+  
+  err <- CM$container()
+  check_review_parameter(
+    datasets = list(), 
+    dataset_names = c("not/allowed"), 
+    review = review, 
+    err = err,
+    afmm = mock_afmm
+  )
+  
+  expect_true(any(grepl("Problematic_characters", err[["messages"]])))
+})
+
