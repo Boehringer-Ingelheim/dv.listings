@@ -44,7 +44,7 @@ local({
     expect_length(info[["IO_plan"]], 1)
     folder_op <- info[["IO_plan"]][[1]]
     expect_equal(folder_op[["kind"]], "write")
-    expect_equal(folder_op[["path"]], "dataset_list/ae_001.delta")
+    expect_equal(folder_op[["path"]], "dataset_list/ae_0001.delta")
     expect_equal(folder_op[["offset"]], 0L)
     
     delta <- RS_parse_delta(info[["IO_plan"]][[1]][["contents"]], length(tracked_vars))

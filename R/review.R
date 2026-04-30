@@ -259,10 +259,10 @@ REV_load_annotation_info <- function(folder_contents, review, dataset_lists) {
      
       base_timestamp <- NA_real_
       data_timestamps_st <- rep(NA_real_, row_count)
-      # <domain>_000.base
-      file_path <- file.path(dataset_lists_name, paste0(dataset_review_name, "_000.base"))
-      if (file_path %in% names(folder_contents)) {
-        contents <- folder_contents[[file_path]]        
+      # <domain>_0000.base
+      base_file_path <- file.path(dataset_lists_name, paste0(dataset_review_name, "_0000.base"))
+      if (base_file_path %in% names(folder_contents)) {
+        contents <- folder_contents[[base_file_path]]        
 
         sorted_delta_file_paths <- local({
           pattern <- sprintf("^%s_[0-9]*.delta", file.path(dataset_lists_name, dataset_review_name))
@@ -383,7 +383,10 @@ REV_load_annotation_info <- function(folder_contents, review, dataset_lists) {
               base_info <- RS_load(contents, deltas)
               
               delta_number <- length(sorted_delta_file_paths) + 1
-              file_path <- file.path(dataset_lists_name, sprintf("%s_%03d.delta", dataset_review_name, delta_number))
+              revision_digit_count <- nchar(sub(".*_(0+)\\.base$", "\\1", base_file_path))
+              file_path <- file.path(
+                dataset_lists_name, sprintf("%s_%.*d.delta", dataset_review_name, revision_digit_count, delta_number)
+              )
               append_IO_action(list(kind = "write", path = file_path, contents = new_delta_contents, offset = 0L))
             }
         }
@@ -394,7 +397,7 @@ REV_load_annotation_info <- function(folder_contents, review, dataset_lists) {
           return(list(error = c(error, contents[["message"]])))
         } else {
           base_info <- RS_load(base = contents, deltas = list())
-          append_IO_action(list(kind = "write", path = file_path, contents = contents, offset = 0L))
+          append_IO_action(list(kind = "write", path = base_file_path, contents = contents, offset = 0L))
         }
       }
       
