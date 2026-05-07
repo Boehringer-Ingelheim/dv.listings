@@ -267,8 +267,8 @@ REV_load_annotation_info <- function(folder_contents, review, dataset_lists) {
       base_file_path_pattern <- sprintf("^%s_0+.base$", file.path(dataset_lists_name, dataset_review_name))
       base_file_path <- grep(base_file_path_pattern, names(folder_contents), value = TRUE)
       if (length(base_file_path) > 1L) {
-        error <<- c(error,  paste0("[", dataset_review_name, "] ", "Multiple `.base` files found:\n",
-                                   paste(sprintf("`%s`", base_file_path), collapse = ", "), ".\n"))
+        error <- c(error, paste0("[", dataset_review_name, "] ", "Multiple `.base` files found:\n",
+                                 paste(sprintf("`%s`", base_file_path), collapse = ", "), ".\n"))
         base_file_path <- sort(base_file_path)[[1]]
       }
       
