@@ -1,3 +1,6 @@
+# dv.listings 4.3.4-9005
+- [NOT USER-FACING] Move some EEF logic into dv.manager.
+
 # dv.listings 4.3.4-9004
 - Review functionality:
   - Expand revision count limit from 1000 to 10000 entries

@@ -38,7 +38,7 @@ TBL <- pack_of_constants( # nolint
 #'
 #' @export
 #' @family data_listings
-listings_UI <- function(module_id) { # nolint
+listings_UI <- function(module_id) {
   
   # Check validity of arguments
   checkmate::assert_string(module_id, min.chars = 1)
@@ -883,7 +883,14 @@ mod_listings <- function(
         review = review
       )
     },
-    module_id = module_id
+    module_id = module_id,
+    meta = list(
+      dataset_info = list(all = unique(dataset_names), subject_level = character(0)),
+      check_mod_fn = function(afmm, dataset) {
+        check_mod_listings(afmm, dataset, module_id, dataset_names, default_vars, pagination, 
+                           intended_use_label, subjid_var, receiver_id, review)
+      }
+    )
   )
   return(mod)
 }
@@ -923,10 +930,6 @@ mod_listings_API_spec <- TC$group(
     store_path = TC$character() |> TC$flag("optional")
   ) |> TC$flag("manual_check", "optional")
 ) |> TC$attach_docs(mod_listings_API_docs)
-
-dataset_info_listings <- function(dataset_names, ...) {
-  return(list(all = unique(dataset_names), subject_level = character(0)))
-}
 
 check_mod_listings <- function(afmm, datasets, module_id, dataset_names, 
                                default_vars, pagination, intended_use_label,
@@ -995,10 +998,6 @@ check_mod_listings <- function(afmm, datasets, module_id, dataset_names,
 
   check_review_parameter(datasets, dataset_names, review, err, afmm)
   
-  res <- list(errors = err[["messages"]])
+  res <- err[["messages"]]
   return(res)
 }
-
-mod_listings <- CM$module(
-  mod_listings, check_mod_listings, dataset_info_listings
-)

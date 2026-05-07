@@ -1,5 +1,6 @@
 # YT#VH04ddb3b9e9d0bc00e6606ce5e074418b#VH20fe8acb2e57832933eb60226847381a#
 CM <- local({ # _C_hecked _M_odule
+  # 2026-05-07: [cleanup] Moved `CM$module` to `dv.manager` and `CM$message_well` to DR.R
   # 2026-03-26: [cleanup] Drop hyperspecific `CM$check_unique_sub_cat_par_vis()`
   #             [cleanup] Drop unused `warning_messages` parameter and related codepaths
   #             [cleanup] Drop type mapping
@@ -7,243 +8,9 @@ CM <- local({ # _C_hecked _M_odule
   #             [feature] Clarify that it is the app creator who is responsible for addressing errors
   #             [cleanup] Split multi-line strings to silence YT.R warning
   # 2025-07-11: [feature] New `manual_check` flag to tell `CM$generate_check_functions()` to ignore particular elements
-  # 2025-04-09: [fix] Make `generate_map_afmm_function` map multi-variable parameters (e.g. `visit_vars`)
-  # 2025-03-21: [feature] report errors for all loaded datasets
-  #             [fix] dehardcode "PARAM" string and use `par` argument
-
-  message_well <- function(title, contents, color = "f5f5f5") {
-    style <- sprintf(
-      paste0(
-        "padding: 0.5rem;",
-        "padding-left: 1rem;",
-        "margin-bottom: 20px;",
-        "background-color: %s;",
-        "border: 1px solid #e3e3e3;",
-        "border-radius: 4px;",
-        "-webkit-box-shadow: inset 0 1px 1px rgba(0,0,0,.05);",
-        "box-shadow: inset 0 1px 1px rgba(0,0,0,.05);"
-      ),
-      color
-    )
-
-    res <- list(shiny::h3(title))
-    if (length(contents)) res <- append(res, list(shiny::tags[["div"]](contents, style = style)))
-    return(res)
-  }
-
-  app_creator_feedback_ui <- function(id, ui) {
-    id <- paste(c(id, "validator"), collapse = "-")
-    ns <- shiny::NS(id)
-    
-    hide <- function(e) shiny::tags[["div"]](e, style = "display: none")
-    
-    res <- list(
-      shiny::uiOutput(ns("ui")),
-      hide(shiny::checkboxInput(inputId = ns("show_ui"), label = NULL)),
-      shiny::conditionalPanel(condition = "input.show_ui == true", ui, ns = ns)
-    )
-    return(res)
-  }
-
-  app_creator_feedback_server <- function(id, error_messages, preface) {
-    id <- paste(c(id, "validator"), collapse = "-")
-    module <- shiny::moduleServer(
-      id,
-      function(input, output, session) {
-        output[["ui"]] <- shiny::renderUI({
-          res <- list()
-
-          if (length(error_messages)) {
-            app_creator_disclaimer <- htmltools::p(htmltools::HTML(
-              paste("<i>Configuration errors prevent this module from running.",
-                    "<b>The following diagnostic information is meant for the app creator</b>.</i>")
-            ), style = "font-size: small;")
-            
-            error_messages <- append(list(app_creator_disclaimer), error_messages)
-            res[[length(res) + 1]] <- message_well("Module configuration errors", error_messages, color = "#f4d7d7")
-          }
-
-          return(res)
-        })
-        shiny::outputOptions(output, "ui", suspendWhenHidden = FALSE)
-        
-        if (length(error_messages) == 0) {
-          shiny::updateCheckboxInput(inputId = "show_ui", value = TRUE)
-        }
-      }
-    )
-
-    return(module)
-  }
-
-  # Wrap the UI and server of a module so that, once parameterized, they:
-  # - go through a check function prior to running
-  # - provide `dataset_info` to module manager
-  module <- function(module, check_mod_fn, dataset_info_fn) {
-    local({
-      # Make sure that the signature of `check_mod_fn` matches that of `module` except for the expected differences
-      check_formals <- names(formals(check_mod_fn))
-      if (!identical(utils::head(check_formals, 2), c("afmm", "datasets"))) {
-        stop("The first two arguments of check functions passed onto `module` should be `afmm` and `datasets`")
-      }
-      check_formals <- check_formals[c(-1, -2)]
-
-      mod_formals <- names(formals(module))
-      if (!identical(check_formals, mod_formals)) {
-        stop(paste(
-          "Check function arguments do not exactly match those of the module function",
-          "(after discarding `afmm` and `datasets`)"
-        ))
-      }
-    })
-
-    mandatory_module_args <- local({
-      args <- formals(module)
-      names(args)[sapply(args, function(x) is.name(x) && nchar(x) == 0)]
-    })
-
-    wrapper <- function(...) {
-      # Match arguments explicitly to provide graphical error feedback
-      # https://cran.r-project.org/doc/manuals/r-release/R-lang.html#Argument-matching
-
-      module_ui <- function(...) list()
-      module_server <- function(...) NULL
-      module_id <- "error_id"
-
-      matched_args <- try(as.list(match.call(module)), silent = TRUE)
-      error_message <- attr(matched_args, "condition")$message
-      if (is.null(error_message)) {
-        missing_args <- setdiff(mandatory_module_args, names(matched_args))
-        if (length(missing_args)) {
-          error_message <- sprintf("Missing mandatory arguments: `%s`.", paste(missing_args, collapse = ", "))
-        }
-      }
-
-      if (is.null(error_message)) {
-        args <- list(...)
-        evaluated_module <- do.call(module, args)
-        module_ui <- evaluated_module[["ui"]]
-        module_server <- evaluated_module[["server"]]
-        module_id <- evaluated_module[["module_id"]]
-      }
-
-      res <- list(
-        ui = function(module_id) app_creator_feedback_ui(module_id, module_ui(module_id)), # `module` UI gated by app_creator_feedback_server
-        server = function(afmm) {
-          fb <- local({
-            res <- NULL
-            if (!is.null(error_message)) {
-              res <- list(errors = error_message)
-            } else {
-              # NOTE: We check the call here and not inside the module server function because:
-              #       - app creators interact with the davinci module and not with the ui-server combo, so
-              #         errors reported with respect to the module signature will make sense to them.
-              #         The module server function might use a different function signature.
-              #       - Here we also have access to the original datasets, which allows us to ensure call
-              #         correctness independent of filter state or operation in a single pass.
-              #       - "catch errors early"
-              dataset_count <- length(afmm[["data"]])
-
-              res_by_dataset <- list()
-              error_count_by_dataset <- integer(0)
-              error_count <- 0
-              for (i_dataset in seq_len(dataset_count)) {
-                dataset <- afmm[["data"]][[i_dataset]]
-                if (is.function(dataset)) dataset <- dataset()
-                check_args <- append(
-                  list(
-                    afmm = afmm, # To check receiver_ids, among others
-                    datasets = dataset # Allows data checks prior to reactive time
-                  ),
-                  args
-                )
-                info <- do.call(check_mod_fn, check_args)
-                res_by_dataset[[i_dataset]] <- info
-                error_count_by_dataset[[i_dataset]] <- length(info[["errors"]])
-                error_count <- error_count + length(info[["errors"]])
-              }
-              
-              as_items <- function(x) htmltools::p(htmltools::HTML(paste("\u2022", x)))
-              
-              if (error_count == 0) NULL
-              else if (dataset_count == 1) {
-                # single dataset
-                res <- res_by_dataset[[1]]
-                res[["errors"]] <- Map(as_items, res[["errors"]])
-              } else {
-                # multiple datasets
-                errors <- list()
-                
-                dataset_names <- names(afmm[["datasets"]])
-               
-                errors <- c(
-                  list(htmltools::p(htmltools::HTML(
-                    "Issues have been grouped by input dataset. Expand/collapse the elements below to inspect them:"
-                  )))
-                )
-                
-                details_extra <- "open"
-                for (i_dataset in seq_len(dataset_count)){
-                  if (error_count_by_dataset[[i_dataset]] == 0) next
-                  
-                  details_pre <- htmltools::HTML(
-                    sprintf('<details %s><summary style="display:list-item"><b>%s</b></summary>',
-                            details_extra, names(afmm[["data"]]))[[i_dataset]])
-                  details_extra <- ""
-                  
-                  details_post <- htmltools::HTML("</details>")
-                  
-                  errors <- c(errors, list(details_pre))
-                  
-                  errors <- c(
-                    errors, 
-                    list(htmltools::HTML(paste0(
-                      "<div style='padding: 0.5rem; margin-bottom: 1rem; background-color: #FFFFFF55;",
-                      "border: 1px solid #AAAAAA; border-radius: 4px;'>"
-                    ))),
-                    Map(as_items, res_by_dataset[[i_dataset]][["errors"]]),
-                    list(htmltools::HTML("</div>"))
-                  )
-                  
-                  errors <- c(errors, list(details_post))
-                  
-                  res[["errors"]] <- errors
-                }
-              }
-            }
-            
-            return(res)
-          })
-
-          app_creator_feedback_server(id = module_id, error_messages = fb[["errors"]], preface = fb[["preface"]])
-
-          if (length(fb[["errors"]]) == 0) {
-            res <- try(module_server(afmm), silent = TRUE)
-          }
-
-          return(res)
-        },
-        module_id = module_id,
-        meta = list(
-          dataset_info = {
-            # extract defaults from the formals for consistency
-            missing_args <- setdiff(names(formals(module)), names(matched_args))
-            args <- c(args, formals(module)[missing_args])
-            do.call(dataset_info_fn, args)
-          }
-        )
-      )
-
-      return(res)
-    }
-
-    roxygen_wrapper <- function() { # to keep parameters in the reference docs
-      args <- (match.call() |> as.list())[c(-1)]
-      do.call(wrapper, args, envir = parent.frame())
-    }
-    formals(roxygen_wrapper) <- formals(module)
-    return(roxygen_wrapper)
-  }
+  # 2025-04-09: [fix]     Make `generate_map_afmm_function` map multi-variable parameters (e.g. `visit_vars`)
+  # 2025-03-21: [feature] Report errors for all loaded datasets
+  #             [fix]     Dehardcode "PARAM" string and use `par` argument
 
   container <- function() list2env(x = list(messages = character(0)), parent = emptyenv())
   assert <- function(container, cond, msg) {
@@ -645,7 +412,6 @@ CM <- local({ # _C_hecked _M_odule
   }
 
   list(
-    module = module,
     container = container,
     assert = assert,
     format_inline_asis = format_inline_asis,
@@ -657,7 +423,6 @@ CM <- local({ # _C_hecked _M_odule
     check_choice_from_col_contents = check_choice_from_col_contents,
     check_choice = check_choice,
     check_function = check_function,
-    check_subjid_col = check_subjid_col,
-    message_well = message_well
+    check_subjid_col = check_subjid_col
   )
 })
