@@ -1,3 +1,7 @@
+# dv.listings 4.3.4-9004
+- Review functionality:
+  - Expand revision count limit from 1000 to 10000 entries
+
 # dv.listings 4.3.4-9003
 - Review functionality:
   - Guard against problematic characters in dataset names

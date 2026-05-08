@@ -157,7 +157,7 @@ Lastly, using plain file storage allows for easy local testing and for universal
 
 If we take a hypothetical "xyz" domain, `dv.listings` will store the following files for review purposes (expand to see the layout of their contents):
 
-<details><summary>`xyz_000.base` (information related to the first version of the "xyz" domain dataset seen by the module)</summary>
+<details><summary>`xyz_0000.base` (information related to the first version of the "xyz" domain dataset seen by the module)</summary>
 - 1 file magic code ("LISTBASE")
 - 1 format version number (0)
 - 1 generation marker (0)
@@ -173,7 +173,7 @@ If we take a hypothetical "xyz" domain, `dv.listings` will store the following f
 - p (1 per "xyz" row, 2\*m bytes long) `hash_tracked(xyz[tracked_vars])`
 </details>
 
-<details><summary>`xyz_001.delta` (one per domain dataset update)</summary>
+<details><summary>`xyz_0001.delta` (one per domain dataset update)</summary>
 - 1 file magic code ("LISTDELT")
 - 1 format version number (0)
 - 1 generation marker (1). Wraps around to 0 after 255 (e.g. for `xyz_256.delta`)

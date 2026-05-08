@@ -259,10 +259,21 @@ REV_load_annotation_info <- function(folder_contents, review, dataset_lists) {
      
       base_timestamp <- NA_real_
       data_timestamps_st <- rep(NA_real_, row_count)
-      # <domain>_000.base
-      file_path <- file.path(dataset_lists_name, paste0(dataset_review_name, "_000.base"))
-      if (file_path %in% names(folder_contents)) {
-        contents <- folder_contents[[file_path]]        
+      
+      # <domain>_0000.base
+      # - Older versions of the review functionality devoted three digits to the `.base` and `.delta` sequence numbers.
+      #   The current version uses four digits. Here we detect the one that was used for this particular domain (if it
+      #   exists) and use it for the associated delta files.
+      base_file_path_pattern <- sprintf("^%s_0+.base$", file.path(dataset_lists_name, dataset_review_name))
+      base_file_path <- grep(base_file_path_pattern, names(folder_contents), value = TRUE)
+      if (length(base_file_path) > 1L) {
+        error <- c(error, paste0("[", dataset_review_name, "] ", "Multiple `.base` files found:\n",
+                                 paste(sprintf("`%s`", base_file_path), collapse = ", "), ".\n"))
+        base_file_path <- sort(base_file_path)[[1]]
+      }
+      
+      if (length(base_file_path) == 1) { # existing `.base` file
+        contents <- folder_contents[[base_file_path]]        
 
         sorted_delta_file_paths <- local({
           pattern <- sprintf("^%s_[0-9]*.delta", file.path(dataset_lists_name, dataset_review_name))
@@ -383,18 +394,22 @@ REV_load_annotation_info <- function(folder_contents, review, dataset_lists) {
               base_info <- RS_load(contents, deltas)
               
               delta_number <- length(sorted_delta_file_paths) + 1
-              file_path <- file.path(dataset_lists_name, sprintf("%s_%03d.delta", dataset_review_name, delta_number))
+              revision_digit_count <- nchar(sub(".*_(0+)\\.base$", "\\1", base_file_path))
+              file_path <- file.path(
+                dataset_lists_name, sprintf("%s_%.*d.delta", dataset_review_name, revision_digit_count, delta_number)
+              )
               append_IO_action(list(kind = "write", path = file_path, contents = new_delta_contents, offset = 0L))
             }
         }
-      } else {
+      } else { # new `.base` file
+        base_file_path <- file.path(dataset_lists_name, paste0(dataset_review_name, "_0000.base"))
         contents <- RS_compute_base_memory(dataset_review_name, dataset, id_vars, tracked_vars)
         if (inherits(contents, "simpleCondition")) {
           # IMPORTANT: Not being able to compute the base info is too severe an error to recover from, so we error out
           return(list(error = c(error, contents[["message"]])))
         } else {
           base_info <- RS_load(base = contents, deltas = list())
-          append_IO_action(list(kind = "write", path = file_path, contents = contents, offset = 0L))
+          append_IO_action(list(kind = "write", path = base_file_path, contents = contents, offset = 0L))
         }
       }
       
