@@ -1,3 +1,6 @@
+# dv.listings 4.3.4-9005
+- Static per-dataset footer text
+
 # dv.listings 4.3.4-9004
 - Review functionality:
   - Expand revision count limit from 1000 to 10000 entries
