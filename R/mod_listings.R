@@ -8,6 +8,7 @@ TBL <- pack_of_constants( # nolint
   DRPDBUTTON_WIDTH = "300px",
   DRPDBUTTON_LABEL = "Click to see inputs",
   TABLE_ID = "listing",
+  FOOTER_ID = "footer",
   NO_COL_MSG = "Please select at least one column.",
   EXPORT_ID = "export",
   RESET_FILT_BUTTON_ID = "reset_filt_btn",
@@ -141,6 +142,7 @@ listings_UI <- function(module_id) { # nolint
       ),
     ),
     DT::dataTableOutput(ns(TBL$TABLE_ID), height = "87vh"),
+    shiny::uiOutput(ns(TBL$FOOTER_ID)),
     shiny::tags[["script"]](shiny::HTML(sprintf("
     $('#%s').on('init.dt', function(e, settings) {    
       const table_container_id = '%s';
@@ -223,6 +225,7 @@ listings_UI <- function(module_id) { # nolint
 listings_server <- function(module_id,
                             dataset_list,
                             default_vars = NULL,
+                            footers = NULL,
                             dataset_metadata,
                             pagination = NULL,
                             intended_use_label = NULL,
@@ -729,6 +732,13 @@ listings_server <- function(module_id,
       
       return(res)
     })
+
+    output[[TBL$FOOTER_ID]] <- shiny::renderUI({
+      dataset_name <- input[[TBL$DATASET_ID]]
+      shiny::req(dataset_name)
+      footer <- footers[[dataset_name]]
+      htmltools::HTML(sprintf("<p>%s</p>", paste0(footer, collapse = "<br>")))
+    })
     
     shiny::exportTestValues(
       selected_columns_in_dataset = r_selected_columns_in_dataset()
@@ -819,6 +829,7 @@ mod_listings <- function(
     module_id,
     dataset_names,
     default_vars = NULL,
+    footers = NULL,
     pagination = NULL,
     intended_use_label = "Use only for internal review and monitoring during the conduct of clinical trials.",
     subjid_var = "USUBJID",
@@ -874,6 +885,7 @@ mod_listings <- function(
       listings_server(
         dataset_list = dataset_list,
         default_vars = default_vars,
+        footers = footers,
         dataset_metadata = afmm$dataset_metadata,
         pagination = pagination,
         module_id = module_id,
@@ -895,6 +907,7 @@ mod_listings_API_docs <- list(
   module_id = "",
   dataset_names = list(""),
   default_vars = list(""),
+  footers = list(""),
   pagination = list(""),
   intended_use_label = list(""),
   subjid_var = list(""), 
@@ -912,6 +925,7 @@ mod_listings_API_spec <- TC$group(
   module_id = TC$mod_ID(),
   dataset_names = TC$dataset_name() |> TC$flag("one_or_more"),
   default_vars = TC$group() |> TC$flag("manual_check"),                         # manually tested by check_mod_listings
+  footers = TC$group() |> TC$flag("manual_check"),                              # manually tested by check_mod_listings
   pagination = TC$logical() |> TC$flag("manual_check", "optional"),             # manually tested by check_mod_listings
   intended_use_label = TC$character() |> TC$flag("manual_check", "optional"),   # manually tested by check_mod_listings
   subjid_var = TC$character() |> TC$flag("manual_check"),                       # manually tested by check_mod_listings
@@ -929,13 +943,13 @@ dataset_info_listings <- function(dataset_names, ...) {
 }
 
 check_mod_listings <- function(afmm, datasets, module_id, dataset_names, 
-                               default_vars, pagination, intended_use_label,
+                               default_vars, footers, pagination, intended_use_label,
                                subjid_var, receiver_id, review) {
   err <- CM$container()
   
   ok <- check_mod_listings_auto(
     afmm, datasets,
-    module_id, dataset_names, default_vars, pagination, intended_use_label,
+    module_id, dataset_names, default_vars, footers, pagination, intended_use_label,
     subjid_var, receiver_id, review, err
   )
   
@@ -958,6 +972,16 @@ check_mod_listings <- function(afmm, datasets, module_id, dataset_names,
         )
       }
     }
+  }
+
+  # footers
+  if (ok[["dataset_names"]] && !is.null(footers)) {
+    CM$assert(
+      container = err,
+      cond = (checkmate::test_list(footers, types = "character", names = "unique") &&
+              checkmate::test_subset(names(footers), dataset_names)),
+      msg = "`footers` should be a named list, whose names are unique references to elements of `dataset_names`."
+    )
   }
   
   # pagination
