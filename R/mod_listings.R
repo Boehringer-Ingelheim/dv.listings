@@ -51,7 +51,8 @@ listings_UI <- function(module_id) { # nolint
   
   shiny::tagList(
     add_dv_listings_dependency(),
-    highlight_review_cols,    
+    highlight_review_cols,
+    htmltools::div(style = "display: flex; flex-direction:column; height: 100%",
     shiny::div(
       style = "display: flex; gap: 10px; align-items: baseline",
       shinyWidgets::dropdownButton(
@@ -141,8 +142,12 @@ listings_UI <- function(module_id) { # nolint
         )
       ),
     ),
-    DT::dataTableOutput(ns(TBL$TABLE_ID), height = "87vh"),
+    shiny::div(
+      style = "flex-grow:1",
+      DT::dataTableOutput(ns(TBL$TABLE_ID), height = "100%"),
+    ),
     shiny::uiOutput(ns(TBL$FOOTER_ID)),
+    ),
     shiny::tags[["script"]](shiny::HTML(sprintf("
     $('#%s').on('init.dt', function(e, settings) {    
       const table_container_id = '%s';
@@ -665,7 +670,7 @@ listings_server <- function(module_id,
           ordering = TRUE,
           columnDefs = column_defs,
           # TODO: Update to use new recommended API: https://datatables.net/reference/option/layout
-          dom = "<'top'<'top-title'>>rtilp", # Buttons, filtering, processing display element, table, information summary, length, pagination
+          dom = "<'top'<'top-title'>>rt<'controls-row'l<'spacer'>i<'spacer'>p>", # Buttons, filtering, processing display element, table, information summary, length, pagination
           fixedColumns = list(left = review_col_count),
           colResize = list(),
           processing = TRUE,
