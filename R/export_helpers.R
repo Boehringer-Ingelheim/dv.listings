@@ -406,7 +406,7 @@ pdf_preprocessing <- function(df, ref) {
 #' @return Named list containing the data frames which are now ready for download.
 #'
 #' @keywords internal
-prep_export_data <- function(data_selection, current_data, data_selection_name, dataset_list) {
+prep_export_data <- function(data_selection, current_data, data_selection_name, dataset_list, footers) {
   # check validity of parameters
   checkmate::assert(
     checkmate::check_string(data_selection),
@@ -424,17 +424,31 @@ prep_export_data <- function(data_selection, current_data, data_selection_name, 
     data_to_download <- dataset_list
   }
 
-  names(data_to_download) <- shorten_entries(
+  shortened_names <- shorten_entries(
     paste0(names(data_to_download), " (", get_labels(data_to_download), ")"),
     as.integer(31) # name has to be shortened to 31 characters due to Excel's sheet name limit
   )
 
-  # convert types to character to avoid representation issues in Excel
-  data_to_download <- lapply(data_to_download, function(df) {
-    labels <- get_labels(df)
-    data <- data.frame(sapply(df, as.character))
-    data <- set_labels(data, labels)
+  data_to_download <- local({
+    res <- list()
+    for (i_dataset in seq_along(data_to_download)){
+      df <- data_to_download[[i_dataset]]
+      
+      # convert types to character to avoid representation issues in Excel
+      labels <- get_labels(df)
+      data <- data.frame(sapply(df, as.character))
+      data <- set_labels(data, labels)
+     
+      # attach footer, if available
+      dataset_name <- names(data_to_download)[[i_dataset]]
+      attr(data, "footer") <- footers[[dataset_name]]
+      
+      res[[length(res) + 1]] <- data
+    }
+    return(res)
   })
+    
+  names(data_to_download) <- shortened_names
 
   return(data_to_download)
 }
@@ -458,9 +472,16 @@ excel_export <- function(data_to_download, file, intended_use_label) {
     combine = "and"
   )
 
-  # Add column labels
+  # Add column labels and footers
   data_to_download <- lapply(data_to_download, function(x) {
     names(x) <- paste0(names(x), " [", get_labels(x), "]")
+    footer <- attr(x, "footer")
+    if (!is.null(footer)) {
+      first_new_row <- nrow(x) + 1
+      last_new_row <- nrow(x) + length(footer)
+      x[first_new_row:last_new_row, ] <- NA
+      x[first_new_row:last_new_row, 1] <- footer
+    }
     return(x)
   })
 
@@ -522,6 +543,7 @@ pdf_export <- function(data_to_download, ref_cols, file, metadata, active_sessio
       trial_name = gsub("_", "\\\\_", metadata[1]), # Rmd does not allow underscore
       time_stamp = gsub("[^-/A-Za-z0-9!?.,:() ]", "?", metadata[2]), # replace characters that could cause problems
       snap_shot_name = gsub("[^-/A-Za-z0-9!?.,:() ]", "?", metadata[3]), # same here
+      footer = attr(data_to_download[[1]], "footer"),
       df_list = res_preprocess,
       active_session = active_session
     ),

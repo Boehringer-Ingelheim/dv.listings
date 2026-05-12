@@ -10,6 +10,7 @@ params:
   snap_shot_name: NULL
   df_list: NULL
   active_session: NULL
+  footer: NULL
 title: "`r params$set_title`"
 subtitle: "`r params$set_subtitle`"
 header-includes:
@@ -54,8 +55,20 @@ purrr::iwalk(params$df_list, ~ {
 
   # Print table
   print(k)
-  cat("\\clearpage")
+  if (.y < num_pages) cat("\\clearpage") # no trailing new page
 })
+
+html_to_text <- function(html_var) {
+  txt <- gsub("<br\\s*/?>", "\n\n", html_var, ignore.case = TRUE) # Rmd double newlines
+  txt <- gsub("<[^>]+>", "", txt) # strip all other HTML tags
+  return(txt)
+}
+
+if (length(params$footer)) {
+  html_output <- sprintf("<p>%s</p>", paste(params$footer, collapse = "<br>"))
+  text_output <- html_to_text(html_output)
+  cat(text_output)
+}
 
 if (params$active_session) {
   shiny::setProgress(

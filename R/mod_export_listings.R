@@ -94,7 +94,8 @@ mod_export_listings_server <- function(module_id,
                                        data,
                                        data_selection_name,
                                        current_rows,
-                                       intended_use_label) {
+                                       intended_use_label,
+                                       footers) {
   # check validity of parameters
   checkmate::assert(
     checkmate::check_string(module_id, min.chars = 1),
@@ -266,7 +267,7 @@ mod_export_listings_server <- function(module_id,
           shiny::removeModal() # close pop up
 
           data_to_download <- prep_export_data(
-            input[[EXP$DATASEL_ID]], current_data(), data_selection_name(), v_dataset_list()
+            input[[EXP$DATASEL_ID]], current_data(), data_selection_name(), v_dataset_list(), footers
           )
 
           if (input[[EXP$FILETYPE_ID]] == ".xlsx") {

@@ -442,31 +442,36 @@ test_that("prep_export_data() throws an error when argument types mismatch", {
     .x,
     current_data_valid,
     data_selection_name_valid,
-    dataset_list_valid
+    dataset_list_valid,
+    footers = NULL
   )))
   purrr::walk(current_data_invalid, ~ expect_error(prep_export_data(
     data_selection_valid,
     .x,
     data_selection_name_valid,
-    dataset_list_valid
+    dataset_list_valid,
+    footers = NULL
   )))
   purrr::walk(data_selection_name_invalid, ~ expect_error(prep_export_data(
     data_selection_valid,
     current_data_valid,
     .x,
-    dataset_list_valid
+    dataset_list_valid,
+    footers = NULL
   )))
   purrr::walk(dataset_list_invalid, ~ expect_error(prep_export_data(
     data_selection_valid,
     current_data_valid,
     data_selection_name_valid,
-    .x
+    .x,
+    footers = NULL
   )))
   expect_error(prep_export_data(
     data_selection_valid,
     current_data_valid,
     data_selection_name_valid,
-    dataset_list_valid
+    dataset_list_valid,
+    footers = NULL
   ), NA) # expect no error
 })
 
@@ -479,7 +484,8 @@ test_that("prep_export_data() performs the correct transformation in the single 
   data_selection_name_valid <- names(dataset_list_valid)[1]
 
   # result
-  res <- prep_export_data(data_selection_valid, current_data_valid, data_selection_name_valid, dataset_list_valid)
+  res <- prep_export_data(data_selection_valid, current_data_valid, data_selection_name_valid, dataset_list_valid,
+                          footers = NULL)
 
   # expected
   exp <- list("data1 (My Label)" = set_labels(data.frame(col1 = c("1", "2"), col2 = c("3", "4"))))
@@ -508,7 +514,8 @@ test_that("prep_export_data() performs the correct transformation in the multipl
     data_selection_valid,
     current_data_valid,
     data_selection_name_valid,
-    dataset_list_valid
+    dataset_list_valid,
+    footers = NULL
   )
 
   # perform tests
@@ -530,7 +537,8 @@ test_that("prep_export_data() shortens dataset names if they exceed Excel's shee
 
   # result
   res <- nchar(
-    names(prep_export_data(data_selection_valid, current_data_valid, data_selection_name_valid, dataset_list_valid))
+    names(prep_export_data(data_selection_valid, current_data_valid, data_selection_name_valid, dataset_list_valid,
+                           footers = NULL))
   )
 
   # perform tests

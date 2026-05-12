@@ -408,7 +408,8 @@ listings_server <- function(module_id,
       data = shiny::reactive(set_data(listings_data(), r_selected_columns_in_dataset()[[input[[TBL$DATASET_ID]]]])),
       data_selection_name = shiny::reactive(input[[TBL$DATASET_ID]]),
       current_rows = shiny::reactive(input[[paste0(TBL$TABLE_ID, "_rows_all")]]),
-      intended_use_label = intended_use_label
+      intended_use_label = intended_use_label,
+      footers
     )
     
     # Proxy reference to dataTable
