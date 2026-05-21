@@ -514,7 +514,8 @@ excel_export <- function(data_to_download, file, intended_use_label) {
 #' @return Number of PDF pages that are generated.
 #'
 #' @keywords internal
-pdf_export <- function(data_to_download, ref_cols, file, metadata, active_session = TRUE, intended_use_label) {
+pdf_export <- function(data_to_download, ref_cols, file, metadata, active_session = TRUE, intended_use_label,
+                       keep_tex = FALSE) {
   # Check validity of parameters
   checkmate::assert(
     checkmate::check_list(data_to_download, types = "data.frame", len = 1, null.ok = FALSE),
@@ -551,7 +552,7 @@ pdf_export <- function(data_to_download, ref_cols, file, metadata, active_sessio
       active_session = active_session
     ),
     envir = new.env(parent = globalenv()),
-    output_format = "pdf_document"
+    output_format = rmarkdown::pdf_document(keep_tex = keep_tex)
   )
   # copy+remove instead of rename because we can't guarantee that the temp folder lives in the same filesystem as `file`
   file.copy(out, file)

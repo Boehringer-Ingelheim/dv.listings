@@ -381,3 +381,41 @@ test_that("mock_listings_mm exports all pages when downloading the currently dis
 
   app$stop()
 })
+
+test_that("Footers are included in exported listings" |> vdoc[["add_spec"]](specs$export_footers), {
+  # `prep_export_data` captures footers
+  dataset_list <- list(cars = cars)
+  footers <- list(cars = c("Footer line 1", "Footer line 2"))
+  prepped_data <- prep_export_data(
+    data_selection = "single", 
+    current_data = dataset_list[["cars"]], 
+    data_selection_name = "cars", 
+    dataset_list = dataset_list, 
+    footers = footers
+  )
+  
+  testthat::expect_identical(attr(prepped_data[[1]], "footer"), footers[["cars"]])
+ 
+  # xls files include footers 
+  fname <- tempfile(fileext = ".xlsx")
+  excel_export(prepped_data, fname, intended_use_label = "Sample intended use label")
+  # .xlsx files are just renamed .zips
+  utils::unzip(fname, files = "xl/sharedStrings.xml", exdir = tempdir())
+  lines <- readLines(file.path(tempdir(), "xl/sharedStrings.xml"), warn = FALSE)
+  
+  for(footer in footers[["cars"]]){
+    testthat::expect_true(any(grep(footer, lines, fixed = TRUE)))
+  }
+
+  # pdf files include footers 
+  ref <- c("speed [No label]")
+  fname <- tempfile(fileext = ".pdf")
+  metadata <- c("text 1", "text 2", "text 3")
+
+  pdf_export(prepped_data, ref, fname, metadata, FALSE, "", keep_tex = TRUE)
+  
+  lines <- readLines(file.path(tempdir(), "create_pdf_export.tex"), warn = FALSE)
+  for(footer in footers[["cars"]]){
+    testthat::expect_true(any(grep(footer, lines, fixed = TRUE)))
+  }
+})
