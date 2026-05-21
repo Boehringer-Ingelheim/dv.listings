@@ -8,7 +8,8 @@ prep_export_data(
   data_selection,
   current_data,
   data_selection_name,
-  dataset_list
+  dataset_list,
+  footers
 )
 }
 \arguments{
@@ -20,6 +21,9 @@ currently displayed dataset (\code{current_data}) or all datasets (\code{dataset
 \item{data_selection_name}{\verb{[character(1)]} A string specifying the name of \code{current_data}.}
 
 \item{dataset_list}{\verb{[list(data.frame)]} A list of named datasets.}
+
+\item{footers}{\verb{[list(character(1+)) | NULL]} Pass-through argument from \code{mod_listings} specifying per-dataset footer
+text.}
 }
 \value{
 Named list containing the data frames which are now ready for download.

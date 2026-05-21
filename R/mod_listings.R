@@ -200,6 +200,12 @@ listings_UI <- function(module_id) { # nolint
 #' A list of character vectors which contain the variable names to be displayed as default per
 #'   dataset. Named according to the \code{dataset_names}. If `NULL`, the first six variables are displayed for each
 #'   dataset.
+#'   
+#' @param footers `[list(characters(1+)) | NULL]`
+#' A list of character vectors that specify per-dataset footer text.
+#' Names should match those provided through \code{dataset_names}.
+#' Each element of the character vector will be displayed on separate lines (see example).
+#'   
 #' @param dataset_metadata `[list(character(1), character(1+))]` A list with the following two elements:
 #' \code{dataset_metadata$name()} containing a reactive string specifying the name of the selected
 #' dataset and \code{dataset_metadata$date_range()} containing a reactive character vector with two entries
@@ -828,13 +834,20 @@ listings_server <- function(module_id,
 #'   adsl = c("STUDYID", "USUBJID", "SITEID", "ARM"),
 #'   adae = c("STUDYID", "ASTDY", "AENDT", "AESER")
 #' )
+#' 
+#' # Provide optional per-domain footers
+#' footers <- list(
+#'   adsl = c("First line", "Second line"), 
+#'   adae = c("<b>Bold HTML formatting</b>")
+#' )
 #'
 #' # 3. Module list
 #' module_list <- list(
 #'   "Exemplary listings" = mod_listings(
 #'     module_id = "mod1",
 #'     dataset_names = c("adsl", "adae", "adtte"),
-#'     default_vars = default_vars
+#'     default_vars = default_vars,
+#'     footers = footers
 #'   )
 #' )
 #'
