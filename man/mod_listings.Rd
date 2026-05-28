@@ -8,6 +8,7 @@ mod_listings(
   module_id,
   dataset_names,
   default_vars = NULL,
+  footers = NULL,
   pagination = NULL,
   intended_use_label =
     "Use only for internal review and monitoring during the conduct of clinical trials.",
@@ -28,6 +29,11 @@ Name(s) of the dataset(s) that will be displayed.}
 A list of character vectors which contain the variable names to be displayed as default per
 dataset. Named according to the \code{dataset_names}. If \code{NULL}, the first six variables are displayed for each
 dataset.}
+
+\item{footers}{\verb{[list(characters(1+)) | NULL]}
+A list of character vectors that specify per-dataset footer text.
+Names should match those provided through \code{dataset_names}.
+Each element of the character vector will be displayed on separate lines (see example).}
 
 \item{pagination}{\verb{[logical(1) | NULL]} Either a boolean indicating if pagination should be activated, or
 NULL for which pagination will be activated for large datasets (nrows > 1000) automatically.}
@@ -81,12 +87,19 @@ default_vars <- list(
   adae = c("STUDYID", "ASTDY", "AENDT", "AESER")
 )
 
+# Provide optional per-domain footers
+footers <- list(
+  adsl = c("First line", "Second line"), 
+  adae = c("<b>Bold HTML formatting</b>")
+)
+
 # 3. Module list
 module_list <- list(
   "Exemplary listings" = mod_listings(
     module_id = "mod1",
     dataset_names = c("adsl", "adae", "adtte"),
-    default_vars = default_vars
+    default_vars = default_vars,
+    footers = footers
   )
 )
 

@@ -18,7 +18,8 @@ EXP <- pack_of_constants( # nolint
   SNAPSHOT_ID = "snapshot",
   SNAPSHOT_LABEL = "Enter footnote (optional)",
   SNAPSHOT_INFO_ID = "snapshot_info",
-  SNAPSHOT_INFO_LABEL = "Additional information displayed within footnote of the pdf, e.g., snapshot name.",
+  SNAPSHOT_INFO_LABEL = paste("Additional information displayed within footnote of every page of the pdf, e.g.,", 
+                              "snapshot name."),
   DATAPROTECT_ID = "check",
   DATAPROTECT_LABEL = paste(
     "I agree to the following:"
@@ -86,6 +87,9 @@ mod_export_listings_UI <- function(module_id) { # nolint
 #'
 #' @param intended_use_label `[character(1) | NULL]` Either a character indicating the intended use for the download, or
 #' NULL. If a label is provided it will be shown before the download and will also be included in the downloaded file.
+#' 
+#' @param footers `[list(character(1+)) | NULL]` Pass-through argument from `mod_listings` specifying per-dataset footer
+#' text.
 #'
 #' @keywords internal
 mod_export_listings_server <- function(module_id,
@@ -94,7 +98,8 @@ mod_export_listings_server <- function(module_id,
                                        data,
                                        data_selection_name,
                                        current_rows,
-                                       intended_use_label) {
+                                       intended_use_label,
+                                       footers) {
   # check validity of parameters
   checkmate::assert(
     checkmate::check_string(module_id, min.chars = 1),
@@ -266,7 +271,7 @@ mod_export_listings_server <- function(module_id,
           shiny::removeModal() # close pop up
 
           data_to_download <- prep_export_data(
-            input[[EXP$DATASEL_ID]], current_data(), data_selection_name(), v_dataset_list()
+            input[[EXP$DATASEL_ID]], current_data(), data_selection_name(), v_dataset_list(), footers
           )
 
           if (input[[EXP$FILETYPE_ID]] == ".xlsx") {
