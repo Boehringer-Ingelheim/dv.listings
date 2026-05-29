@@ -182,7 +182,7 @@ listings_UI <- function(module_id) { # nolint
         const th = fixed_headers[idx];
         const tb = first_row_body_fixed[idx];
         const td = filters[idx];
-        if (!td) return;
+        if (!td || !tb) return;
   
         const computed_style = window.getComputedStyle(tb);
         const left = computed_style.left;
