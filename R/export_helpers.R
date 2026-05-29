@@ -439,7 +439,7 @@ prep_export_data <- function(data_selection, current_data, data_selection_name, 
       
       # convert types to character to avoid representation issues in Excel
       labels <- get_labels(df)
-      data <- data.frame(sapply(df, as.character))
+      data <- data.frame(sapply(df, as.character, simplify = FALSE))
       data <- set_labels(data, labels)
      
       # attach footer, if available
