@@ -1551,7 +1551,7 @@ REV_include_review_info_in_exported_data <- function(export_data, annotation_inf
 }
 
 REV_include_review_info_in_exported_data_if_available <- function(export_data, review_info, dataset_list_name, domain_name) {
-  # this function resolves all reactivity to and calls the plain `REV_include_review_info_in_exported_data` function
+  # this function resolves all reactives and calls the plain `REV_include_review_info_in_exported_data` function
   review_state <- review_info[["state"]]
   can_export_review_info <- ("contents_ready" %in% names(review_state) && review_state[["contents_ready"]]())
   if (can_export_review_info) {

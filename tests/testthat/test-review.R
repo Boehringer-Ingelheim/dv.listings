@@ -154,6 +154,56 @@ local({
       action[["kind"]] == 'write' && action[["path"]] == 'dataset_list/review.codes' && action[["offset"]] == -1L
     )
   })
+
+  test_that("Review feature prepends latest reviews into listing exports" |>
+              vdoc[["add_spec"]](specs$review_export_latest_reviews_if_available), {
+    dataset_list_name <- "dataset_list"
+    domain_name <- "ae"
+
+    df <- dataset_lists[[dataset_list_name]][[domain_name]]
+
+    plain_df <- list(df = df, col_names = names(df)) # not using var labels to keep it simple (not the point)
+   
+    annotation_info <- REV_load_annotation_info(fs_contents, review, dataset_lists)
+
+    review_info <- list(
+      state = list2env(
+        list(
+          contents_ready = function() TRUE,
+          annotation_info = annotation_info[["loaded_annotation_info"]]
+        )
+      ),
+      role = function() "roleA",
+      filter_mask = function() c(TRUE, TRUE)
+    )
+    
+    # Here we test the reactive wrapper function by faking reactive inputs with functions
+    # Could have tested only the internal non-reactive function instead. ¯\_(ツ)_/¯
+    extended_df <- REV_include_review_info_in_exported_data_if_available(
+      export_data = plain_df, 
+      review_info = review_info,
+      dataset_list_name = dataset_list_name,
+      domain_name = domain_name
+    )
+  
+    # Discarding the first three columns, input and output are identical
+    first_three <- seq(3) 
+    expect_identical(plain_df$df, extended_df$df[-first_three])
+    expect_identical(plain_df$col_names, extended_df$col_names[-first_three])
+    
+    # And the first three columns are as follows
+    expected_review_cols <-  data.frame(
+      review = factor(c("choiceA", "choiceA"), levels = c("choiceA", "choiceB")),
+      role   = factor(c("", ""), levels = c("", "roleA", "roleB")),
+      status = factor(c("Pending", "Pending"), levels = c("Pending", "Latest Outdated", "Conflict", "Conflict I can fix", "OK"))
+    )
+    attr(expected_review_cols[[1]], "label")  <- REV$LABEL$REVIEW_COLS[[1]]
+    attr(expected_review_cols[[2]], "label")  <- REV$LABEL$REVIEW_COLS[[2]]
+    attr(expected_review_cols[[3]], "label")  <- REV$LABEL$REVIEW_COLS[[3]]
+                     
+    expect_identical(extended_df$df[first_three], expected_review_cols)
+    expect_identical(extended_df$col_names[first_three], REV$LABEL$REVIEW_COLS[first_three])
+  })
 })
 
 local({
