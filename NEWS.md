@@ -1,5 +1,8 @@
+# dv.listings 4.3.4-9007
+- Exported listings include review information, if available
+
 # dv.listings 4.3.4-9006
-- Prevent header and body offsetting when dv.manager sidebar collapses/expands.
+- Prevent header and body offsetting when dv.manager sidebar collapses/expands
 
 # dv.listings 4.3.4-9005
 - Static per-dataset footer text

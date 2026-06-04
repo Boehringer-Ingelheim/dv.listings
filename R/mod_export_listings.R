@@ -99,7 +99,8 @@ mod_export_listings_server <- function(module_id,
                                        data_selection_name,
                                        current_rows,
                                        intended_use_label,
-                                       footers) {
+                                       footers,
+                                       review_info) {
   # check validity of parameters
   checkmate::assert(
     checkmate::check_string(module_id, min.chars = 1),
@@ -113,6 +114,7 @@ mod_export_listings_server <- function(module_id,
     checkmate::check_string(intended_use_label, null.ok = TRUE),
     combine = "and"
   )
+  REV_check_review_info_parameter(review_info)
 
   shiny::moduleServer(
     module_id,
@@ -136,7 +138,14 @@ mod_export_listings_server <- function(module_id,
         )
 
         # return data after we checked that everything is fine
-        list("df" = data()$data, "col_names" = data()$col_names)
+        res <- list("df" = data()$data, "col_names" = data()$col_names)
+        res <- REV_include_review_info_in_exported_data_if_available(
+          export_data = res, 
+          review_info = review_info,
+          dataset_list_name = dataset_metadata$name(),
+          domain_name = data_selection_name()
+        )
+        return(res)
       })
 
       # Determine currently displayed data (taking set filters into account)

@@ -14,7 +14,8 @@ server_func <- function(
     data = data,
     data_selection_name = data_selection_name,
     current_rows = current_rows,
-    intended_use_label = intended_use_label
+    intended_use_label = intended_use_label,
+    review_info = NULL
   )
 }
 
