@@ -67,7 +67,7 @@ For more details, please refer to \code{vignette("data_review")}.}
 
 \item{exclude_var_names_from_column_headings}{\verb{[logical(1)]}
 
-Display only dataset variable labels for variables that have them (e.g. turns "VAR_NAME \link{Var Label}" into "Var Label")}
+Display only dataset variable labels for variables that have them (e.g. turns "VAR_NAME [Var Label]" into "Var Label")}
 }
 \description{
 This module displays a given dataset as listing. It allows switching between datasets if it receives

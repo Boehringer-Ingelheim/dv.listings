@@ -258,7 +258,7 @@ listings_UI <- function(module_id) { # nolint
 #' 
 #' @param exclude_var_names_from_column_headings `[logical(1)]`
 #'
-#' Display only dataset variable labels for variables that have them (e.g. turns "VAR_NAME [Var Label]" into "Var Label")
+#' Display only dataset variable labels for variables that have them (e.g. turns "VAR_NAME \[Var Label]" into "Var Label")
 #'
 #' @export
 listings_server <- function(module_id,

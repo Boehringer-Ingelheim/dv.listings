@@ -19,7 +19,7 @@ NULL for which pagination will be activated for large datasets (nrows > 1000) au
 
 \item{exclude_var_names_from_column_headings}{\verb{[logical(1)]}
 
-Use only dataset variable labels for variables that have them (output "Var Label" instead of "VAR_NAME \link{Var Label}").}
+Use only dataset variable labels for variables that have them (output "Var Label" instead of "VAR_NAME [Var Label]").}
 }
 \value{
 List containing character vectors for column names and row names and
