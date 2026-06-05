@@ -1327,6 +1327,8 @@ REV_report_changes <- function(h0, h1, verbose = FALSE) {
 #'
 #' @export
 check_review_parameter <- function(datasets, dataset_names, review, err, afmm = NULL) {
+  # NOTE: This function is also used by `dv.tables::mod_tplyr_table`, so think about backwards and forwards 
+  #       compatibility in that broader context before modifying it
   if (is.null(review)) return(NULL)
   ok <- CM$assert(
     container = err,

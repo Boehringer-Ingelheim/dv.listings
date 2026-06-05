@@ -255,6 +255,10 @@ listings_UI <- function(module_id) { # nolint
 #' Configuration of the experimental data review feature. 
 #' Only one instance of the listings module can use this feature on any given app.
 #' For more details, please refer to `vignette("data_review")`.
+#' 
+#' @param exclude_var_names_from_column_headings `[logical(1)]`
+#'
+#' Display only dataset variable labels for variables that have them (e.g. turns "VAR_NAME [Var Label]" into "Var Label")
 #'
 #' @export
 listings_server <- function(module_id,
@@ -266,7 +270,8 @@ listings_server <- function(module_id,
                             intended_use_label = NULL,
                             subjid_var = "USUBJID",
                             on_sbj_click = NULL,
-                            review = NULL) {
+                            review = NULL,
+                            exclude_var_names_from_column_headings = FALSE) {
   checkmate::assert(
     checkmate::check_character(module_id, min.chars = 1),
     checkmate::check_multi_class(dataset_list, c("reactive", "shinymeta_reactive")),
@@ -278,6 +283,7 @@ listings_server <- function(module_id,
     checkmate::check_string(intended_use_label, null.ok = TRUE),
     checkmate::check_function(on_sbj_click, null.ok = TRUE),
     checkmate::check_list(review, null.ok = TRUE),
+    checkmate::check_logical(exclude_var_names_from_column_headings, len = 1),
     combine = "and"
   )
   if (!is.null(default_vars)) {
@@ -895,7 +901,8 @@ mod_listings <- function(
     intended_use_label = "Use only for internal review and monitoring during the conduct of clinical trials.",
     subjid_var = "USUBJID",
     receiver_id = NULL,
-    review = NULL) {
+    review = NULL,
+    exclude_var_names_from_column_headings = FALSE) {
   # Check validity of parameters
   checkmate::assert_character(dataset_names)
   
@@ -979,7 +986,8 @@ mod_listings_API_docs <- list(
     choices = list(""),
     roles = list(""),
     store_path = list("")
-  )
+  ),
+  exclude_var_names_from_column_headings = list("")
 )
 
 mod_listings_API_spec <- TC$group(
@@ -988,7 +996,7 @@ mod_listings_API_spec <- TC$group(
   default_vars = TC$group() |> TC$flag("manual_check"),                         # manually tested by check_mod_listings
   footers = TC$group() |> TC$flag("manual_check"),                              # manually tested by check_mod_listings
   pagination = TC$logical() |> TC$flag("manual_check", "optional"),             # manually tested by check_mod_listings
-  intended_use_label = TC$character() |> TC$flag("manual_check", "optional"),   # manually tested by check_mod_listings
+  intended_use_label = TC$character() |> TC$flag("optional"),
   subjid_var = TC$character() |> TC$flag("manual_check"),                       # manually tested by check_mod_listings
   receiver_id = TC$character() |> TC$flag("manual_check"),                      # manually tested by check_mod_listings
   review = TC$group(
@@ -996,7 +1004,8 @@ mod_listings_API_spec <- TC$group(
     choices = TC$character() |> TC$flag("one_or_more"),
     roles = TC$character() |> TC$flag("one_or_more"),
     store_path = TC$character() |> TC$flag("optional")
-  ) |> TC$flag("manual_check", "optional")
+  ) |> TC$flag("manual_check", "optional"),                                     # see `check_review_parameter`
+  exclude_var_names_from_column_headings = TC$logical()
 ) |> TC$attach_docs(mod_listings_API_docs)
 
 dataset_info_listings <- function(dataset_names, ...) {
@@ -1005,13 +1014,13 @@ dataset_info_listings <- function(dataset_names, ...) {
 
 check_mod_listings <- function(afmm, datasets, module_id, dataset_names, 
                                default_vars, footers, pagination, intended_use_label,
-                               subjid_var, receiver_id, review) {
+                               subjid_var, receiver_id, review, exclude_var_names_from_column_headings) {
   err <- CM$container()
   
   ok <- check_mod_listings_auto(
     afmm, datasets,
     module_id, dataset_names, default_vars, footers, pagination, intended_use_label,
-    subjid_var, receiver_id, review, err
+    subjid_var, receiver_id, review, exclude_var_names_from_column_headings, err
   )
   
   # default_vars 
