@@ -14,7 +14,8 @@ mod_listings(
     "Use only for internal review and monitoring during the conduct of clinical trials.",
   subjid_var = "USUBJID",
   receiver_id = NULL,
-  review = NULL
+  review = NULL,
+  exclude_var_names_from_column_headings = FALSE
 )
 }
 \arguments{
@@ -55,6 +56,10 @@ module must exist in the module list. The default is NULL which disables communi
 Configuration of the experimental data review feature.
 Only one instance of the listings module can use this feature on any given app.
 For more details, please refer to \code{vignette("data_review")}.}
+
+\item{exclude_var_names_from_column_headings}{\verb{[logical(1)]}
+
+Display only dataset variable labels for variables that have them (e.g. turns "VAR_NAME \link{Var Label}" into "Var Label")}
 }
 \description{
 This module will present the dataset as listing using the DT package.

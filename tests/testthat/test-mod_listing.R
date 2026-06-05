@@ -8,7 +8,7 @@ server_func <- function(id, dataset_list, default_vars, dataset_metadata, pagina
   listings_server(
     module_id = id, dataset_list = dataset_list, default_vars = default_vars,
     dataset_metadata = dataset_metadata, pagination = pagination,
-    intended_use_label = intended_use_label
+    intended_use_label = intended_use_label, exclude_var_names_from_column_headings = FALSE
   )
 }
 

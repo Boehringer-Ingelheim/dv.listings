@@ -17,7 +17,8 @@ listings_server(
   intended_use_label = NULL,
   subjid_var = "USUBJID",
   on_sbj_click = NULL,
-  review = NULL
+  review = NULL,
+  exclude_var_names_from_column_headings
 )
 }
 \arguments{
@@ -63,6 +64,10 @@ Function to invoke when a subject ID is clicked in a listing}
 Configuration of the experimental data review feature.
 Only one instance of the listings module can use this feature on any given app.
 For more details, please refer to \code{vignette("data_review")}.}
+
+\item{exclude_var_names_from_column_headings}{\verb{[logical(1)]}
+
+Display only dataset variable labels for variables that have them (e.g. turns "VAR_NAME \link{Var Label}" into "Var Label")}
 }
 \description{
 This module displays a given dataset as listing. It allows switching between datasets if it receives

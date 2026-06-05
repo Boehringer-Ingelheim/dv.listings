@@ -271,7 +271,7 @@ listings_server <- function(module_id,
                             subjid_var = "USUBJID",
                             on_sbj_click = NULL,
                             review = NULL,
-                            exclude_var_names_from_column_headings = FALSE) {
+                            exclude_var_names_from_column_headings) {
   checkmate::assert(
     checkmate::check_character(module_id, min.chars = 1),
     checkmate::check_multi_class(dataset_list, c("reactive", "shinymeta_reactive")),
@@ -543,12 +543,15 @@ listings_server <- function(module_id,
       
       # drop factor levels to ensure column filter of DT don't show non-existing levels
       shiny::req(!is.null(dataset))
+      
+      # FIXME: This piece of code is misleading. It seems to save and restore labels around the `droplevels` call,
+      #        but `get_labels` introduces a dummy "No Label" for unlabeled columns (see #phahfo)
       labels <- get_labels(dataset)
       data <- droplevels(dataset)
       data <- set_labels(data, labels)
       
-      set_up <- set_up_datatable(dataset = data, pagination = pagination)
-      
+      set_up <- set_up_datatable(dataset = dataset, pagination = pagination, 
+                                 exclude_var_names_from_column_headings = exclude_var_names_from_column_headings)
       if (testing) {
         col_names <- set_up[["col_names"]]
         shiny::exportTestValues(output_table = data, column_names = col_names)
@@ -960,7 +963,8 @@ mod_listings <- function(
         intended_use_label = intended_use_label,
         subjid_var = subjid_var,
         on_sbj_click = on_sbj_click_fun,
-        review = review
+        review = review,
+        exclude_var_names_from_column_headings = exclude_var_names_from_column_headings
       )
     },
     module_id = module_id
