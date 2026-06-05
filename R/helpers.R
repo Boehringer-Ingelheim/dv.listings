@@ -237,7 +237,7 @@ convert_data <- function(dataset) {
 #' 
 #' @param exclude_var_names_from_column_headings `[logical(1)]`
 #'
-#' Use only dataset variable labels for variables that have them (output "Var Label" instead of "VAR_NAME [Var Label]").
+#' Use only dataset variable labels for variables that have them (output "Var Label" instead of "VAR_NAME \[Var Label]").
 #' 
 #' @return List containing character vectors for column names and row names and
 #' a logical value for de-/activating paging
@@ -251,10 +251,10 @@ set_up_datatable <- function(dataset, pagination, exclude_var_names_from_column_
     #       That's why we special-case this case instead of trying to collapse it with the other branch.
     #       We can be certain we haven't broken anything if we leave the rest of the code intact.
     # TODO: HOWEVER, the label handling in this module could use some attention. (see #phahfo)
-    labels <- sapply(dataset, function(col) attr(col, "label"))                       # use only labels...
+    labels <- sapply(dataset, function(col) attr(col, "label"), simplify = FALSE)     # use only labels...
     empty_label_mask <- (sapply(labels, length) == 0L)
-    labels[empty_label_mask] <- paste(names(dataset)[empty_label_mask], "[No Label]") # ... except for unlabeled vars
-    col_names <- unname(labels)
+    labels[empty_label_mask] <- paste(names(dataset)[empty_label_mask], "[No label]") # ... except for unlabeled vars
+    col_names <- unname(unlist(labels))
   } else {
     labels <- get_labels(dataset) # Get labels for selected columns
     col_names <- paste0(names(dataset), " [", labels, "]") # Combine names with labels
