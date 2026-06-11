@@ -148,46 +148,56 @@ listings_UI <- function(module_id) { # nolint
     ),
     shiny::uiOutput(ns(TBL$FOOTER_ID)),
     ),
-    # (See also #ungodly_interaction_between_DT_fixedColumns_and_filter_sidebar_collapsing in `dv_listings.css`)
-    # DataTables are really composed of _two_ HTML tables (one for the header, one for the body)
-    # The potential for desynchronization (of column width and column horizontal position) is high when piling hacks on
-    # top of hacks. Speaking of hacks, the very questionable `fixedColumns` extension that we use is unable to deal
-    # with column filters. It just leaves them sliding independently of the rest of the table.
-    # On top of that, the `fixedColumns` stop responding to `dv.manager`s collapsing sidebar.
-    # 
-    # So here, we:
-    # - Look at the first row of the DT body
-    # - Take the cells corresponding to the fixed columns
-    # - Apply their `left` offset to the two elements of the DT header (title and filter)
-    # - Apply their `width` to the filter row (as the `min-width` CSS attribute)
-    # - Fix them in place by `sticky`ing them
-    #
-    # BEWARE(miguel): The complexity budget on this front is exhausted. If we get a new formatting requirement that is
-    #                 tangentially related to this patch, we may just not be able to solve it without deep changes.
     shiny::tags[["script"]](shiny::HTML(sprintf("
     $('#%s').on('init.dt', function(e, settings) {    
       const table_container_id = '%s';
-      const scrollhead_table = document.querySelector('#' + table_container_id + ' .dataTables_scrollHead table.dataTable');
-      const scrollbody_table = document.querySelector('#' + table_container_id + ' .dataTables_scrollBody table.dataTable');
-      if (!scrollhead_table) return;
+      const table = document.querySelector('#' + table_container_id + ' table.dataTable');
+      if (!table) return;
   
       // Make column filters scroll horizontally along the rest of the table rows
-      const fixed_headers = scrollhead_table.querySelectorAll('thead tr')[0]?.querySelectorAll('th.dtfc-fixed-left');
-      const first_row_body_fixed = scrollbody_table.querySelectorAll('tbody tr')[0]?.querySelectorAll('.dtfc-fixed-left');      
-
-      const filters = scrollhead_table.querySelectorAll('thead tr')[1]?.querySelectorAll('td');
+      const fixed_headers = table.querySelectorAll('thead tr')[0]?.querySelectorAll('th.dtfc-fixed-left');
+      const filters = table.querySelectorAll('thead tr')[1]?.querySelectorAll('td');
+      
+      /* Trigger a table width relayout when the container changes width
+         This is necessary to cope with dv.manager sidebar collapse when the table displays
+         no horizontal scrollbars (see task #364839) */
+      const outer_table = document.querySelector('#' + table_container_id);
+      const table_object = $('#' + table_container_id).find('table').DataTable();
+      let resizeTimer;
+      const timeout_ms = 300;
+      const resizeObserver = new ResizeObserver(() => {
+        clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(() => {
+          // temporarily remove hardcoded horizontal position of fixed column filter controls
+          for(let idx = 0; idx < fixed_headers.length; ++idx){
+            const td = filters[idx];
+            if (td) td.style.left = '';
+          }
+          
+          table_object.columns.adjust(); // let DataTables do its magic
+          
+          // reimpose position of fixed column filter controls
+          for(let idx = 0; idx < fixed_headers.length; ++idx){
+            const th = fixed_headers[idx];
+            const td = filters[idx];
+            if (td){
+              const computed_style = window.getComputedStyle(th);
+              const left = computed_style.left;
+              td.style.left = left;
+            }
+          }
+        }, timeout_ms);
+      });
+      resizeObserver.observe(outer_table);
   
-      if (!fixed_headers || !filters) return;
       for(let idx = 0; idx < fixed_headers.length; ++idx){
         const th = fixed_headers[idx];
-        const tb = first_row_body_fixed[idx];
         const td = filters[idx];
-        if (!td || !tb) return;
+        if (!td) return;
   
-        const computed_style = window.getComputedStyle(tb);
+        const computed_style = window.getComputedStyle(th);
         const left = computed_style.left;
         const zIndex = computed_style.zIndex;
-        const width = computed_style.width;
   
         /* Character filters have an element with z-index 25 therefore we choose 26. This is an empirical finding as
            I found no reference in the documentation, therefore this magic number may change. */
@@ -196,15 +206,12 @@ listings_UI <- function(module_id) { # nolint
         td.classList.add('dtfc-fixed-left');
         td.style.position = 'sticky';
         td.style.left = left;
-        td.style.minWidth = width;
         td.style.zIndex = magic_z_index;      
         td.style.background = 'white';
-
-        th.style.left = left;
       }
       
       // Extend width of factor search boxes to fit options (adapted from https://stackoverflow.com/a/76771419)
-      let tds = scrollhead_table.querySelectorAll('td[data-type=\"factor\"]');
+      let tds = table.querySelectorAll('td[data-type=\"factor\"]');
       for(let i = 0; i < tds.length; i += 1){
         let td = tds[i];
         let dropdown_content = td.querySelector('div.selectize-dropdown-content');
