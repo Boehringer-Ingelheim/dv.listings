@@ -156,14 +156,3 @@
 .dataTables_wrapper:has(.dv-listings-table) .spacer {
   flex-grow: 1;
 }
-
-/* (See also #ungodly_interaction_between_DT_fixedColumns_and_filter_sidebar_collapsing)
-   Without the following rule, the header row of the DT listing fails to resize when:
-   - the listing has no horizontal scrollbar (all columns are in view)
-   - dv.manager's sidebar expands/collapses
-   That makes the header an body of the table be out of sync.
-*/ 
-.dataTables_scrollHeadInner:has(> table.dv-listings-table),
-.dataTables_scrollHeadInner:has(> table.dv-listings-table) > table.dv-listings-table {
-  width: 100% !important;
-}
