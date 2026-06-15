@@ -143,7 +143,7 @@ listings_UI <- function(module_id) { # nolint
       ),
     ),
     shiny::div(
-      style = "flex-grow:1",
+      style = "flex-grow:1; min-height: 0; display: flex; flex-direction: column;",
       DT::dataTableOutput(ns(TBL$TABLE_ID), height = "100%"),
     ),
     shiny::uiOutput(ns(TBL$FOOTER_ID)),
