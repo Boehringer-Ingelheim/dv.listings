@@ -143,7 +143,7 @@ listings_UI <- function(module_id) { # nolint
       ),
     ),
     shiny::div(
-      style = "flex-grow:1",
+      style = "flex-grow:1; min-height: 0; display: flex; flex-direction: column;",
       DT::dataTableOutput(ns(TBL$TABLE_ID), height = "100%"),
     ),
     shiny::uiOutput(ns(TBL$FOOTER_ID)),
@@ -157,8 +157,39 @@ listings_UI <- function(module_id) { # nolint
       // Make column filters scroll horizontally along the rest of the table rows
       const fixed_headers = table.querySelectorAll('thead tr')[0]?.querySelectorAll('th.dtfc-fixed-left');
       const filters = table.querySelectorAll('thead tr')[1]?.querySelectorAll('td');
+      
+      /* Trigger a table width relayout when the container changes width
+         This is necessary to cope with dv.manager sidebar collapse when the table displays
+         no horizontal scrollbars (see task #364839) */
+      const outer_table = document.querySelector('#' + table_container_id);
+      const table_object = $('#' + table_container_id).find('table').DataTable();
+      let resizeTimer;
+      const timeout_ms = 300;
+      const resizeObserver = new ResizeObserver(() => {
+        clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(() => {
+          // temporarily remove hardcoded horizontal position of fixed column filter controls
+          for(let idx = 0; idx < fixed_headers.length; ++idx){
+            const td = filters[idx];
+            if (td) td.style.left = '';
+          }
+          
+          table_object.columns.adjust(); // let DataTables do its magic
+          
+          // reimpose position of fixed column filter controls
+          for(let idx = 0; idx < fixed_headers.length; ++idx){
+            const th = fixed_headers[idx];
+            const td = filters[idx];
+            if (td){
+              const computed_style = window.getComputedStyle(th);
+              const left = computed_style.left;
+              td.style.left = left;
+            }
+          }
+        }, timeout_ms);
+      });
+      resizeObserver.observe(outer_table);
   
-      if (!fixed_headers || !filters) return;
       for(let idx = 0; idx < fixed_headers.length; ++idx){
         const th = fixed_headers[idx];
         const td = filters[idx];
