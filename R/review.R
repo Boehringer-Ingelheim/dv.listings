@@ -125,8 +125,16 @@ REV_include_review_info <- function(annotation_info, data, col_names) {
 REV_include_highlight_info <- function(table_data, annotation_info, tracked_vars) {
   data <- table_data[["data"]]
   # Compute dataset changes that make current reviews obsolete
-  row_col_changes_st <- local({
+  row_col_changes_df <- local({
     revisions <- attr(annotation_info, "revisions")
+    
+    # Remap revisions from the full set of known rows (past and present) to the one that is currently available
+    map_f <- attr(annotation_info, "map_current_indices_into_canonical_order")
+    remap <- map_f(seq_along(annotation_info[["timestamp"]]))
+    for (i_revision in seq_along(revisions[["tracked_hashes"]])) {
+      revisions[["tracked_hashes"]][[i_revision]] <- revisions[["tracked_hashes"]][[i_revision]][, remap]
+    }
+    
     h0 <- REV_collect_latest_review_hashes(
       revisions = revisions, 
       review_timestamps = annotation_info[["timestamp"]]
@@ -148,13 +156,13 @@ REV_include_highlight_info <- function(table_data, annotation_info, tracked_vars
   for (col_name in highlight_col_names) 
     data[[col_name]] <- rep(FALSE, row_count) # Explicit `rep` avoids assignment error when `nrow(data) == 0`
  
-  map_canonical_indices_into_current_order <- attr(annotation_info, "map_canonical_indices_into_current_order")
-  for (row_cols_st in row_col_changes_st){
-    i_row_df <- map_canonical_indices_into_current_order(row_cols_st[["row"]])
-    if (i_row_df > 0 && data[[REV$ID$STATUS_COL]][[i_row_df]] == REV$STATUS_LEVELS$LATEST_OUTDATED) {
-      col_names <- highlight_col_names[row_cols_st[["cols"]]]
-      data[i_row_df, col_names] <- TRUE
+  for (row_cols_df in row_col_changes_df){
+    i_row_df <- row_cols_df[["row"]]
+    if (data[[REV$ID$STATUS_COL]][[i_row_df]] != REV$STATUS_LEVELS$LATEST_OUTDATED) {
+      stop("REV_include_highlight_info attempted to highlight a row that is not outdated")
     }
+    col_names <- highlight_col_names[row_cols_df[["cols"]]]
+    data[i_row_df, col_names] <- TRUE
   }
   table_data[["data"]] <- data
   
