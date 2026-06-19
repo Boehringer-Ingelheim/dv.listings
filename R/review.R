@@ -1248,6 +1248,12 @@ REV_compute_status <- function(dataset_review, role, latest_reviews_by_role, dat
 
 # Collect hashes that were known prior to the times indicated by `review_timestamps` 
 REV_collect_latest_review_hashes <- function(revisions, review_timestamps) {
+  for (th in revisions[["tracked_hashes"]]) {
+    if (ncol(th) != length(review_timestamps)) {
+      stop(("REV_collect_latest_review_hashes: shape mismatch between `revisions` and `review_timestamps` arguments"))
+    }
+  }
+  
   res <- revisions$tracked_hashes[[1]]
   
   revision_count <- length(revisions$tracked_hashes)
