@@ -924,6 +924,8 @@ REV_respond_to_user_review <- function(ns, state, input, review, selected_datase
       timestamp <- SH$get_UTC_time_in_seconds()
       choice_index <- as.integer(info[["option"]])
       
+      # TODO: We could send the unfiltered indices along with the information we send to DT
+      #       Then we wouldn't have to undo the filtering here
       defiltered_row_indices <- local({
         row_indices <- as.integer(info[["row"]]) # relative to the filtered data sent to the client
         filter_mask <- attr(data(), "filter_mask")
