@@ -1097,7 +1097,7 @@ REV_review_var_to_json <- function(latest_reviews, data_timestamps) {
   return(res)
 }
 
-REV_compute_status <- function(dataset_review, role, latest_reviews_by_role, data_timestamps) {
+REV_compute_status <- function(dataset_review, role, latest_reviews_by_role, data_timestamps, modified_row_mask) {
   # Does this function make sense with no role? Yes it does because the latest review is the one that may be outdated,
   # conflicting, unreviewed, etc.
   # Optionally, we could indicate if the current role does have a conflict or is it someone else?
@@ -1152,7 +1152,7 @@ REV_compute_status <- function(dataset_review, role, latest_reviews_by_role, dat
   # [3] A conflict in which the current role participates deserves even more attention
   res[conflict_with_role_mask] <- REV$STATUS_LEVELS$CONFLICT_ROLE
   # [4] But a review based on outdated information is the most relevant
-  res[outdated_latest_mask] <- REV$STATUS_LEVELS$LATEST_OUTDATED
+  res[outdated_latest_mask & modified_row_mask] <- REV$STATUS_LEVELS$LATEST_OUTDATED
   
   return(res)
 }
@@ -1222,12 +1222,38 @@ REV_report_changes <- function(h0, h1, verbose = FALSE) {
 
 REV_include_review_interface <- function(table_data, annotation_info, role, tracked_vars) {
   main_review_columns <- REV_compute_main_review_columns(annotation_info = annotation_info)
+
+  # NOTE: The purpose of `modified_row_mask` is to address discrepancies between the "Status" column and the 
+  # orange highlighting of individual tracked columns:
+  # - The contents of the "Status" column are calculated looking only at data and review timestamps. A review
+  #   is marked as outdated if it precedes a data change.
+  # - The orange highlighting is calculated based on the hash of the _contents_ of the cells, instead.
+  #
+  # There is a situation in which these two ways of computing review status disagree:
+  # - there was a review of row A
+  # - there was a dataset update that modified row A
+  # - there was a dataset update that reverted row A to the state it had prior to the review
+  # 
+  # In this case, the review of row A will be tagged as "Outdated" but no highlighting will appear.
+  #
+  # Here we take a shortcut to address this discrepancy. We create an `modified_row_mask` mask based on the
+  # information provided by the column highlighting routine (which is based on the contents of a row) and
+  # use it to filter out the misleading "Outdated" tags of rows that have been modified and rolled back.
+  modified_row_mask <- local({
+    highlight_columns_tmp <- REV_compute_highlight_info(
+      annotation_info = annotation_info, 
+      tracked_vars = tracked_vars,
+      status = rep(REV$STATUS_LEVELS$LATEST_OUTDATED, nrow(main_review_columns))
+    )
+    return(as.logical(rowSums(highlight_columns_tmp)))
+  })
   
   main_review_columns[[REV$ID$STATUS_COL]] <- REV_compute_status(
     dataset_review = main_review_columns, 
     role = role, 
     latest_reviews_by_role = attr(annotation_info, "latest_reviews"), 
-    data_timestamps = annotation_info[["data_timestamps"]]
+    data_timestamps = annotation_info[["data_timestamps"]],
+    modified_row_mask
   )
   
   main_review_columns[[REV$ID$LATEST_REVIEW_COL]] <- REV_review_var_to_json(

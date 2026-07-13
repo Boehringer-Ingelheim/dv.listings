@@ -1,3 +1,7 @@
+# dv.listings 4.3.4-9008
+- Review functionality:
+  - Remove column change highlighting from rows that have been modified but restored afterwards
+
 # dv.listings 4.3.4-9007
 - Review functionality:
   - Fix bug in column change highlight when known rows are removed
