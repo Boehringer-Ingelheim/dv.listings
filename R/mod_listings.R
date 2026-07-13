@@ -526,7 +526,8 @@ listings_server <- function(module_id,
       review_info = list(
         state = REV_state,
         role = shiny::reactive(input[[REV$ID$ROLE]]),
-        filter_mask = shiny::reactive(attr(output_table_data()[["data"]], "filter_mask"))
+        filter_mask = shiny::reactive(attr(output_table_data()[["data"]], "filter_mask")),
+        review = review
       )
     )
     

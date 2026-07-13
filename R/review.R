@@ -1272,8 +1272,14 @@ REV_include_review_interface <- function(table_data, annotation_info, role, trac
   
   filter_mask <- attr(table_data[["data"]], "filter_mask")
   if (!all(filter_mask)) {
+    main_labels <- get_labels(main_review_columns)
+    highlight_labels <- get_labels(highlight_columns)
+    
     main_review_columns <- main_review_columns[filter_mask, ]
     highlight_columns <- highlight_columns[filter_mask, ]
+    
+    main_review_columns <- set_labels(main_review_columns, main_labels)
+    highlight_columns <- set_labels(highlight_columns, highlight_labels)
   } 
   
   # inject columns into the (possibly) filtered table
@@ -1506,35 +1512,23 @@ REV_check_review_info_parameter <- function(review_info) {
   return(NULL)
 }
 
-REV_include_review_info_in_exported_data <- function(export_data, annotation_info, review_role, filter_mask) {
-  if (!all(filter_mask)) { # subset `annotation_info` to match data filter
-    annotation_info <- REV_filter_annotation_info(annotation_info, filter_mask)
-  } 
-  
+REV_include_review_info_in_exported_data <- function(export_data, annotation_info, review_role, filter_mask, 
+                                                     tracked_vars) {
   # exporting the `status` of the latest review is the most finicky bit of the whole process
-  status <- local({
-    dataset_review <- REV_include_review_info(
-      annotation_info = annotation_info, data = export_data[["df"]], col_names = export_data[["col_names"]]
-    )
-    export_data <- REV_compute_status(
-      dataset_review = dataset_review[["data"]], role = review_role, 
-      latest_reviews_by_role = attr(annotation_info, "latest_reviews"), 
-      data_timestamps = annotation_info[["data_timestamps"]]
-    ) 
-    return(export_data)
+  review_reviewer_status_df <- local({
+    attr(export_data[["data"]], "filter_mask") <- filter_mask
+    res <- REV_include_review_interface(export_data, annotation_info, review_role, tracked_vars)
+    return(res[["data"]][c(REV$ID$REVIEW_COL, REV$ID$ROLE_COL, REV$ID$STATUS_COL)])
   })
  
-  review_reviewer_status_df <- data.frame(annotation_info[c("review", "role")], status = status)
-  attr(review_reviewer_status_df[["review"]], "label") <- REV$LABEL$REVIEW_COLS[[1]]
-  attr(review_reviewer_status_df[["role"]], "label") <- REV$LABEL$REVIEW_COLS[[2]]
-  attr(review_reviewer_status_df[["status"]], "label") <- REV$LABEL$REVIEW_COLS[[3]]
-   
-  export_data[["df"]] <- data.frame(review_reviewer_status_df, export_data[["df"]])
+  export_data[["data"]] <- data.frame(review_reviewer_status_df, export_data[["data"]], check.names = FALSE)
   export_data[["col_names"]] <- c(REV$LABEL$REVIEW_COLS[1:3], export_data[["col_names"]])
   return(export_data)
 }
 
-REV_include_review_info_in_exported_data_if_available <- function(export_data, review_info, dataset_list_name, domain_name) {
+REV_include_review_info_in_exported_data_if_available <- function(
+    export_data, review_info, dataset_list_name, domain_name, tracked_vars
+) {
   # this function resolves all reactives and calls the plain `REV_include_review_info_in_exported_data` function
   review_state <- review_info[["state"]]
   can_export_review_info <- ("contents_ready" %in% names(review_state) && review_state[["contents_ready"]]())
@@ -1549,7 +1543,8 @@ REV_include_review_info_in_exported_data_if_available <- function(export_data, r
         export_data, 
         annotation_info = annotation_info,
         review_role = review_role,
-        filter_mask = filter_mask
+        filter_mask = filter_mask,
+        tracked_vars = tracked_vars
       )
     )
   }

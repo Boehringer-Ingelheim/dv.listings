@@ -160,9 +160,9 @@ local({
     dataset_list_name <- "dataset_list"
     domain_name <- "ae"
 
-    df <- dataset_lists[[dataset_list_name]][[domain_name]]
+    data <- dataset_lists[[dataset_list_name]][[domain_name]]
 
-    plain_df <- list(df = df, col_names = names(df)) # not using var labels to keep it simple (not the point)
+    plain_df <- list(data = data, col_names = names(data)) # not using var labels to keep it simple (not the point)
    
     annotation_info <- REV_load_annotation_info(fs_contents, review, dataset_lists)
 
@@ -183,25 +183,27 @@ local({
       export_data = plain_df, 
       review_info = review_info,
       dataset_list_name = dataset_list_name,
-      domain_name = domain_name
+      domain_name = domain_name,
+      tracked_vars = tracked_vars
     )
   
     # Discarding the first three columns, input and output are identical
     first_three <- seq(3) 
-    expect_identical(plain_df$df, extended_df$df[-first_three])
+    expect_identical(plain_df$data, extended_df$data[-first_three])
     expect_identical(plain_df$col_names, extended_df$col_names[-first_three])
     
     # And the first three columns are as follows
     expected_review_cols <-  data.frame(
-      review = factor(c("choiceA", "choiceA"), levels = c("choiceA", "choiceB")),
-      role   = factor(c("", ""), levels = c("", "roleA", "roleB")),
-      status = factor(c("Pending", "Pending"), levels = c("Pending", "Latest Outdated", "Conflict", "Conflict I can fix", "OK"))
+      `__review__` = factor(c("choiceA", "choiceA"), levels = c("choiceA", "choiceB")),
+      `__role__`   = factor(c("", ""), levels = c("", "roleA", "roleB")),
+      `__status__` = factor(c("Pending", "Pending"), levels = c("Pending", "Latest Outdated", "Conflict", "Conflict I can fix", "OK")),
+      check.names = FALSE
     )
     attr(expected_review_cols[[1]], "label")  <- REV$LABEL$REVIEW_COLS[[1]]
     attr(expected_review_cols[[2]], "label")  <- REV$LABEL$REVIEW_COLS[[2]]
     attr(expected_review_cols[[3]], "label")  <- REV$LABEL$REVIEW_COLS[[3]]
                      
-    expect_identical(extended_df$df[first_three], expected_review_cols)
+    expect_identical(extended_df$data[first_three], expected_review_cols)
     expect_identical(extended_df$col_names[first_three], REV$LABEL$REVIEW_COLS[first_three])
   })
 })
