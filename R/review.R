@@ -1223,6 +1223,22 @@ REV_report_changes <- function(h0, h1, verbose = FALSE) {
 REV_include_review_interface <- function(table_data, annotation_info, role, tracked_vars) {
   main_review_columns <- REV_compute_main_review_columns(annotation_info = annotation_info)
 
+  # NOTE: The purpose of `row_is_outdated` is to address discrepancies between the "Status" column and the 
+  # orange highlighting of individual tracked columns:
+  # - The contents of the "Status" column are calculated looking only at data and review timestamps. A review
+  #   is marked as outdated if it precedes a data change.
+  # - The orange highlighting is calculated based on the hash of the _contents_ of the cells, instead.
+  #
+  # There is a situation in which these two ways of computing review status disagree:
+  # - there was a review of row A
+  # - there was a dataset update that modified row A
+  # - there was a dataset update that reverted row A to the state it had prior to the review
+  # 
+  # In this case, the review of row A will be tagged as "Outdated" but no highlighting will appear.
+  #
+  # Here we take a shortcut to address this discrepancy. We create an `row_is_outdated` mask based on the
+  # information provided by the column highlighting routine (which is based on the contents of a row) and
+  # use it to filter out the misleading "Outdated" tags of rows that have been modified and rolled back.
   row_is_outdated <- local({
     highlight_columns_tmp <- REV_compute_highlight_info(
       annotation_info = annotation_info, 
