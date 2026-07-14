@@ -1285,7 +1285,7 @@ REV_include_review_interface <- function(table_data, annotation_info, role, trac
   # inject columns into the (possibly) filtered table
   table_data[["col_names"]] <- c(
     REV$LABEL$REVIEW_COLS, 
-    names(table_data[["data"]]), 
+    table_data[["col_names"]],
     names(highlight_columns)
   )
   table_data[["data"]] <- cbind(main_review_columns, table_data[["data"]], highlight_columns)
