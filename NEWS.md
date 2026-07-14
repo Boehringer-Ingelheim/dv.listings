@@ -1,3 +1,6 @@
+# dv.listings 4.3.4-9009
+- Revert NA highlighting
+
 # dv.listings 4.3.4-9008
 - Review functionality:
   - Remove column change highlighting from rows that have been modified but restored afterwards
