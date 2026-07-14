@@ -682,19 +682,6 @@ listings_server <- function(module_id,
           colResize = list(),
           processing = TRUE,
           initComplete = htmlwidgets::JS(init_complete_js),
-          rowCallback = htmlwidgets::JS(
-            # Source - https://stackoverflow.com/a/58526580
-            # Posted by Stéphane Laurent
-            # Retrieved 2026-04-09, License - CC BY-SA 4.0
-            "function(row, data){",
-            "  for(var i=0; i<data.length; i++){",
-            "    if(data[i] === null){",
-            "      $('td:eq('+i+')', row).html('NA')",
-            "        .css({'color': 'rgb(151,151,151)', 'font-style': 'italic'});",
-            "    }",
-            "  }",
-            "}"
-          ),
           drawCallback = htmlwidgets::JS("
             function (settings) {  
             const table_wrapper = settings.nTableWrapper;
