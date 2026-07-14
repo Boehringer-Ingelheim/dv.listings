@@ -138,12 +138,14 @@ mod_export_listings_server <- function(module_id,
         )
 
         # return data after we checked that everything is fine
-        res <- list("df" = data()$data, "col_names" = data()$col_names)
+        res <- list("data" = data()$data, "col_names" = data()$col_names)
+        tracked_vars <- review_info[["review"]][["datasets"]][[data_selection_name()]][["tracked_vars"]]
         res <- REV_include_review_info_in_exported_data_if_available(
           export_data = res, 
           review_info = review_info,
           dataset_list_name = dataset_metadata$name(),
-          domain_name = data_selection_name()
+          domain_name = data_selection_name(),
+          tracked_vars = tracked_vars
         )
         return(res)
       })
@@ -154,7 +156,7 @@ mod_export_listings_server <- function(module_id,
           NULL
         } else {
           # subsetting using dplyr::filter() is needed to avoid attribute loss (in case of datasets as mtcars)
-          v_data()$df |> dplyr::filter(rownames(v_data()$df) %in% rownames(v_data()$df)[current_rows()])
+          v_data()$data |> dplyr::filter(rownames(v_data()$data) %in% rownames(v_data()$data)[current_rows()])
         }
       })
 

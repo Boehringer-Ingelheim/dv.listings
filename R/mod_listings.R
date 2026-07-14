@@ -143,7 +143,7 @@ listings_UI <- function(module_id) { # nolint
       ),
     ),
     shiny::div(
-      style = "flex-grow:1",
+      style = "flex-grow:1; min-height: 0; display: flex; flex-direction: column;",
       DT::dataTableOutput(ns(TBL$TABLE_ID), height = "100%"),
     ),
     shiny::uiOutput(ns(TBL$FOOTER_ID)),
@@ -491,11 +491,11 @@ listings_server <- function(module_id,
 
       shiny::outputOptions(output, TBL$REVIEW_UI_ID, suspendWhenHidden = FALSE)
 
-      REV_main_logic(ns, REV_state, input, review, review[["data"]], fs_client)
+      REV_loader_state_machine(ns, REV_state, input, review, review[["data"]], fs_client)
       show_review_columns <- REV_state[["contents_ready"]]
     }
 
-    js_generate_review_column_contents <- shiny::reactive({
+    js_generate_review_column_contents <- shiny::reactive({ # TODO? Move under review conditional
       js_render_call <- c("dv_listings.render_identity")
       render_status_js_call <- c("dv_listings.render_identity")
 
@@ -532,7 +532,8 @@ listings_server <- function(module_id,
       review_info = list(
         state = REV_state,
         role = shiny::reactive(input[[REV$ID$ROLE]]),
-        filter_mask = shiny::reactive(attr(output_table_data()[["data"]], "filter_mask"))
+        filter_mask = shiny::reactive(attr(output_table_data()[["data"]], "filter_mask")),
+        review = review
       )
     )
     
@@ -571,7 +572,7 @@ listings_server <- function(module_id,
       }
      
       # NOTE: Pass the reconstructed `filter_mask` as an attribute of `data` itself to ensure they're synchronized
-      # TODO: Take the filter_mask from dv.manager 3.x.x instead
+      # TODO: Take the filter_mask from dv.manager 3.1.x instead
       if (enable_review) {
         attr(data, "filter_mask") <- local({
           selected_dataset_list_name <- review[["selected_dataset"]]()
@@ -625,7 +626,6 @@ listings_server <- function(module_id,
         "$('#' + settings.sTableId + '_wrapper').find('.top-title').append('<h4>%s</h4>');", selected_dataset_label 
       )
       
-      review_col_count <- 0L
       if (show_review_columns() && selected_dataset_name %in% names(review$datasets)) {
         js_render_call <- js_generate_review_column_contents()[["js_render_call"]]
         render_status_js_call <- js_generate_review_column_contents()[["render_status_js_call"]]
@@ -633,46 +633,16 @@ listings_server <- function(module_id,
 
         # patch table data
         selected_dataset_list_name <- shiny::isolate(review[["selected_dataset"]]())
-
-        # NOTE: Partially repeats #weilae 
-        annotation_info <- REV_state[["annotation_info"]][[selected_dataset_list_name]][[selected_dataset_name]]
         
-        filter_mask <- attr(table_data[["data"]], "filter_mask")
-        if (!all(filter_mask)) { # subset `annotation_info` to match data filter
-          annotation_info <- REV_filter_annotation_info(annotation_info, filter_mask)
-        } 
-        
-        changes <- REV_include_review_info(
-          annotation_info = annotation_info,
-          data = table_data[["data"]],
-          col_names = table_data[["col_names"]]
-        )
-        shiny::validate(shiny::need(!inherits(changes, "simpleCondition"), changes[["message"]]))
-        
-        changes[["data"]][[REV$ID$STATUS_COL]] <- REV_compute_status(
-          dataset_review = changes[["data"]], 
-          role = role, 
-          latest_reviews_by_role = attr(annotation_info, "latest_reviews"), 
-          data_timestamps = annotation_info[["data_timestamps"]]
-        )
-        
-        changes[["data"]][[REV$ID$LATEST_REVIEW_COL]] <- REV_review_var_to_json(
-          latest_reviews = attr(annotation_info, "latest_reviews"), 
-          data_timestamps = annotation_info[["data_timestamps"]]
-        )
-        changes[["data"]] <- relocate_column(changes[["data"]], REV$ID$LATEST_REVIEW_COL, 4L)
-        
-        review_col_count <- ncol(changes[["data"]]) - ncol(table_data[["data"]])
-        table_data[["data"]] <- changes[["data"]]
-        table_data[["col_names"]] <- changes[["col_names"]]
-        
-        table_data <- REV_include_highlight_info(
-          table_data, annotation_info, 
+        table_data <- REV_include_review_interface(
+          table_data = table_data,
+          annotation_info = REV_state[["annotation_info"]][[selected_dataset_list_name]][[selected_dataset_name]],
+          role = role,
           tracked_vars = review[["datasets"]][[selected_dataset_name]][["tracked_vars"]]
         )
         
         # patch table style
-        review_column_indices <- seq_len(review_col_count)
+        review_column_indices <- seq_along(REV$LABEL$REVIEW_COLS)
         highlight_column_indices <- which(endsWith(table_data[["col_names"]], REV$ID$HIGHLIGHT_SUFFIX))
         
         column_defs <- append(
@@ -723,23 +693,10 @@ listings_server <- function(module_id,
           columnDefs = column_defs,
           # TODO: Update to use new recommended API: https://datatables.net/reference/option/layout
           dom = "<'top'<'top-title'>>rt<'controls-row'l<'spacer'>i<'spacer'>p>", # Buttons, filtering, processing display element, table, information summary, length, pagination
-          fixedColumns = list(left = review_col_count),
+          fixedColumns = list(left = length(REV$LABEL$REVIEW_COLS)),
           colResize = list(),
           processing = TRUE,
           initComplete = htmlwidgets::JS(init_complete_js),
-          rowCallback = htmlwidgets::JS(
-            # Source - https://stackoverflow.com/a/58526580
-            # Posted by Stéphane Laurent
-            # Retrieved 2026-04-09, License - CC BY-SA 4.0
-            "function(row, data){",
-            "  for(var i=0; i<data.length; i++){",
-            "    if(data[i] === null){",
-            "      $('td:eq('+i+')', row).html('NA')",
-            "        .css({'color': 'rgb(151,151,151)', 'font-style': 'italic'});",
-            "    }",
-            "  }",
-            "}"
-          ),
           drawCallback = htmlwidgets::JS("
             function (settings) {  
             const table_wrapper = settings.nTableWrapper;
