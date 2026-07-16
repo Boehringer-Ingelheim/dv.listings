@@ -568,6 +568,7 @@ REV_compute_storage_folder_error_message <- function(paths, app_id) {
 REV_loader_state_machine <- function(ns, state, input, review, datasets, fs_client) {
   state[["connected"]] <- shiny::reactiveVal(FALSE)
   state[["contents_ready"]] <- shiny::reactiveVal(FALSE)
+  state[["action_count"]] <- shiny::reactiveVal(0)
   state[["folder"]] <- NULL
   state[["annotation_info"]] <- NULL
 
@@ -966,6 +967,7 @@ REV_respond_to_user_review <- function(ns, state, input, review, selected_datase
     # > table.row(5).data(tmp).invalidate();
     rownames(new_data) <- NULL # otherwise row numbers returned from DT are not relative to presented table
     DT::replaceData(dt_proxy, new_data, resetPaging = FALSE, clearSelection = "none")
+    state[["action_count"]](state[["action_count"]]() + 1)
     
     fs_execute_IO_plan(IO_plan, callback = update_undo_description_callback)
     
@@ -1060,6 +1062,7 @@ REV_respond_to_user_review <- function(ns, state, input, review, selected_datase
 
       rownames(new_data) <- NULL # otherwise row numbers returned from DT are not relative to presented table
       DT::replaceData(dt_proxy, new_data, resetPaging = FALSE, clearSelection = "none")
+      state[["action_count"]](state[["action_count"]]() + 1)
     }
     
     undo_desc <- REV_describe_undo_action(review, REV_state = state, fs_contents, dataset_list_name, dataset_name, role)

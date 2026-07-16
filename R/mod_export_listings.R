@@ -136,6 +136,10 @@ mod_export_listings_server <- function(module_id,
           checkmate::check_data_frame(data()$data, null.ok = TRUE),
           checkmate::check_character(data()$col_names, n.chars = dim(data())[2], null.ok = TRUE),
         )
+       
+        # Force listing regeneration if review actions happened after previous export
+        review_action_count_rv <- review_info[["state"]][["action_count"]] %||% function() NULL
+        review_action_count_rv()
 
         # return data after we checked that everything is fine
         res <- list("data" = data()$data, "col_names" = data()$col_names)
