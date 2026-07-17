@@ -1,5 +1,6 @@
-# YT#VH04ddb3b9e9d0bc00e6606ce5e074418b#VH20fe8acb2e57832933eb60226847381a#
+# YT#VH968b9a1690baba7ee16b8840135f5c86#VH04ddb3b9e9d0bc00e6606ce5e074418b#
 CM <- local({ # _C_hecked _M_odule
+  # 2026-06-05: [feature] Automated checks for logical and character types
   # 2026-03-26: [cleanup] Drop hyperspecific `CM$check_unique_sub_cat_par_vis()`
   #             [cleanup] Drop unused `warning_messages` parameter and related codepaths
   #             [cleanup] Drop type mapping
@@ -326,6 +327,12 @@ CM <- local({ # _C_hecked _M_odule
                      elem_name, elem$kind))
         push(sprintf("'      The expectation is that it either does not require automated checks or that'\n"))
         push(sprintf("'      the caller of this function has written manual checks near the call site.'\n"))
+      } else if (elem$kind %in% c("logical", "character")) {
+        push(sprintf("flags <- %s\n", deparse(attrs) |> paste(collapse = "")))
+        push(sprintf(
+          "OK[['%s']] <- CM$check_type('%s', %s, '%s', flags, err)\n",
+          elem_name, elem_name, elem_name, elem$kind
+        ))
       } else {
         push(sprintf("'NOTE: %s (%s) has no associated automated checks'\n", elem_name, elem$kind))
         push(sprintf("'      The expectation is that it either does not require them or that'\n"))
@@ -643,6 +650,21 @@ CM <- local({ # _C_hecked _M_odule
     )
     return(ok)
   }
+  
+  check_type <- function(name, value, expected_type, flags, err) {
+    ok <- check_flags(name, value, flags, err) && 
+      (is.null(value) || # flagged as "optional"
+         assert(         # not flagged as "optional"
+           err, 
+           identical(typeof(value), expected_type),
+           sprintf(
+             "Parameter `%s` should be of type `%s`. The value provided is `%s`, of type `%s`",
+             name, expected_type, toString(value), typeof(value)
+           )
+         )
+      )
+    return(ok)
+  }
 
   list(
     module = module,
@@ -658,6 +680,7 @@ CM <- local({ # _C_hecked _M_odule
     check_choice = check_choice,
     check_function = check_function,
     check_subjid_col = check_subjid_col,
+    check_type = check_type,
     message_well = message_well
   )
 })

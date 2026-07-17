@@ -308,8 +308,8 @@ test_that("set_data() returns the data.frame with converted column data types an
 })
 
 
-
-test_that("set_up_datatable() returns correct column names, row names, and paging", {
+test_that("set_up_datatable() returns correct column names, row names, and paging" |>
+            vdoc[["add_spec"]](c(specs$column_label, specs$simplified_column_label)), {
   df <- data.frame(A = c("a", "b", "c"), B = c("1", "2", "3"), C = c("a", "b", "c"))
 
   attributes(df$A)$label <- "Label A"
@@ -317,13 +317,32 @@ test_that("set_up_datatable() returns correct column names, row names, and pagin
 
   pagination <- NULL
 
-  actual <- set_up_datatable(df, pagination)
+  # default labeling mode
+  actual <- set_up_datatable(df, pagination, exclude_var_names_from_column_headings = FALSE)
 
   expected <- list(
     col_names = c("A [Label A]", "B [No label]", "C [Label C]"),
     row_names = c("1", "2", "3"),
     paging = FALSE
   )
+  expect_equal(actual, expected)
+
+  # simplified labeling mode
+  # two labels
+  expected[["col_names"]] <- c("Label A", "B [No label]", "Label C")
+  actual <- set_up_datatable(df, pagination, exclude_var_names_from_column_headings = TRUE)
+  expect_equal(actual, expected)
+  
+  # one label
+  attributes(df$A)$label <- NULL
+  actual <- set_up_datatable(df, pagination, exclude_var_names_from_column_headings = TRUE)
+  expected[["col_names"]][[1]] <- "A [No label]"
+  expect_equal(actual, expected)
+ 
+  # no labels 
+  attributes(df$C)$label <- NULL
+  actual <- set_up_datatable(df, pagination, exclude_var_names_from_column_headings = TRUE)
+  expected[["col_names"]][[3]] <- "C [No label]"
   expect_equal(actual, expected)
 })
 
@@ -336,7 +355,7 @@ test_that("set_up_datatable() automatically activates pagination for large datas
 
   pagination <- NULL
 
-  actual <- set_up_datatable(df, pagination)
+  actual <- set_up_datatable(df, pagination, exclude_var_names_from_column_headings = FALSE)
 
   expect_true(actual$paging)
 })
@@ -350,7 +369,7 @@ test_that("set_up_datatable() automatically deactivates pagination for small dat
 
   pagination <- NULL
 
-  actual <- set_up_datatable(df, pagination)
+  actual <- set_up_datatable(df, pagination, exclude_var_names_from_column_headings = FALSE)
 
   expect_false(actual$paging)
 })

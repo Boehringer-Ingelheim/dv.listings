@@ -12,7 +12,8 @@ mod_export_listings_server(
   data_selection_name,
   current_rows,
   intended_use_label,
-  footers
+  footers,
+  review_info
 )
 }
 \arguments{

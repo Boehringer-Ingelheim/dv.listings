@@ -1,3 +1,6 @@
+# dv.listings 4.3.4-9011
+- New `exclude_var_names_from_column_headings` parameter
+
 # dv.listings 4.3.4-9010
 - Exported single listings include review information, if available
 

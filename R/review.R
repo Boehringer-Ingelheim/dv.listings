@@ -1288,7 +1288,7 @@ REV_include_review_interface <- function(table_data, annotation_info, role, trac
   # inject columns into the (possibly) filtered table
   table_data[["col_names"]] <- c(
     REV$LABEL$REVIEW_COLS, 
-    names(table_data[["data"]]), 
+    table_data[["col_names"]],
     names(highlight_columns)
   )
   table_data[["data"]] <- cbind(main_review_columns, table_data[["data"]], highlight_columns)
@@ -1320,6 +1320,8 @@ REV_include_review_interface <- function(table_data, annotation_info, role, trac
 #'
 #' @export
 check_review_parameter <- function(datasets, dataset_names, review, err, afmm = NULL) {
+  # NOTE: This function is also used by `dv.tables::mod_tplyr_table`, so think about backwards and forwards 
+  #       compatibility in that broader context before modifying it
   if (is.null(review)) return(NULL)
   ok <- CM$assert(
     container = err,
@@ -1517,6 +1519,7 @@ REV_check_review_info_parameter <- function(review_info) {
 
 REV_include_review_info_in_exported_data <- function(export_data, annotation_info, review_role, filter_mask, 
                                                      tracked_vars) {
+  data_label <- attr(export_data[["data"]], "label")
   # exporting the `status` of the latest review is the most finicky bit of the whole process
   review_reviewer_status_df <- local({
     attr(export_data[["data"]], "filter_mask") <- filter_mask
@@ -1525,6 +1528,7 @@ REV_include_review_info_in_exported_data <- function(export_data, annotation_inf
   })
  
   export_data[["data"]] <- data.frame(review_reviewer_status_df, export_data[["data"]], check.names = FALSE)
+  attr(export_data[["data"]], "label") <- data_label
   export_data[["col_names"]] <- c(REV$LABEL$REVIEW_COLS[1:3], export_data[["col_names"]])
   return(export_data)
 }

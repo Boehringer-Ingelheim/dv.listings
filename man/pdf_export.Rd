@@ -10,7 +10,8 @@ pdf_export(
   file,
   metadata,
   active_session = TRUE,
-  intended_use_label
+  intended_use_label,
+  keep_tex = FALSE
 )
 }
 \arguments{
