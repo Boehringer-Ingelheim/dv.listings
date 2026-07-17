@@ -568,6 +568,7 @@ REV_compute_storage_folder_error_message <- function(paths, app_id) {
 REV_loader_state_machine <- function(ns, state, input, review, datasets, fs_client) {
   state[["connected"]] <- shiny::reactiveVal(FALSE)
   state[["contents_ready"]] <- shiny::reactiveVal(FALSE)
+  state[["action_count"]] <- shiny::reactiveVal(0)
   state[["folder"]] <- NULL
   state[["annotation_info"]] <- NULL
 
@@ -966,6 +967,7 @@ REV_respond_to_user_review <- function(ns, state, input, review, selected_datase
     # > table.row(5).data(tmp).invalidate();
     rownames(new_data) <- NULL # otherwise row numbers returned from DT are not relative to presented table
     DT::replaceData(dt_proxy, new_data, resetPaging = FALSE, clearSelection = "none")
+    state[["action_count"]](state[["action_count"]]() + 1)
     
     fs_execute_IO_plan(IO_plan, callback = update_undo_description_callback)
     
@@ -1060,6 +1062,7 @@ REV_respond_to_user_review <- function(ns, state, input, review, selected_datase
 
       rownames(new_data) <- NULL # otherwise row numbers returned from DT are not relative to presented table
       DT::replaceData(dt_proxy, new_data, resetPaging = FALSE, clearSelection = "none")
+      state[["action_count"]](state[["action_count"]]() + 1)
     }
     
     undo_desc <- REV_describe_undo_action(review, REV_state = state, fs_contents, dataset_list_name, dataset_name, role)
@@ -1272,8 +1275,14 @@ REV_include_review_interface <- function(table_data, annotation_info, role, trac
   
   filter_mask <- attr(table_data[["data"]], "filter_mask")
   if (!all(filter_mask)) {
+    main_labels <- get_labels(main_review_columns)
+    highlight_labels <- get_labels(highlight_columns)
+    
     main_review_columns <- main_review_columns[filter_mask, ]
     highlight_columns <- highlight_columns[filter_mask, ]
+    
+    main_review_columns <- set_labels(main_review_columns, main_labels)
+    highlight_columns <- set_labels(highlight_columns, highlight_labels)
   } 
   
   # inject columns into the (possibly) filtered table
@@ -1491,4 +1500,57 @@ check_review_parameter <- function(datasets, dataset_names, review, err, afmm = 
             "Please, exclude them."),
       dataset_names)
   )
+}
+
+REV_check_review_info_parameter <- function(review_info) {
+  if (!is.null(review_info)) {
+    checkmate::assert(
+      checkmate::check_list(review_info),
+      checkmate::check_environment(review_info[["state"]]),
+      checkmate::check_class(review_info[["role"]], "reactive"),
+      checkmate::check_class(review_info[["filter_mask"]], "reactive"),
+      combine = "and"
+    )
+  }
+  return(NULL)
+}
+
+REV_include_review_info_in_exported_data <- function(export_data, annotation_info, review_role, filter_mask, 
+                                                     tracked_vars) {
+  # exporting the `status` of the latest review is the most finicky bit of the whole process
+  review_reviewer_status_df <- local({
+    attr(export_data[["data"]], "filter_mask") <- filter_mask
+    res <- REV_include_review_interface(export_data, annotation_info, review_role, tracked_vars)
+    return(res[["data"]][c(REV$ID$REVIEW_COL, REV$ID$ROLE_COL, REV$ID$STATUS_COL)])
+  })
+ 
+  export_data[["data"]] <- data.frame(review_reviewer_status_df, export_data[["data"]], check.names = FALSE)
+  export_data[["col_names"]] <- c(REV$LABEL$REVIEW_COLS[1:3], export_data[["col_names"]])
+  return(export_data)
+}
+
+REV_include_review_info_in_exported_data_if_available <- function(
+    export_data, review_info, dataset_list_name, domain_name, tracked_vars
+) {
+  # this function resolves all reactives and calls the plain `REV_include_review_info_in_exported_data` function
+  review_state <- review_info[["state"]]
+  can_export_review_info <- ("contents_ready" %in% names(review_state) && review_state[["contents_ready"]]())
+  if (can_export_review_info) {
+    review_role <- review_info[["role"]]()
+    filter_mask <- review_info[["filter_mask"]]()
+
+    annotation_info <- review_state[["annotation_info"]][[dataset_list_name]][[domain_name]]
+
+    export_data <- shiny::maskReactiveContext(
+      REV_include_review_info_in_exported_data(
+        export_data, 
+        annotation_info = annotation_info,
+        review_role = review_role,
+        filter_mask = filter_mask,
+        tracked_vars = tracked_vars
+      )
+    )
+  }
+
+  return(export_data)
 }

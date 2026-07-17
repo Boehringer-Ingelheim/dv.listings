@@ -438,17 +438,6 @@ listings_server <- function(module_id,
 
     # Bookmarking (end)
     
-    mod_export_listings_server(
-      module_id = TBL$EXPORT_ID,
-      dataset_metadata = dataset_metadata,
-      dataset_list = v_dataset_list,
-      data = shiny::reactive(set_data(listings_data(), r_selected_columns_in_dataset()[[input[[TBL$DATASET_ID]]]])),
-      data_selection_name = shiny::reactive(input[[TBL$DATASET_ID]]),
-      current_rows = shiny::reactive(input[[paste0(TBL$TABLE_ID, "_rows_all")]]),
-      intended_use_label = intended_use_label,
-      footers
-    )
-    
     # Proxy reference to dataTable
     dt_proxy <- DT::dataTableProxy(TBL$TABLE_ID)
     shiny::observeEvent(input[[TBL$RESET_FILT_BUTTON_ID]], DT::clearSearch(dt_proxy))
@@ -524,6 +513,23 @@ listings_server <- function(module_id,
 
       return(res)
     }) |> trigger_only_on_change()
+    
+    mod_export_listings_server(
+      module_id = TBL$EXPORT_ID,
+      dataset_metadata = dataset_metadata,
+      dataset_list = v_dataset_list,
+      data = shiny::reactive(set_data(listings_data(), r_selected_columns_in_dataset()[[input[[TBL$DATASET_ID]]]])),
+      data_selection_name = shiny::reactive(input[[TBL$DATASET_ID]]),
+      current_rows = shiny::reactive(input[[paste0(TBL$TABLE_ID, "_rows_all")]]),
+      intended_use_label = intended_use_label,
+      footers = footers,
+      review_info = list(
+        state = REV_state,
+        role = shiny::reactive(input[[REV$ID$ROLE]]),
+        filter_mask = shiny::reactive(attr(output_table_data()[["data"]], "filter_mask")),
+        review = review
+      )
+    )
     
     output_table_data <- shiny::reactive({
       shiny::validate(                        # TODO: Explain why these are necessary
