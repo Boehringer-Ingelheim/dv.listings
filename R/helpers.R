@@ -252,7 +252,8 @@ set_up_datatable <- function(dataset, pagination, exclude_var_names_from_column_
     #       We can be certain we haven't broken anything if we leave the rest of the code intact.
     # TODO: HOWEVER, the label handling in this module could use some attention. (see #phahfo)
     labels <- sapply(dataset, function(col) attr(col, "label"), simplify = FALSE)     # use only labels...
-    empty_label_mask <- (sapply(labels, length) == 0L)
+    non_empty_label_mask <- sapply(labels, function(v) isTRUE(is.character(v) && length(v) == 1 && nchar(trimws(v)) > 0))
+    empty_label_mask <- !non_empty_label_mask
     labels[empty_label_mask] <- paste(names(dataset)[empty_label_mask], "[No label]") # ... except for unlabeled vars
     col_names <- unname(unlist(labels))
   } else {
