@@ -47,6 +47,6 @@ Imports:
 Depends: R (>= 4.1.0)
 RoxygenNote: 7.3.2
 Roxygen: list(markdown = TRUE)
-Remotes: boehringer-ingelheim/dv.manager@test
+Remotes: boehringer-ingelheim/dv.manager
 VignetteBuilder: knitr
 URL: https://github.com/Boehringer-Ingelheim/dv.listings, https://boehringer-ingelheim.github.io/dv.listings
