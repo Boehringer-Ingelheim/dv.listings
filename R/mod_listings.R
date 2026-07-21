@@ -935,8 +935,8 @@ mod_listings <- function(
     meta = list(
       dataset_info = list(all = unique(dataset_names), subject_level = character(0)),
       check_mod_fn = function(afmm, dataset) {
-        check_mod_listings(afmm, dataset, module_id, dataset_names, default_vars, pagination, 
-                           intended_use_label, subjid_var, receiver_id, review)
+        check_mod_listings(afmm, dataset, module_id, dataset_names, default_vars, footers, pagination, 
+                           intended_use_label, subjid_var, receiver_id, review, exclude_var_names_from_column_headings)
       }
     )
   )

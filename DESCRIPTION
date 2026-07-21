@@ -33,7 +33,7 @@ Imports:
     checkmate (>= 2.1.0),
     dplyr (>= 1.0.5),
     DT (>= 0.18),
-    dv.manager (>= 2.1.4),
+    dv.manager (>= 3.1.0),
     htmlwidgets (>= 1.6.2),
     openxlsx (>= 4.2.5.2),
     purrr (>= 1.0.1),
