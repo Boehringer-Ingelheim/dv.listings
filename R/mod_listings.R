@@ -887,7 +887,7 @@ mod_listings <- function(
       
       if (is.list(review)) {
         # These afmm fields are only required for the review functionality, so we bundle them in the `review` list
-        review[["data"]] <- afmm[["data"]]
+        review[["data"]] <- lapply(afmm[["data"]], function(e) if (is.function(e)) e() else e)
         review[["selected_dataset"]] <- afmm[["dataset_metadata"]][["name"]]
         
         # Prevent and warn against multiple `dv.listings` instances with active review functionality.
