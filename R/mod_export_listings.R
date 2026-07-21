@@ -18,7 +18,8 @@ EXP <- pack_of_constants( # nolint
   SNAPSHOT_ID = "snapshot",
   SNAPSHOT_LABEL = "Enter footnote (optional)",
   SNAPSHOT_INFO_ID = "snapshot_info",
-  SNAPSHOT_INFO_LABEL = "Additional information displayed within footnote of the pdf, e.g., snapshot name.",
+  SNAPSHOT_INFO_LABEL = paste("Additional information displayed within footnote of every page of the pdf, e.g.,", 
+                              "snapshot name."),
   DATAPROTECT_ID = "check",
   DATAPROTECT_LABEL = paste(
     "I agree to the following:"
@@ -86,6 +87,9 @@ mod_export_listings_UI <- function(module_id) { # nolint
 #'
 #' @param intended_use_label `[character(1) | NULL]` Either a character indicating the intended use for the download, or
 #' NULL. If a label is provided it will be shown before the download and will also be included in the downloaded file.
+#' 
+#' @param footers `[list(character(1+)) | NULL]` Pass-through argument from `mod_listings` specifying per-dataset footer
+#' text.
 #'
 #' @keywords internal
 mod_export_listings_server <- function(module_id,
@@ -94,7 +98,9 @@ mod_export_listings_server <- function(module_id,
                                        data,
                                        data_selection_name,
                                        current_rows,
-                                       intended_use_label) {
+                                       intended_use_label,
+                                       footers,
+                                       review_info) {
   # check validity of parameters
   checkmate::assert(
     checkmate::check_string(module_id, min.chars = 1),
@@ -108,6 +114,7 @@ mod_export_listings_server <- function(module_id,
     checkmate::check_string(intended_use_label, null.ok = TRUE),
     combine = "and"
   )
+  REV_check_review_info_parameter(review_info)
 
   shiny::moduleServer(
     module_id,
@@ -129,9 +136,22 @@ mod_export_listings_server <- function(module_id,
           checkmate::check_data_frame(data()$data, null.ok = TRUE),
           checkmate::check_character(data()$col_names, n.chars = dim(data())[2], null.ok = TRUE),
         )
+       
+        # Force listing regeneration if review actions happened after previous export
+        review_action_count_rv <- review_info[["state"]][["action_count"]] %||% function() NULL
+        review_action_count_rv()
 
         # return data after we checked that everything is fine
-        list("df" = data()$data, "col_names" = data()$col_names)
+        res <- list("data" = data()$data, "col_names" = data()$col_names)
+        tracked_vars <- review_info[["review"]][["datasets"]][[data_selection_name()]][["tracked_vars"]]
+        res <- REV_include_review_info_in_exported_data_if_available(
+          export_data = res, 
+          review_info = review_info,
+          dataset_list_name = dataset_metadata$name(),
+          domain_name = data_selection_name(),
+          tracked_vars = tracked_vars
+        )
+        return(res)
       })
 
       # Determine currently displayed data (taking set filters into account)
@@ -140,7 +160,7 @@ mod_export_listings_server <- function(module_id,
           NULL
         } else {
           # subsetting using dplyr::filter() is needed to avoid attribute loss (in case of datasets as mtcars)
-          v_data()$df |> dplyr::filter(rownames(v_data()$df) %in% rownames(v_data()$df)[current_rows()])
+          v_data()$data |> dplyr::filter(rownames(v_data()$data) %in% rownames(v_data()$data)[current_rows()])
         }
       })
 
@@ -266,7 +286,7 @@ mod_export_listings_server <- function(module_id,
           shiny::removeModal() # close pop up
 
           data_to_download <- prep_export_data(
-            input[[EXP$DATASEL_ID]], current_data(), data_selection_name(), v_dataset_list()
+            input[[EXP$DATASEL_ID]], current_data(), data_selection_name(), v_dataset_list(), footers
           )
 
           if (input[[EXP$FILETYPE_ID]] == ".xlsx") {

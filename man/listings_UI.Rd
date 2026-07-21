@@ -11,12 +11,14 @@ listings_server(
   module_id,
   dataset_list,
   default_vars = NULL,
+  footers = NULL,
   dataset_metadata,
   pagination = NULL,
   intended_use_label = NULL,
   subjid_var = "USUBJID",
   on_sbj_click = NULL,
-  review = NULL
+  review = NULL,
+  exclude_var_names_from_column_headings
 )
 }
 \arguments{
@@ -31,6 +33,11 @@ A reactive list of data.framish dataset(s) that will be shown as listing.}
 A list of character vectors which contain the variable names to be displayed as default per
 dataset. Named according to the \code{dataset_names}. If \code{NULL}, the first six variables are displayed for each
 dataset.}
+
+\item{footers}{\verb{[list(characters(1+)) | NULL]}
+A list of character vectors that specify per-dataset footer text.
+Names should match those provided through \code{dataset_names}.
+Each element of the character vector will be displayed on separate lines (see example).}
 
 \item{dataset_metadata}{\verb{[list(character(1), character(1+))]} A list with the following two elements:
 \code{dataset_metadata$name()} containing a reactive string specifying the name of the selected
@@ -57,6 +64,10 @@ Function to invoke when a subject ID is clicked in a listing}
 Configuration of the experimental data review feature.
 Only one instance of the listings module can use this feature on any given app.
 For more details, please refer to \code{vignette("data_review")}.}
+
+\item{exclude_var_names_from_column_headings}{\verb{[logical(1)]}
+
+Display only dataset variable labels for variables that have them (e.g. turns "VAR_NAME [Var Label]" into "Var Label")}
 }
 \description{
 This module displays a given dataset as listing. It allows switching between datasets if it receives

@@ -1,5 +1,28 @@
+# dv.listings 4.3.4-9012
+- [NOT USER-FACING] Delegate some EEF logic into dv.manager
+
+# dv.listings 4.3.4-9011
+- New `exclude_var_names_from_column_headings` parameter
+
+# dv.listings 4.3.4-9010
+- Exported single listings include review information, if available
+
+# dv.listings 4.3.4-9009
+- Revert NA highlighting
+
+# dv.listings 4.3.4-9008
+- Review functionality:
+  - Remove column change highlighting from rows that have been modified but restored afterwards
+
+# dv.listings 4.3.4-9007
+- Review functionality:
+  - Fix bug in column change highlight when known rows are removed
+
+# dv.listings 4.3.4-9006
+- Prevent header and body offsetting when dv.manager sidebar collapses/expands
+
 # dv.listings 4.3.4-9005
-- [NOT USER-FACING] Move some EEF logic into dv.manager.
+- Static per-dataset footer text
 
 # dv.listings 4.3.4-9004
 - Review functionality:

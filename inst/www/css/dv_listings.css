@@ -137,3 +137,22 @@
 .dataTables_wrapper:has(.dv-listings-table) div.dataTables_processing>div:last-child>div {
   background: #00E47C !important;
 }
+
+.dataTables_wrapper:has(.dv-listings-table) .dataTables_info,
+.dataTables_wrapper:has(.dv-listings-table) .dataTables_length,
+.dataTables_wrapper:has(.dv-listings-table) .dataTables_paginate {
+  display: inline-block;
+  white-space: nowrap;
+  padding: 0 !important;
+}
+
+.dataTables_wrapper:has(.dv-listings-table) .controls-row {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 10px 0;
+}
+
+.dataTables_wrapper:has(.dv-listings-table) .spacer {
+  flex-grow: 1;
+}

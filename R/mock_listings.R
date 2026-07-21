@@ -323,7 +323,8 @@ mock_synthetic_review <- function() {
       ),
       choices = c("Pending", "Reviewed with no issues", "Action required", "Resolved"),
       roles = c("ROLE_1", "ROLE_2", "ROLE_3", "ROLE_4"),
-      store_path = tempdir()
+      store_path = tempdir(),
+      allow_row_deletion = TRUE
     )
   )
   
