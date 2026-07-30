@@ -39,7 +39,7 @@ TBL <- pack_of_constants( # nolint
 #'
 #' @export
 #' @family data_listings
-listings_UI <- function(module_id) { # nolint
+listings_UI <- function(module_id) {
   
   # Check validity of arguments
   checkmate::assert_string(module_id, min.chars = 1)
@@ -887,7 +887,7 @@ mod_listings <- function(
       
       if (is.list(review)) {
         # These afmm fields are only required for the review functionality, so we bundle them in the `review` list
-        review[["data"]] <- afmm[["data"]]
+        review[["data"]] <- lapply(afmm[["data"]], function(e) if (is.function(e)) e() else e)
         review[["selected_dataset"]] <- afmm[["dataset_metadata"]][["name"]]
         
         # Prevent and warn against multiple `dv.listings` instances with active review functionality.
@@ -931,7 +931,14 @@ mod_listings <- function(
         exclude_var_names_from_column_headings = exclude_var_names_from_column_headings
       )
     },
-    module_id = module_id
+    module_id = module_id,
+    meta = list(
+      dataset_info = list(all = unique(dataset_names), subject_level = character(0)),
+      check_mod_fn = function(afmm, dataset) {
+        check_mod_listings(afmm, dataset, module_id, dataset_names, default_vars, footers, pagination, 
+                           intended_use_label, subjid_var, receiver_id, review, exclude_var_names_from_column_headings)
+      }
+    )
   )
   return(mod)
 }
@@ -975,10 +982,6 @@ mod_listings_API_spec <- TC$group(
   ) |> TC$flag("manual_check", "optional"),                                     # see `check_review_parameter`
   exclude_var_names_from_column_headings = TC$logical()
 ) |> TC$attach_docs(mod_listings_API_docs)
-
-dataset_info_listings <- function(dataset_names, ...) {
-  return(list(all = unique(dataset_names), subject_level = character(0)))
-}
 
 check_mod_listings <- function(afmm, datasets, module_id, dataset_names, 
                                default_vars, footers, pagination, intended_use_label,
@@ -1057,10 +1060,6 @@ check_mod_listings <- function(afmm, datasets, module_id, dataset_names,
 
   check_review_parameter(datasets, dataset_names, review, err, afmm)
   
-  res <- list(errors = err[["messages"]])
+  res <- err[["messages"]]
   return(res)
 }
-
-mod_listings <- CM$module(
-  mod_listings, check_mod_listings, dataset_info_listings
-)

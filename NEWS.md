@@ -1,3 +1,6 @@
+# dv.listings 4.3.4-9012
+- [NOT USER-FACING] Delegate some EEF logic into dv.manager
+
 # dv.listings 4.3.4-9011
 - New `exclude_var_names_from_column_headings` parameter
 
