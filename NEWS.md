@@ -1,3 +1,7 @@
+# dv.listings 4.3.4-9013
+- Excel export:
+  - Ensure valid sheet names
+
 # dv.listings 4.3.4-9012
 - [NOT USER-FACING] Delegate some EEF logic into dv.manager
 

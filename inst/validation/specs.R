@@ -25,6 +25,7 @@ export <- specs_list(
   "export" = "dv.listings includes a button to export the listing(s). A click to the button envokes a pop-up to appear that allows the user to decide whether the download should only contain the displayed listing or all available listings, provide a file name (defaulted to the dataset name), and select from available file types.",
   "export_active_listing" = "For downloading only the currently active listing, the listing will be saved as it is displayed, either in .xlsx or .pdf format. In case filters were applied, the downloaded output will only contain the filtered data.",
   "export_excel" = "For downloading all listings, the tables can be saved in .xlsx format only without considering local filters. Each listing will be placed in an individual worksheet within the file.",
+  "export_valid_excel_sheet_names" = "Export modifies dataframe labels to accomodate excel sheet name restrictions",
   "export_pdf" = "For downloading in .pdf format, users can select one or multiple reference column(s), which will be displayed on all document pages.",
   "export_footers" = "If footnotes are specified, they will be included at the end of PDF listings and under each excel page"
 )

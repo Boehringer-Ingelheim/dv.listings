@@ -525,27 +525,6 @@ test_that("prep_export_data() performs the correct transformation in the multipl
   expect_identical(res[[3]], set_labels(data.frame(sapply(dataset_list_valid[[3]], as.character))))
 })
 
-test_that("prep_export_data() shortens dataset names if they exceed Excel's sheet name limit of 31 characters", {
-  # arguments
-  data_selection_valid <- "all"
-  dataset_list_valid <- list("dummy1" = simple_dummy, "dummy2" = simple_dummy[1:5], "dummy3" = simple_dummy[5:10])
-  attributes(dataset_list_valid$dummy1)$label <- "This is a very long dataset label"
-  attributes(dataset_list_valid$dummy2)$label <- "This is another very long dataset label"
-  attributes(dataset_list_valid$dummy3)$label <- "Short label"
-  current_data_valid <- dataset_list_valid[[1]]
-  data_selection_name_valid <- names(dataset_list_valid)[1]
-
-  # result
-  res <- nchar(
-    names(prep_export_data(data_selection_valid, current_data_valid, data_selection_name_valid, dataset_list_valid,
-                           footers = NULL))
-  )
-
-  # perform tests
-  expect_identical(res, as.integer(c(31, 31, 20)))
-})
-
-
 test_that("excel_export() throws an error when argument types mismatch", {
   # arguments
   data_to_download_valid <- list("dummy1" = simple_dummy, "dummy2" = simple_dummy[1:5])
@@ -676,3 +655,54 @@ test_that("warn_function() throws an error when argument types mismatch", {
 test_that("warn_function() triggers the correct feedback", {
   skip("Highlighting problematic user input is not tested in an automated way.")
 })
+
+test_that("sanitize_excel_sheet_names returns conforming excel sheet names" |>
+            vdoc[["add_spec"]](specs$export_valid_excel_sheet_names), {
+  tests <- list(
+    valid = list(
+      q = c("Sheet1", "Report_2035", "ai ai ai"),
+      a = c("Sheet1", "Report_2035", "ai ai ai")
+    )
+    , forbidden_chars = list(
+      q = c("N/A", "Report:2035", "Outdated?", "a[[b]]", "b\\a*c"),
+      a = c("N A", "Report 2035", "Outdated ", "a  b  ", "b a c")
+    )
+    , leading_trailing_single_quotes = list(
+      q = c("'Sheet1'", "Sheet'2", "'Sheet'3'''"),
+      a = c("Sheet1", "Sheet'2", "Sheet'3")
+    )
+    , history = list(
+      q = c("History", "History2", "Our History"),
+      a = c("History.", "History2", "Our History")
+    )
+    , whitespace = list(
+      q = c("", "   ", "\t"),
+      a = c("(1) .", "(2) .", "(3) .")
+    )
+    , dup_names = list(
+      q = c("Don't shout", "don't shout", "DON'T SHOUT"),
+      a = c("(1) Don't shout", "(2) don't shout", "(3) DON'T SHOUT")
+    )
+    , nchar_limit1 = list(
+      q = c("foo 56789 123456789 123456789 1excess chars",
+            "bar 56789 123456789 123456789 1excess chars",
+            "baz 56789 123456789 123456789 1excess chars"),
+      a = c(
+        "foo 56789 123456789 12345678...",
+        "bar 56789 123456789 12345678...",
+        "baz 56789 123456789 12345678..."
+      )
+    )
+    , nchar_limit2 = list(
+      q = rep("123456789 123456789 123456789 1excess chars", 3),
+      a = c(
+        "(1) 123456789 123456789 1234...",
+        "(2) 123456789 123456789 1234...",
+        "(3) 123456789 123456789 1234..."
+      )
+    )
+  )
+  
+  for(test in tests) testthat::expect_identical(sanitize_excel_sheet_names(test[["q"]]), test[["a"]])
+})
+
