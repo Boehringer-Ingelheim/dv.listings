@@ -878,7 +878,7 @@ mod_listings <- function(
       listings_UI(module_id = module_id)
     },
     server = function(afmm) {
-      dataset_list <- shiny::reactive(afmm$filtered_dataset()[dataset_names])
+      dataset_list <- shiny::reactive(afmm$filtered_dataset_list()[dataset_names])
       
       on_sbj_click_fun <- NULL
       if (!is.null(receiver_id)) {
@@ -888,7 +888,9 @@ mod_listings <- function(
       if (is.list(review)) {
         # These afmm fields are only required for the review functionality, so we bundle them in the `review` list
         review[["data"]] <- lapply(afmm[["data"]], function(e) if (is.function(e)) e() else e)
-        review[["selected_dataset"]] <- afmm[["dataset_metadata"]][["name"]]
+        review[["selected_dataset"]] <- shiny::reactive(
+          attr(afmm[["unfiltered_dataset_list_with_filter_info"]]()[["unfiltered_dataset_list"]], "dataset_list_name")
+        )
         
         # Prevent and warn against multiple `dv.listings` instances with active review functionality.
         #
@@ -921,7 +923,18 @@ mod_listings <- function(
         dataset_list = dataset_list,
         default_vars = default_vars,
         footers = footers,
-        dataset_metadata = afmm$dataset_metadata,
+        dataset_metadata = list(
+          name = shiny::reactive(
+            attr(
+              afmm[["unfiltered_dataset_list_with_filter_info"]]()[["unfiltered_dataset_list"]], "dataset_list_name"
+            )
+          ),
+          date_range = shiny::reactive(
+            attr(
+              afmm[["unfiltered_dataset_list_with_filter_info"]]()[["unfiltered_dataset_list"]], "date_range"
+            )
+          )
+        ),
         pagination = pagination,
         module_id = module_id,
         intended_use_label = intended_use_label,

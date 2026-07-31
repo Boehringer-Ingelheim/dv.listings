@@ -10,7 +10,7 @@ vdoc <- local({
 specs <- vdoc[["specs"]]
 #  validation (F)
 
-# YT#VH0bf15c0db690dfd3fac713f3c9b61f66#VH00000000000000000000000000000000#
+# YT#VH3b377124b258c8f7c5c9951207153ecb#VH0bf15c0db690dfd3fac713f3c9b61f66#
 
 #' Test harness for communication with `dv.papo`.
 #'
@@ -23,12 +23,17 @@ test_communication_with_papo <- function(mod, data, trigger_input_id, papo_spec_
 
   afmm <- list(
     data = list(DS = data),
-    unfiltered_dataset = datasets,
-    filtered_dataset = datasets,
+    unfiltered_dataset = datasets,                                         # deprecated by dv.manager >= 3.1.0
+    unfiltered_dataset_list = datasets,                                    # encouraged by dv.manager >= 3.1.0
+    filtered_dataset = datasets,                                           # deprecated by dv.manager >= 3.1.0
+    filtered_dataset_list = datasets,                                      # encouraged by dv.manager >= 3.1.0
     module_output = function() list(),
     module_names = list(papo = "Papo"),
     utils = list(switch2mod = function(id) NULL),
-    dataset_metadata = list(name = shiny::reactive("dummy_dataset_name"))
+    dataset_metadata = list(name = shiny::reactive("dummy_dataset_name")), # deprecated on dv.manager >= 3.1.0
+    unfiltered_dataset_list_with_filter_info = shiny::reactive(            # encouraged by dv.manager >= 3.1.0
+      list(unfiltered_dataset_list = structure("WHATEVER", dataset_list_name = "dummy_dataset_name"))
+    )
   )
 
   app_ui <- function() {
