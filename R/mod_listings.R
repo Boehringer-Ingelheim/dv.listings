@@ -616,6 +616,7 @@ listings_server <- function(module_id,
       table_data <- output_table_data()
       
       column_defs <- list(list(className = "dt-center", targets = "_all"))
+      fixed_column_count <- 0L
       selected_dataset_name <- shiny::isolate(input[[TBL$DATASET_ID]])
       
       selected_dataset_label <- attr(shiny::isolate(dataset_list())[[selected_dataset_name]], "label")
@@ -658,6 +659,8 @@ listings_server <- function(module_id,
           )
         )
 
+        fixed_column_count <- length(review_column_indices) # fix left-most columns
+
         if (checkmate::test_string(input[[REV$ID$ROLE]], min.chars = 1)) {
           fs_contents <- fs_client[["state"]][["contents"]]
           initial_undo_description <- shiny::div(
@@ -693,7 +696,7 @@ listings_server <- function(module_id,
           columnDefs = column_defs,
           # TODO: Update to use new recommended API: https://datatables.net/reference/option/layout
           dom = "<'top'<'top-title'>>rt<'controls-row'l<'spacer'>i<'spacer'>p>", # Buttons, filtering, processing display element, table, information summary, length, pagination
-          fixedColumns = list(left = length(REV$LABEL$REVIEW_COLS)),
+          fixedColumns = list(left = fixed_column_count),
           colResize = list(),
           processing = TRUE,
           initComplete = htmlwidgets::JS(init_complete_js),
