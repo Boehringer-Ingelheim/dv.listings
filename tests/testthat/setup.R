@@ -10,7 +10,7 @@ vdoc <- local({
 specs <- vdoc[["specs"]]
 #  validation (F)
 
-# YT#VH3b377124b258c8f7c5c9951207153ecb#VH0bf15c0db690dfd3fac713f3c9b61f66#
+# YT#VHcb39336d4fcc5b936a31ce2666bcf27c#VH3b377124b258c8f7c5c9951207153ecb#
 
 #' Test harness for communication with `dv.papo`.
 #'
@@ -19,6 +19,8 @@ specs <- vdoc[["specs"]]
 #' @param trigger_input_id Fully namespaced input ID that, when set to a subject ID value,
 #'                         should make the module send `dv.papo` a message.
 test_communication_with_papo <- function(mod, data, trigger_input_id, papo_spec_id, papo_spec_text) {
+  # 2026-08-25: [fix] Support new dv.manager >= 3.1.0 afmm field names
+
   datasets <- shiny::reactive(data)
 
   afmm <- list(
@@ -67,7 +69,7 @@ test_communication_with_papo <- function(mod, data, trigger_input_id, papo_spec_
 
     trigger_subject_selection <- function(subject_id) {
       set_input_params <- append(
-        as.list(setNames(subject_id, trigger_input_id)),
+        as.list(stats::setNames(subject_id, trigger_input_id)),
         list(allow_no_input_binding_ = TRUE, priority_ = "event")
       )
       do.call(app$set_inputs, set_input_params)
