@@ -860,7 +860,7 @@ listings_server <- function(module_id,
 #' dv.manager::run_app(
 #'   data = list("MyData" = data_list),
 #'   module_list = module_list,
-#'   filter_data = "adsl"
+#'   filter_dataset_name = "adsl"
 #' )
 mod_listings <- function(
     module_id,
