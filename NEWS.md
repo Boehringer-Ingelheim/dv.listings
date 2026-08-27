@@ -1,3 +1,6 @@
+# dv.listings 4.3.4-9015
+- [NOT USER-FACING] Fix bug in JS exception handler
+
 # dv.listings 4.3.4-9014
 - [NOT USER-FACING] Address dv.manager deprecation warning messages
 
