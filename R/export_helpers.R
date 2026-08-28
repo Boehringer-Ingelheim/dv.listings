@@ -427,10 +427,7 @@ prep_export_data <- function(data_selection, current_data, data_selection_name, 
     data_to_download <- dataset_list
   }
 
-  shortened_names <- shorten_entries(
-    paste0(names(data_to_download), " (", get_labels(data_to_download), ")"),
-    as.integer(31) # name has to be shortened to 31 characters due to Excel's sheet name limit
-  )
+  labeled_dataframe_names <- paste0(names(data_to_download), " (", get_labels(data_to_download), ")")
 
   data_to_download <- local({
     res <- list()
@@ -451,11 +448,35 @@ prep_export_data <- function(data_selection, current_data, data_selection_name, 
     return(res)
   })
     
-  names(data_to_download) <- shortened_names
+  names(data_to_download) <- labeled_dataframe_names
 
   return(data_to_download)
 }
 
+sanitize_excel_sheet_names <- function(sheet_names) {
+  tweak_invalid_excel_sheet_name <- function(s) {
+    s <- gsub(r"([\\/?*:\[\]])", " ", s, perl = TRUE) # forbidden characters \ / ? * : [ ] replaced with whitespace
+    s <- trimws(s, whitespace = "'")                  # forbidden only at the beginning and end
+    if (identical(s, "History")) s <- "History."       # "History" is just not an allowed name
+    if (nchar(trimws(s)) == 0) s <- "."               # pure whitespaced not allowed
+    return(s)
+  }
+  
+  sheet_names <- sapply(sheet_names, tweak_invalid_excel_sheet_name, USE.NAMES = FALSE)
+  sheet_names <- shorten_entries(sheet_names, as.integer(31))
+  if (anyDuplicated(tolower(sheet_names))) { # edge case: duplication when case is ignored
+    sheet_names <- sprintf("(%d) %s", seq_along(sheet_names), sheet_names) # prepend a unique number to all names
+    sheet_names <- shorten_entries(sheet_names, as.integer(31)) # numbering could push us over limit of 31 characters
+  }
+  
+  return(sheet_names)
+}
+
+sanitize_dataset_list_for_excel_export <- function(dataset_list) {
+  sanitized_sheet_names <- sanitize_excel_sheet_names(names(dataset_list))
+  names(dataset_list) <- sanitized_sheet_names
+  return(dataset_list)
+}
 
 #' Internal helper function which performs the download as .xlsx file.
 #'
@@ -487,6 +508,8 @@ excel_export <- function(data_to_download, file, intended_use_label) {
     }
     return(x)
   })
+  
+  data_to_download <- sanitize_dataset_list_for_excel_export(data_to_download)
 
   # Add first sheet as title page
   title_page <- data.frame(c(EXP$EXP_TITLE, intended_use_label))
