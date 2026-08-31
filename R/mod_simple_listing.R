@@ -44,7 +44,7 @@ mod_simple_listing <- function(dataset_name, module_id) {
     ui = simple_listing_UI,
     server = function(afmm) {
       simple_listing_server(
-        dataset = shiny::reactive(afmm$filtered_dataset()[[dataset_name]]),
+        dataset = shiny::reactive(afmm$filtered_dataset_list()[[dataset_name]]),
         module_id = module_id
       )
     },

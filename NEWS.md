@@ -1,3 +1,6 @@
+# dv.listings 4.3.4-9014
+- [NOT USER-FACING] Address dv.manager deprecation warning messages
+
 # dv.listings 4.3.4-9013
 - Excel export:
   - Ensure valid sheet names

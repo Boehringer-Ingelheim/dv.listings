@@ -19,6 +19,6 @@ module_list <- list(
 dv.manager::run_app(
   data = list("demo" = data),
   module_list = module_list,
-  filter_data = "adsl",
+  filter_dataset_name = "adsl",
   enableBookmarking = "url"
 )

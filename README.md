@@ -100,7 +100,7 @@ module_list <- list(
 dv.manager::run_app(
   data = list("MyData" = data_list),
   module_list = module_list,
-  filter_data = "adsl"
+  filter_dataset_name = "adsl"
 )
 ```
 
