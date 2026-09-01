@@ -269,7 +269,7 @@ If we take a hypothetical “xyz” domain, `dv.listings` will store the
 following files for review purposes (expand to see the layout of their
 contents):
 
-`xyz_000.base` (information related to the first version of the “xyz”
+`xyz_0000.base` (information related to the first version of the “xyz”
 domain dataset seen by the module)
 
 - 1 file magic code (“LISTBASE”)
@@ -286,7 +286,7 @@ domain dataset seen by the module)
 - p (1 per “xyz” row) `hash_id(xyz[id_vars])`
 - p (1 per “xyz” row, 2\*m bytes long) `hash_tracked(xyz[tracked_vars])`
 
-`xyz_001.delta` (one per domain dataset update)
+`xyz_0001.delta` (one per domain dataset update)
 
 - 1 file magic code (“LISTDELT”)
 - 1 format version number (0)

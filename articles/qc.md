@@ -1,8 +1,8 @@
 # Quality Control
 
-### ✅ dv.listings 4.3.4
+### ✅ dv.listings 4.3.5
 
-Date: 2026-Mar-20 19:03:08
+Date: 2026-Sep-01 13:21:15
 
 This document provides the Quality Control (QC) report for the R package
 to confirm that it fulfills the criteria required for a “released”
@@ -59,7 +59,7 @@ test execution.
     #>  collate  en_US.UTF-8
     #>  ctype    en_US.UTF-8
     #>  tz       Etc/UTC
-    #>  date     2026-03-20
+    #>  date     2026-09-01
     #>  pandoc   3.9 @ /usr/bin/ (via rmarkdown)
     #>  quarto   1.8.27 @ /usr/local/bin/quarto
     #> 
@@ -104,7 +104,7 @@ test execution.
     #>  xfun          0.54    2025-10-30 [2] RSPM
     #>  yaml          2.3.11  2025-11-28 [2] RSPM
     #> 
-    #>  [1] /tmp/RtmpcDToQW/temp_libpath1c62c1b5698
+    #>  [1] /tmp/RtmpV4nJ4c/temp_libpath20f70022ed9
     #>  [2] /usr/local/lib/R/site-library
     #>  [3] /usr/local/lib/R/library
     #> 

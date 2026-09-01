@@ -7,7 +7,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">dv.listings</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">4.3.4</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">4.3.5</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -50,7 +50,8 @@
 <span>  <span class="va">data_selection</span>,</span>
 <span>  <span class="va">current_data</span>,</span>
 <span>  <span class="va">data_selection_name</span>,</span>
-<span>  <span class="va">dataset_list</span></span>
+<span>  <span class="va">dataset_list</span>,</span>
+<span>  <span class="va">footers</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -73,6 +74,11 @@ currently displayed dataset (<code>current_data</code>) or all datasets (<code>d
 
 <dt id="arg-dataset-list">dataset_list<a class="anchor" aria-label="anchor" href="#arg-dataset-list"></a></dt>
 <dd><p><code>[list(data.frame)]</code> A list of named datasets.</p></dd>
+
+
+<dt id="arg-footers">footers<a class="anchor" aria-label="anchor" href="#arg-footers"></a></dt>
+<dd><p><code>[list(character(1+)) | NULL]</code> Pass-through argument from <code>mod_listings</code> specifying per-dataset footer
+text.</p></dd>
 
 </dl></div>
     <div class="section level2">

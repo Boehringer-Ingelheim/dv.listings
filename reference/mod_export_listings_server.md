@@ -12,7 +12,9 @@ mod_export_listings_server(
   data,
   data_selection_name,
   current_rows,
-  intended_use_label
+  intended_use_label,
+  footers,
+  review_info
 )
 ```
 
@@ -59,3 +61,8 @@ mod_export_listings_server(
   `[character(1) | NULL]` Either a character indicating the intended use
   for the download, or NULL. If a label is provided it will be shown
   before the download and will also be included in the downloaded file.
+
+- footers:
+
+  `[list(character(1+)) | NULL]` Pass-through argument from
+  `mod_listings` specifying per-dataset footer text.

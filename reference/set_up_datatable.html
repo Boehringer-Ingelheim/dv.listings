@@ -9,7 +9,7 @@ Main purpose is to easily test returned arguments."></head><body>
 
     <a class="navbar-brand me-2" href="../index.html">dv.listings</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">4.3.4</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">4.3.5</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -49,7 +49,7 @@ Main purpose is to easily test returned arguments.</p>
 
     <div class="section level2">
     <h2 id="ref-usage">Usage<a class="anchor" aria-label="anchor" href="#ref-usage"></a></h2>
-    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">set_up_datatable</span><span class="op">(</span><span class="va">dataset</span>, <span class="va">pagination</span><span class="op">)</span></span></code></pre></div>
+    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">set_up_datatable</span><span class="op">(</span><span class="va">dataset</span>, <span class="va">pagination</span>, <span class="va">exclude_var_names_from_column_headings</span><span class="op">)</span></span></code></pre></div>
     </div>
 
     <div class="section level2">
@@ -65,6 +65,11 @@ Main purpose is to easily test returned arguments.</p>
 <dd><p><code>[logical(1) | NULL]</code></p>
 <p>Either a boolean indicating if pagination should be activated, or
 NULL for which pagination will be activated for large datasets (nrows &gt; 1000) automatically.</p></dd>
+
+
+<dt id="arg-exclude-var-names-from-column-headings">exclude_var_names_from_column_headings<a class="anchor" aria-label="anchor" href="#arg-exclude-var-names-from-column-headings"></a></dt>
+<dd><p><code>[logical(1)]</code></p>
+<p>Use only dataset variable labels for variables that have them (output "Var Label" instead of "VAR_NAME [Var Label]").</p></dd>
 
 </dl></div>
     <div class="section level2">

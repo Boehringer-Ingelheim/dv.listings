@@ -9,7 +9,7 @@ more than one."></head><body>
 
     <a class="navbar-brand me-2" href="../index.html">dv.listings</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">4.3.4</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">4.3.5</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -55,12 +55,14 @@ more than one.</p>
 <span>  <span class="va">module_id</span>,</span>
 <span>  <span class="va">dataset_list</span>,</span>
 <span>  default_vars <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  footers <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  <span class="va">dataset_metadata</span>,</span>
 <span>  pagination <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  intended_use_label <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  subjid_var <span class="op">=</span> <span class="st">"USUBJID"</span>,</span>
 <span>  on_sbj_click <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>  review <span class="op">=</span> <span class="cn">NULL</span></span>
+<span>  review <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  <span class="va">exclude_var_names_from_column_headings</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -82,6 +84,13 @@ more than one.</p>
 <p>A list of character vectors which contain the variable names to be displayed as default per
 dataset. Named according to the <code>dataset_names</code>. If <code>NULL</code>, the first six variables are displayed for each
 dataset.</p></dd>
+
+
+<dt id="arg-footers">footers<a class="anchor" aria-label="anchor" href="#arg-footers"></a></dt>
+<dd><p><code>[list(characters(1+)) | NULL]</code>
+A list of character vectors that specify per-dataset footer text.
+Names should match those provided through <code>dataset_names</code>.
+Each element of the character vector will be displayed on separate lines (see example).</p></dd>
 
 
 <dt id="arg-dataset-metadata">dataset_metadata<a class="anchor" aria-label="anchor" href="#arg-dataset-metadata"></a></dt>
@@ -117,6 +126,11 @@ NULL. The provided label will be displayed prior to the download and will also b
 <p>Configuration of the experimental data review feature.
 Only one instance of the listings module can use this feature on any given app.
 For more details, please refer to <code><a href="../articles/data_review.html">vignette("data_review")</a></code>.</p></dd>
+
+
+<dt id="arg-exclude-var-names-from-column-headings">exclude_var_names_from_column_headings<a class="anchor" aria-label="anchor" href="#arg-exclude-var-names-from-column-headings"></a></dt>
+<dd><p><code>[logical(1)]</code></p>
+<p>Display only dataset variable labels for variables that have them (e.g. turns "VAR_NAME [Var Label]" into "Var Label")</p></dd>
 
 </dl></div>
     <div class="section level2">

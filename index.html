@@ -22,7 +22,7 @@
 
     <a class="navbar-brand me-2" href="index.html">dv.listings</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">4.3.4</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">4.3.5</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -131,8 +131,23 @@
 <span><span class="fu">dv.manager</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/dv.manager/man/run_app.html" class="external-link">run_app</a></span><span class="op">(</span></span>
 <span>  data <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="st">"MyData"</span> <span class="op">=</span> <span class="va">data_list</span><span class="op">)</span>,</span>
 <span>  module_list <span class="op">=</span> <span class="va">module_list</span>,</span>
-<span>  filter_data <span class="op">=</span> <span class="st">"adsl"</span></span>
+<span>  filter_dataset_name <span class="op">=</span> <span class="st">"adsl"</span></span>
 <span><span class="op">)</span></span></code></pre></div>
+</div>
+<div class="section level2">
+<h2 id="configuration-of-optional-arguments">Configuration of Optional arguments<a class="anchor" aria-label="anchor" href="#configuration-of-optional-arguments"></a>
+</h2>
+<p>The behavior and appearance of the listings module can be adjusted through several optional arguments of <code>mod_listings</code>:</p>
+<ul>
+<li><p><code>default_vars</code>: <code>[list(character(1+)) | NULL]</code><br>
+Specifies default variables per dataset (named by <code>dataset_names</code>). If <code>NULL</code>, the first six variables are shown.</p></li>
+<li><p><code>footers</code>: <code>[list(character(1+)) | NULL]</code><br>
+Defines dataset-specific footer text shown below listings. Each vector element is displayed on a new line.</p></li>
+<li><p><code>pagination</code>: <code>[logical(1) | NULL]</code><br>
+Controls pagination. If <code>NULL</code>, it is automatically enabled for datasets with more than 1000 rows.</p></li>
+<li><p><code>intended_use_label</code>: <code>[character(1) | NULL]</code><br>
+Adds a label shown before download and included in exports. Useful for indicating context (e.g., <em>internal use only</em>), and complements the export functionality described below.</p></li>
+</ul>
 </div>
 <div class="section level2">
 <h2 id="export-functionality">Export functionality<a class="anchor" aria-label="anchor" href="#export-functionality"></a>

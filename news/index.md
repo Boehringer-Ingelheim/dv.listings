@@ -1,5 +1,25 @@
 # Changelog
 
+## dv.listings 4.3.5
+
+- New `exclude_var_names_from_column_headings` parameter allows simpler
+  headings
+- New `footers` parameter allows providing per-dataset footer text
+- Enforce Excel sheet name validity rules prior to export
+- Fix header and body offsetting when dv.manager’s sidebar
+  collapses/expands
+- Review functionality:
+  - Features:
+    - Allow expanding review choices
+    - Include review information in single listing exports, if available
+    - Expand revision count limit from 1000 to 10000 entries
+  - Bug fixes:
+    - Cope with initially empty datasets
+    - Guard against problematic characters in dataset names
+    - Remove column change highlighting from rows that have been
+      modified but restored afterwards
+    - Fix bug in column change highlight when known rows are removed
+
 ## dv.listings 4.3.4
 
 - Review functionality:

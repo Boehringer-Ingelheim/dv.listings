@@ -7,7 +7,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">dv.listings</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">4.3.4</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">4.3.5</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -39,6 +39,26 @@
       <small>Source: <a href="https://github.com/Boehringer-Ingelheim/dv.listings/blob/main/NEWS.md" class="external-link"><code>NEWS.md</code></a></small>
     </div>
 
+    <div class="section level2">
+<h2 class="pkg-version" data-toc-text="4.3.5" id="dvlistings-435">dv.listings 4.3.5<a class="anchor" aria-label="anchor" href="#dvlistings-435"></a></h2>
+<ul><li>New <code>exclude_var_names_from_column_headings</code> parameter allows simpler headings</li>
+<li>New <code>footers</code> parameter allows providing per-dataset footer text</li>
+<li>Enforce Excel sheet name validity rules prior to export</li>
+<li>Fix header and body offsetting when dv.manager’s sidebar collapses/expands</li>
+<li>Review functionality:
+<ul><li>Features:
+<ul><li>Allow expanding review choices</li>
+<li>Include review information in single listing exports, if available</li>
+<li>Expand revision count limit from 1000 to 10000 entries</li>
+</ul></li>
+<li>Bug fixes:
+<ul><li>Cope with initially empty datasets</li>
+<li>Guard against problematic characters in dataset names</li>
+<li>Remove column change highlighting from rows that have been modified but restored afterwards</li>
+<li>Fix bug in column change highlight when known rows are removed</li>
+</ul></li>
+</ul></li>
+</ul></div>
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="4.3.4" id="dvlistings-434">dv.listings 4.3.4<a class="anchor" aria-label="anchor" href="#dvlistings-434"></a></h2>
 <ul><li>Review functionality:

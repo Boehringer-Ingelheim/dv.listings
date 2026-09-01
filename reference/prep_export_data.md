@@ -9,7 +9,8 @@ prep_export_data(
   data_selection,
   current_data,
   data_selection_name,
-  dataset_list
+  dataset_list,
+  footers
 )
 ```
 
@@ -32,6 +33,11 @@ prep_export_data(
 - dataset_list:
 
   `[list(data.frame)]` A list of named datasets.
+
+- footers:
+
+  `[list(character(1+)) | NULL]` Pass-through argument from
+  `mod_listings` specifying per-dataset footer text.
 
 ## Value
 

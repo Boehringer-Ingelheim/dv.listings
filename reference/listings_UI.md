@@ -12,12 +12,14 @@ listings_server(
   module_id,
   dataset_list,
   default_vars = NULL,
+  footers = NULL,
   dataset_metadata,
   pagination = NULL,
   intended_use_label = NULL,
   subjid_var = "USUBJID",
   on_sbj_click = NULL,
-  review = NULL
+  review = NULL,
+  exclude_var_names_from_column_headings
 )
 ```
 
@@ -42,6 +44,13 @@ listings_server(
   displayed as default per dataset. Named according to the
   `dataset_names`. If `NULL`, the first six variables are displayed for
   each dataset.
+
+- footers:
+
+  `[list(characters(1+)) | NULL]` A list of character vectors that
+  specify per-dataset footer text. Names should match those provided
+  through `dataset_names`. Each element of the character vector will be
+  displayed on separate lines (see example).
 
 - dataset_metadata:
 
@@ -84,6 +93,13 @@ listings_server(
   instance of the listings module can use this feature on any given app.
   For more details, please refer to
   [`vignette("data_review")`](https://boehringer-ingelheim.github.io/dv.listings/articles/data_review.md).
+
+- exclude_var_names_from_column_headings:
+
+  `[logical(1)]`
+
+  Display only dataset variable labels for variables that have them
+  (e.g. turns "VAR_NAME \[Var Label\]" into "Var Label")
 
 ## Functions
 

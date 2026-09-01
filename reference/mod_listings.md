@@ -9,12 +9,14 @@ mod_listings(
   module_id,
   dataset_names,
   default_vars = NULL,
+  footers = NULL,
   pagination = NULL,
   intended_use_label =
     "Use only for internal review and monitoring during the conduct of clinical trials.",
   subjid_var = "USUBJID",
   receiver_id = NULL,
-  review = NULL
+  review = NULL,
+  exclude_var_names_from_column_headings = FALSE
 )
 ```
 
@@ -39,6 +41,13 @@ mod_listings(
   displayed as default per dataset. Named according to the
   `dataset_names`. If `NULL`, the first six variables are displayed for
   each dataset.
+
+- footers:
+
+  `[list(characters(1+)) | NULL]` A list of character vectors that
+  specify per-dataset footer text. Names should match those provided
+  through `dataset_names`. Each element of the character vector will be
+  displayed on separate lines (see example).
 
 - pagination:
 
@@ -75,6 +84,13 @@ mod_listings(
   For more details, please refer to
   [`vignette("data_review")`](https://boehringer-ingelheim.github.io/dv.listings/articles/data_review.md).
 
+- exclude_var_names_from_column_headings:
+
+  `[logical(1)]`
+
+  Display only dataset variable labels for variables that have them
+  (e.g. turns "VAR_NAME \[Var Label\]" into "Var Label")
+
 ## See also
 
 Other data_listings:
@@ -110,12 +126,19 @@ default_vars <- list(
   adae = c("STUDYID", "ASTDY", "AENDT", "AESER")
 )
 
+# Provide optional per-domain footers
+footers <- list(
+  adsl = c("First line", "Second line"), 
+  adae = c("<b>Bold HTML formatting</b>")
+)
+
 # 3. Module list
 module_list <- list(
   "Exemplary listings" = mod_listings(
     module_id = "mod1",
     dataset_names = c("adsl", "adae", "adtte"),
-    default_vars = default_vars
+    default_vars = default_vars,
+    footers = footers
   )
 )
 
@@ -123,7 +146,7 @@ module_list <- list(
 dv.manager::run_app(
   data = list("MyData" = data_list),
   module_list = module_list,
-  filter_data = "adsl"
+  filter_dataset_name = "adsl"
 )
 }
 ```

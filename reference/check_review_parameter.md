@@ -5,7 +5,7 @@ Early error feedback function for the optional review parameter
 ## Usage
 
 ``` r
-check_review_parameter(datasets, dataset_names, review, err)
+check_review_parameter(datasets, dataset_names, review, err, afmm = NULL)
 ```
 
 ## Arguments
@@ -34,3 +34,7 @@ check_review_parameter(datasets, dataset_names, review, err)
   `[environment]` This environment has at least one element named
   "messages". It is a character vector. Diagnostic messages related to
   the configuration of the review parameter will be placed here.
+
+- afmm:
+
+  Pass-through of the server afmm parameter.

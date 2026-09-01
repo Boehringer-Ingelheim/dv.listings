@@ -7,7 +7,7 @@ arguments.
 ## Usage
 
 ``` r
-set_up_datatable(dataset, pagination)
+set_up_datatable(dataset, pagination, exclude_var_names_from_column_headings)
 ```
 
 ## Arguments
@@ -25,6 +25,13 @@ set_up_datatable(dataset, pagination)
   Either a boolean indicating if pagination should be activated, or NULL
   for which pagination will be activated for large datasets (nrows
   \> 1000) automatically.
+
+- exclude_var_names_from_column_headings:
+
+  `[logical(1)]`
+
+  Use only dataset variable labels for variables that have them (output
+  "Var Label" instead of "VAR_NAME \[Var Label\]").
 
 ## Value
 
