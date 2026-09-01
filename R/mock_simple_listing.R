@@ -49,7 +49,7 @@ mock_simple_listing_mm <- function() {
         "mod_listing"
       )
     ),
-    filter_data = "mpg",
+    filter_dataset_name = "mpg",
     filter_key = "car"
   )
 }

@@ -44,7 +44,7 @@ local({
     expect_length(info[["IO_plan"]], 1)
     folder_op <- info[["IO_plan"]][[1]]
     expect_equal(folder_op[["kind"]], "write")
-    expect_equal(folder_op[["path"]], "dataset_list/ae_001.delta")
+    expect_equal(folder_op[["path"]], "dataset_list/ae_0001.delta")
     expect_equal(folder_op[["offset"]], 0L)
     
     delta <- RS_parse_delta(info[["IO_plan"]][[1]][["contents"]], length(tracked_vars))
@@ -53,14 +53,14 @@ local({
   })
   
   test_that("Review routines produce a descriptive error when asked to review an empty dataset" |>
-              vdoc[["add_spec"]](specs$review_reject_empty_dataset), {
+              vdoc[["add_spec"]](specs$review_accept_empty_dataset), {
     dataset_lists <- list(
       dataset_list = list(
         ae = head(safetyData::sdtm_ae, 0)
       )
     )
     info <- REV_load_annotation_info(folder_contents = NULL, review, dataset_lists)
-    expect_equal(info[["error"]], "Refusing to review 0-row dataset")
+    expect_length(info[["error"]], 0)
   })
   
   test_that("Review routines cope with 1-row datasets", {
@@ -136,6 +136,76 @@ local({
     fs_client[["execute_IO_plan"]](info[["IO_plan"]])
     expect_identical(fs_contents[["dataset_list/ae_roleA.review"]][[zero_based_version_byte_pos+1L]], as.raw(1L))
   })
+  
+  test_that("REV_load_annotation_info rejects all changes to `choices` except for pure append actions" |>
+              vdoc[["add_spec"]](specs$review_allow_extension_of_review_options), {
+    incorrect_review_config <- review
+    incorrect_review_config[["choices"]] <- head(incorrect_review_config[["choices"]], 1) # discard all but first choice
+    info <- REV_load_annotation_info(fs_contents, incorrect_review_config, dataset_lists)
+    expect_length(info[["error"]], 1)
+   
+    correct_review_config <- review
+    correct_review_config[["choices"]] <- c(correct_review_config[["choices"]], "extra review choice")
+    info <- REV_load_annotation_info(fs_contents, correct_review_config, dataset_lists)
+    expect_length(info[["error"]], 0)
+    expect_length(info[["IO_plan"]], 1)
+    action <- info[["IO_plan"]][[1]]
+    expect_true(
+      action[["kind"]] == 'write' && action[["path"]] == 'dataset_list/review.codes' && action[["offset"]] == -1L
+    )
+  })
+
+  test_that("Review feature prepends latest reviews into listing exports" |>
+              vdoc[["add_spec"]](specs$review_export_latest_reviews_if_available), {
+    dataset_list_name <- "dataset_list"
+    domain_name <- "ae"
+
+    data <- dataset_lists[[dataset_list_name]][[domain_name]]
+
+    plain_df <- list(data = data, col_names = names(data)) # not using var labels to keep it simple (not the point)
+   
+    annotation_info <- REV_load_annotation_info(fs_contents, review, dataset_lists)
+
+    review_info <- list(
+      state = list2env(
+        list(
+          contents_ready = function() TRUE,
+          annotation_info = annotation_info[["loaded_annotation_info"]]
+        )
+      ),
+      role = function() "roleA",
+      filter_mask = function() c(TRUE, TRUE)
+    )
+    
+    # Here we test the reactive wrapper function by faking reactive inputs with functions
+    # Could have tested only the internal non-reactive function instead. ¯\_(ツ)_/¯
+    extended_df <- REV_include_review_info_in_exported_data_if_available(
+      export_data = plain_df, 
+      review_info = review_info,
+      dataset_list_name = dataset_list_name,
+      domain_name = domain_name,
+      tracked_vars = tracked_vars
+    )
+  
+    # Discarding the first three columns, input and output are identical
+    first_three <- seq(3) 
+    expect_identical(plain_df$data, extended_df$data[-first_three])
+    expect_identical(plain_df$col_names, extended_df$col_names[-first_three])
+    
+    # And the first three columns are as follows
+    expected_review_cols <-  data.frame(
+      `__review__` = factor(c("choiceA", "choiceA"), levels = c("choiceA", "choiceB")),
+      `__role__`   = factor(c("", ""), levels = c("", "roleA", "roleB")),
+      `__status__` = factor(c("Pending", "Pending"), levels = c("Pending", "Latest Outdated", "Conflict", "Conflict I can fix", "OK")),
+      check.names = FALSE
+    )
+    attr(expected_review_cols[[1]], "label")  <- REV$LABEL$REVIEW_COLS[[1]]
+    attr(expected_review_cols[[2]], "label")  <- REV$LABEL$REVIEW_COLS[[2]]
+    attr(expected_review_cols[[3]], "label")  <- REV$LABEL$REVIEW_COLS[[3]]
+                     
+    expect_identical(extended_df$data[first_three], expected_review_cols)
+    expect_identical(extended_df$col_names[first_three], REV$LABEL$REVIEW_COLS[first_three])
+  })
 })
 
 local({
@@ -177,9 +247,11 @@ test_that("REV_compute_status preserves expected behavior", {
   data_timestamps <- c(0, 0, 0)
   
   res_levels <- c("Pending", "Latest Outdated", "Conflict", "Conflict I can fix", "OK")
- 
+
+  dummy_modified_row_mask <- rep(TRUE, length(data_timestamps)) 
+  
   # No reviews 
-  res <- REV_compute_status(dataset_review, role, latest_reviews_by_role, data_timestamps)
+  res <- REV_compute_status(dataset_review, role, latest_reviews_by_role, data_timestamps, dummy_modified_row_mask)
   expect_equal(res, factor(c("Pending", "Pending", "Pending"), levels = res_levels))
  
   # ROLE_1 reviews first row as "A" 
@@ -187,12 +259,12 @@ test_that("REV_compute_status preserves expected behavior", {
   dataset_review[["__role__"]][[1]] <- "ROLE_1"
   latest_reviews_by_role[["ROLE_1"]][["review"]][[1]]  <- "A"
   latest_reviews_by_role[["ROLE_1"]][["timestamp"]][[1]] <- 1
-  res <- REV_compute_status(dataset_review, role, latest_reviews_by_role, data_timestamps)
+  res <- REV_compute_status(dataset_review, role, latest_reviews_by_role, data_timestamps, dummy_modified_row_mask)
   expect_equal(res, factor(c("OK", "Pending", "Pending"), levels = res_levels))
  
   # Review becomes outdated 
   data_timestamps[[1]] <- 2
-  res <- REV_compute_status(dataset_review, role, latest_reviews_by_role, data_timestamps)
+  res <- REV_compute_status(dataset_review, role, latest_reviews_by_role, data_timestamps, dummy_modified_row_mask)
   expect_equal(res, factor(c("Latest Outdated", "Pending", "Pending"), levels = res_levels))
   
   # ROLE_2 reviews first row as "B"
@@ -200,22 +272,42 @@ test_that("REV_compute_status preserves expected behavior", {
   dataset_review[["__role__"]][[1]] <- "ROLE_2"
   latest_reviews_by_role[["ROLE_2"]][["review"]][[1]]  <- "A"
   latest_reviews_by_role[["ROLE_2"]][["timestamp"]][[1]] <- 3
-  res <- REV_compute_status(dataset_review, role, latest_reviews_by_role, data_timestamps)
+  res <- REV_compute_status(dataset_review, role, latest_reviews_by_role, data_timestamps, dummy_modified_row_mask)
   expect_equal(res, factor(c("Conflict", "Pending", "Pending"), levels = res_levels))
  
   # See status from the point of view of ROLE_1
   role <- "ROLE_1"
-  res <- REV_compute_status(dataset_review, role, latest_reviews_by_role, data_timestamps)
+  res <- REV_compute_status(dataset_review, role, latest_reviews_by_role, data_timestamps, dummy_modified_row_mask)
   expect_equal(res, factor(c("Conflict I can fix", "Pending", "Pending"), levels = res_levels))
  
   # See status from the point of view of ROLE_2 
   role <- "ROLE_2"
-  res <- REV_compute_status(dataset_review, role, latest_reviews_by_role, data_timestamps)
+  res <- REV_compute_status(dataset_review, role, latest_reviews_by_role, data_timestamps, dummy_modified_row_mask)
   expect_equal(res, factor(c("Conflict I can fix", "Pending", "Pending"), levels = res_levels))
  
   # See status from the point of view of ROLE_3 
   role <- "ROLE_3"
-  res <- REV_compute_status(dataset_review, role, latest_reviews_by_role, data_timestamps)
+  res <- REV_compute_status(dataset_review, role, latest_reviews_by_role, data_timestamps, dummy_modified_row_mask)
   expect_equal(res, factor(c("Conflict", "Pending", "Pending"), levels = res_levels))
+})
+
+test_that("check_review_parameter warns against problematic characters in dataset names", {
+  mock_afmm = list(data = list(`dataset_list/not_allowed` = NULL))
+  review <- list(
+    datasets = list("not/allowed" = list(id_vars = c("USUBJID", "AESEQ"), 
+                                         tracked_vars = c("TRACKED_1", "TRACKED_2", "TRACKED_3"))),
+    choices = c("choiceA", "choiceB"), roles = c("roleA", "roleB")
+  )
+  
+  err <- CM$container()
+  check_review_parameter(
+    datasets = list(), 
+    dataset_names = c("not/allowed"), 
+    review = review, 
+    err = err,
+    afmm = mock_afmm
+  )
+  
+  expect_true(any(grepl("Problematic_characters", err[["messages"]])))
 })
 

@@ -5,7 +5,7 @@
 \title{Internal helper function to set up colnames, rownames, and paging arguments for DT's datatable.
 Main purpose is to easily test returned arguments.}
 \usage{
-set_up_datatable(dataset, pagination)
+set_up_datatable(dataset, pagination, exclude_var_names_from_column_headings)
 }
 \arguments{
 \item{dataset}{\verb{[data.frame]}
@@ -16,6 +16,10 @@ Single data.frame}
 
 Either a boolean indicating if pagination should be activated, or
 NULL for which pagination will be activated for large datasets (nrows > 1000) automatically.}
+
+\item{exclude_var_names_from_column_headings}{\verb{[logical(1)]}
+
+Use only dataset variable labels for variables that have them (output "Var Label" instead of "VAR_NAME [Var Label]").}
 }
 \value{
 List containing character vectors for column names and row names and

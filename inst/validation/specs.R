@@ -8,6 +8,7 @@ listing <- specs_list(
   "listings_label" = "dv.listings displays the label of a dataset if available. The label is concatenated to the dataset name and the resulting strings are provided as choices in the module's dropdown menu.",
   "column_selection" = "dv.listings includes a dropdown menu to select the columns from the selected listing to be shown and arrange their order.",
   "column_label" = "dv.listings displays extended column headers consisting of the variable name pasted together with its label, if available. These extended column headers replace the original variable names in the column dropdown menu.",
+  "simplified_column_label" = "dv.listings can selectively hide the name of dataset variables when they are labeled.",
   "sorting_columns" = "dv.listings includes sorting functionality for each of the column.",
   "searching" = "dv.listings includes a search box.",
   "restore_row_order" = "dv.listings includes a button to restore the row order of a listing to the state as it is in the original data.",
@@ -24,14 +25,16 @@ export <- specs_list(
   "export" = "dv.listings includes a button to export the listing(s). A click to the button envokes a pop-up to appear that allows the user to decide whether the download should only contain the displayed listing or all available listings, provide a file name (defaulted to the dataset name), and select from available file types.",
   "export_active_listing" = "For downloading only the currently active listing, the listing will be saved as it is displayed, either in .xlsx or .pdf format. In case filters were applied, the downloaded output will only contain the filtered data.",
   "export_excel" = "For downloading all listings, the tables can be saved in .xlsx format only without considering local filters. Each listing will be placed in an individual worksheet within the file.",
-  "export_pdf" = "For downloading in .pdf format, users can select one or multiple reference column(s), which will be displayed on all document pages."
+  "export_valid_excel_sheet_names" = "Export modifies dataframe labels to accomodate excel sheet name restrictions",
+  "export_pdf" = "For downloading in .pdf format, users can select one or multiple reference column(s), which will be displayed on all document pages.",
+  "export_footers" = "If footnotes are specified, they will be included at the end of PDF listings and under each excel page"
 )
 review <- specs_list(
   review = "dv.listings offers data review functionality"
   , review_per_row = "review feature offers per-row reviews"
   , review_per_role = "review feature offers per-role reviews"
   , review_delta_detection = "review feature detects changes in tracked variables across dataset updates"
-  , review_reject_empty_dataset = "review feature refuses to review empty datasets"
+  , review_accept_empty_dataset = "review feature copes with empty datasets"
   , review_hash_no_false_negatives = "review hash function catches all cell changes up to four changes per row"
   , review_change_attribution = "review hash function changes can be attributed to specific modified cells"
   , review_reject_removal_of_rows_by_default = "review feature flags the removal of previously known rows"
@@ -39,6 +42,8 @@ review <- specs_list(
   , review_reject_storage_subfolders = "review feature rejects selection of child storage subfolders"
   , review_reject_conflicting_connect_app_storage = "review feature rejects selection of storage folder initially created by a different Posit Connect app"
   , review_undo = "review feature allows per-role undoing of latest reviews"
+  , review_allow_extension_of_review_options = "review feature allows the extension of review options in ongoing trials"
+  , review_export_latest_reviews_if_available = "review feature prepends latest reviews into listing exports"
 )
 # nolint end line_length_linter
 

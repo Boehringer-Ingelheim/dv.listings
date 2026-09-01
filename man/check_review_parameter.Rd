@@ -4,7 +4,7 @@
 \alias{check_review_parameter}
 \title{Early error feedback function for the optional review parameter}
 \usage{
-check_review_parameter(datasets, dataset_names, review, err)
+check_review_parameter(datasets, dataset_names, review, err, afmm = NULL)
 }
 \arguments{
 \item{datasets}{\verb{[list(data.frame)]}
@@ -22,6 +22,8 @@ Configuration of the experimental data review feature. Please refer to \code{vig
 \item{err}{\verb{[environment]}
 This environment has at least one element named "messages". It is a character vector. Diagnostic messages related to
 the configuration of the review parameter will be placed here.}
+
+\item{afmm}{Pass-through of the server afmm parameter.}
 }
 \description{
 Early error feedback function for the optional review parameter

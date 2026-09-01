@@ -8,6 +8,7 @@ TBL <- pack_of_constants( # nolint
   DRPDBUTTON_WIDTH = "300px",
   DRPDBUTTON_LABEL = "Click to see inputs",
   TABLE_ID = "listing",
+  FOOTER_ID = "footer",
   NO_COL_MSG = "Please select at least one column.",
   EXPORT_ID = "export",
   RESET_FILT_BUTTON_ID = "reset_filt_btn",
@@ -38,7 +39,7 @@ TBL <- pack_of_constants( # nolint
 #'
 #' @export
 #' @family data_listings
-listings_UI <- function(module_id) { # nolint
+listings_UI <- function(module_id) {
   
   # Check validity of arguments
   checkmate::assert_string(module_id, min.chars = 1)
@@ -50,7 +51,8 @@ listings_UI <- function(module_id) { # nolint
   
   shiny::tagList(
     add_dv_listings_dependency(),
-    highlight_review_cols,    
+    highlight_review_cols,
+    htmltools::div(style = "display: flex; flex-direction:column; height: 100%",
     shiny::div(
       style = "display: flex; gap: 10px; align-items: baseline",
       shinyWidgets::dropdownButton(
@@ -140,7 +142,12 @@ listings_UI <- function(module_id) { # nolint
         )
       ),
     ),
-    DT::dataTableOutput(ns(TBL$TABLE_ID), height = "87vh"),
+    shiny::div(
+      style = "flex-grow:1; min-height: 0; display: flex; flex-direction: column;",
+      DT::dataTableOutput(ns(TBL$TABLE_ID), height = "100%"),
+    ),
+    shiny::uiOutput(ns(TBL$FOOTER_ID)),
+    ),
     shiny::tags[["script"]](shiny::HTML(sprintf("
     $('#%s').on('init.dt', function(e, settings) {    
       const table_container_id = '%s';
@@ -150,8 +157,39 @@ listings_UI <- function(module_id) { # nolint
       // Make column filters scroll horizontally along the rest of the table rows
       const fixed_headers = table.querySelectorAll('thead tr')[0]?.querySelectorAll('th.dtfc-fixed-left');
       const filters = table.querySelectorAll('thead tr')[1]?.querySelectorAll('td');
+      
+      /* Trigger a table width relayout when the container changes width
+         This is necessary to cope with dv.manager sidebar collapse when the table displays
+         no horizontal scrollbars (see task #364839) */
+      const outer_table = document.querySelector('#' + table_container_id);
+      const table_object = $('#' + table_container_id).find('table').DataTable();
+      let resizeTimer;
+      const timeout_ms = 300;
+      const resizeObserver = new ResizeObserver(() => {
+        clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(() => {
+          // temporarily remove hardcoded horizontal position of fixed column filter controls
+          for(let idx = 0; idx < fixed_headers.length; ++idx){
+            const td = filters[idx];
+            if (td) td.style.left = '';
+          }
+          
+          table_object.columns.adjust(); // let DataTables do its magic
+          
+          // reimpose position of fixed column filter controls
+          for(let idx = 0; idx < fixed_headers.length; ++idx){
+            const th = fixed_headers[idx];
+            const td = filters[idx];
+            if (td){
+              const computed_style = window.getComputedStyle(th);
+              const left = computed_style.left;
+              td.style.left = left;
+            }
+          }
+        }, timeout_ms);
+      });
+      resizeObserver.observe(outer_table);
   
-      if (!fixed_headers || !filters) return;
       for(let idx = 0; idx < fixed_headers.length; ++idx){
         const th = fixed_headers[idx];
         const td = filters[idx];
@@ -193,6 +231,12 @@ listings_UI <- function(module_id) { # nolint
 #' A list of character vectors which contain the variable names to be displayed as default per
 #'   dataset. Named according to the \code{dataset_names}. If `NULL`, the first six variables are displayed for each
 #'   dataset.
+#'   
+#' @param footers `[list(characters(1+)) | NULL]`
+#' A list of character vectors that specify per-dataset footer text.
+#' Names should match those provided through \code{dataset_names}.
+#' Each element of the character vector will be displayed on separate lines (see example).
+#'   
 #' @param dataset_metadata `[list(character(1), character(1+))]` A list with the following two elements:
 #' \code{dataset_metadata$name()} containing a reactive string specifying the name of the selected
 #' dataset and \code{dataset_metadata$date_range()} containing a reactive character vector with two entries
@@ -218,17 +262,23 @@ listings_UI <- function(module_id) { # nolint
 #' Configuration of the experimental data review feature. 
 #' Only one instance of the listings module can use this feature on any given app.
 #' For more details, please refer to `vignette("data_review")`.
+#' 
+#' @param exclude_var_names_from_column_headings `[logical(1)]`
+#'
+#' Display only dataset variable labels for variables that have them (e.g. turns "VAR_NAME \[Var Label]" into "Var Label")
 #'
 #' @export
 listings_server <- function(module_id,
                             dataset_list,
                             default_vars = NULL,
+                            footers = NULL,
                             dataset_metadata,
                             pagination = NULL,
                             intended_use_label = NULL,
                             subjid_var = "USUBJID",
                             on_sbj_click = NULL,
-                            review = NULL) {
+                            review = NULL,
+                            exclude_var_names_from_column_headings) {
   checkmate::assert(
     checkmate::check_character(module_id, min.chars = 1),
     checkmate::check_multi_class(dataset_list, c("reactive", "shinymeta_reactive")),
@@ -240,6 +290,7 @@ listings_server <- function(module_id,
     checkmate::check_string(intended_use_label, null.ok = TRUE),
     checkmate::check_function(on_sbj_click, null.ok = TRUE),
     checkmate::check_list(review, null.ok = TRUE),
+    checkmate::check_logical(exclude_var_names_from_column_headings, len = 1),
     combine = "and"
   )
   if (!is.null(default_vars)) {
@@ -393,16 +444,6 @@ listings_server <- function(module_id,
 
     # Bookmarking (end)
     
-    mod_export_listings_server(
-      module_id = TBL$EXPORT_ID,
-      dataset_metadata = dataset_metadata,
-      dataset_list = v_dataset_list,
-      data = shiny::reactive(set_data(listings_data(), r_selected_columns_in_dataset()[[input[[TBL$DATASET_ID]]]])),
-      data_selection_name = shiny::reactive(input[[TBL$DATASET_ID]]),
-      current_rows = shiny::reactive(input[[paste0(TBL$TABLE_ID, "_rows_all")]]),
-      intended_use_label = intended_use_label
-    )
-    
     # Proxy reference to dataTable
     dt_proxy <- DT::dataTableProxy(TBL$TABLE_ID)
     shiny::observeEvent(input[[TBL$RESET_FILT_BUTTON_ID]], DT::clearSearch(dt_proxy))
@@ -450,11 +491,11 @@ listings_server <- function(module_id,
 
       shiny::outputOptions(output, TBL$REVIEW_UI_ID, suspendWhenHidden = FALSE)
 
-      REV_main_logic(ns, REV_state, input, review, review[["data"]], fs_client)
+      REV_loader_state_machine(ns, REV_state, input, review, review[["data"]], fs_client)
       show_review_columns <- REV_state[["contents_ready"]]
     }
 
-    js_generate_review_column_contents <- shiny::reactive({
+    js_generate_review_column_contents <- shiny::reactive({ # TODO? Move under review conditional
       js_render_call <- c("dv_listings.render_identity")
       render_status_js_call <- c("dv_listings.render_identity")
 
@@ -479,6 +520,23 @@ listings_server <- function(module_id,
       return(res)
     }) |> trigger_only_on_change()
     
+    mod_export_listings_server(
+      module_id = TBL$EXPORT_ID,
+      dataset_metadata = dataset_metadata,
+      dataset_list = v_dataset_list,
+      data = shiny::reactive(set_data(listings_data(), r_selected_columns_in_dataset()[[input[[TBL$DATASET_ID]]]])),
+      data_selection_name = shiny::reactive(input[[TBL$DATASET_ID]]),
+      current_rows = shiny::reactive(input[[paste0(TBL$TABLE_ID, "_rows_all")]]),
+      intended_use_label = intended_use_label,
+      footers = footers,
+      review_info = list(
+        state = REV_state,
+        role = shiny::reactive(input[[REV$ID$ROLE]]),
+        filter_mask = shiny::reactive(attr(output_table_data()[["data"]], "filter_mask")),
+        review = review
+      )
+    )
+    
     output_table_data <- shiny::reactive({
       shiny::validate(                        # TODO: Explain why these are necessary
         shiny::need(
@@ -493,12 +551,15 @@ listings_server <- function(module_id,
       
       # drop factor levels to ensure column filter of DT don't show non-existing levels
       shiny::req(!is.null(dataset))
+      
+      # FIXME: This piece of code is misleading. It seems to save and restore labels around the `droplevels` call,
+      #        but `get_labels` introduces a dummy "No Label" for unlabeled columns (see #phahfo)
       labels <- get_labels(dataset)
       data <- droplevels(dataset)
       data <- set_labels(data, labels)
       
-      set_up <- set_up_datatable(dataset = data, pagination = pagination)
-      
+      set_up <- set_up_datatable(dataset = dataset, pagination = pagination, 
+                                 exclude_var_names_from_column_headings = exclude_var_names_from_column_headings)
       if (testing) {
         col_names <- set_up[["col_names"]]
         shiny::exportTestValues(output_table = data, column_names = col_names)
@@ -511,7 +572,7 @@ listings_server <- function(module_id,
       }
      
       # NOTE: Pass the reconstructed `filter_mask` as an attribute of `data` itself to ensure they're synchronized
-      # TODO: Take the filter_mask from dv.manager 3.x.x instead
+      # TODO: Take the filter_mask from dv.manager 3.1.x instead
       if (enable_review) {
         attr(data, "filter_mask") <- local({
           selected_dataset_list_name <- review[["selected_dataset"]]()
@@ -555,6 +616,7 @@ listings_server <- function(module_id,
       table_data <- output_table_data()
       
       column_defs <- list(list(className = "dt-center", targets = "_all"))
+      fixed_column_count <- 0L
       selected_dataset_name <- shiny::isolate(input[[TBL$DATASET_ID]])
       
       selected_dataset_label <- attr(shiny::isolate(dataset_list())[[selected_dataset_name]], "label")
@@ -565,7 +627,6 @@ listings_server <- function(module_id,
         "$('#' + settings.sTableId + '_wrapper').find('.top-title').append('<h4>%s</h4>');", selected_dataset_label 
       )
       
-      review_col_count <- 0L
       if (show_review_columns() && selected_dataset_name %in% names(review$datasets)) {
         js_render_call <- js_generate_review_column_contents()[["js_render_call"]]
         render_status_js_call <- js_generate_review_column_contents()[["render_status_js_call"]]
@@ -573,46 +634,16 @@ listings_server <- function(module_id,
 
         # patch table data
         selected_dataset_list_name <- shiny::isolate(review[["selected_dataset"]]())
-
-        # NOTE: Partially repeats #weilae 
-        annotation_info <- REV_state[["annotation_info"]][[selected_dataset_list_name]][[selected_dataset_name]]
         
-        filter_mask <- attr(table_data[["data"]], "filter_mask")
-        if (!all(filter_mask)) { # subset `annotation_info` to match data filter
-          annotation_info <- REV_filter_annotation_info(annotation_info, filter_mask)
-        } 
-        
-        changes <- REV_include_review_info(
-          annotation_info = annotation_info,
-          data = table_data[["data"]],
-          col_names = table_data[["col_names"]]
-        )
-        shiny::validate(shiny::need(!inherits(changes, "simpleCondition"), changes[["message"]]))
-        
-        changes[["data"]][[REV$ID$STATUS_COL]] <- REV_compute_status(
-          dataset_review = changes[["data"]], 
-          role = role, 
-          latest_reviews_by_role = attr(annotation_info, "latest_reviews"), 
-          data_timestamps = annotation_info[["data_timestamps"]]
-        )
-        
-        changes[["data"]][[REV$ID$LATEST_REVIEW_COL]] <- REV_review_var_to_json(
-          latest_reviews = attr(annotation_info, "latest_reviews"), 
-          data_timestamps = annotation_info[["data_timestamps"]]
-        )
-        changes[["data"]] <- relocate_column(changes[["data"]], REV$ID$LATEST_REVIEW_COL, 4L)
-        
-        review_col_count <- ncol(changes[["data"]]) - ncol(table_data[["data"]])
-        table_data[["data"]] <- changes[["data"]]
-        table_data[["col_names"]] <- changes[["col_names"]]
-        
-        table_data <- REV_include_highlight_info(
-          table_data, annotation_info, 
+        table_data <- REV_include_review_interface(
+          table_data = table_data,
+          annotation_info = REV_state[["annotation_info"]][[selected_dataset_list_name]][[selected_dataset_name]],
+          role = role,
           tracked_vars = review[["datasets"]][[selected_dataset_name]][["tracked_vars"]]
         )
         
         # patch table style
-        review_column_indices <- seq_len(review_col_count)
+        review_column_indices <- seq_along(REV$LABEL$REVIEW_COLS)
         highlight_column_indices <- which(endsWith(table_data[["col_names"]], REV$ID$HIGHLIGHT_SUFFIX))
         
         column_defs <- append(
@@ -627,6 +658,8 @@ listings_server <- function(module_id,
                  targets = c(review_column_indices[[4]], highlight_column_indices))
           )
         )
+
+        fixed_column_count <- length(review_column_indices) # fix left-most columns
 
         if (checkmate::test_string(input[[REV$ID$ROLE]], min.chars = 1)) {
           fs_contents <- fs_client[["state"]][["contents"]]
@@ -662,8 +695,8 @@ listings_server <- function(module_id,
           ordering = TRUE,
           columnDefs = column_defs,
           # TODO: Update to use new recommended API: https://datatables.net/reference/option/layout
-          dom = "<'top'<'top-title'>>rtilp", # Buttons, filtering, processing display element, table, information summary, length, pagination
-          fixedColumns = list(left = review_col_count),
+          dom = "<'top'<'top-title'>>rt<'controls-row'l<'spacer'>i<'spacer'>p>", # Buttons, filtering, processing display element, table, information summary, length, pagination
+          fixedColumns = list(left = fixed_column_count),
           colResize = list(),
           processing = TRUE,
           initComplete = htmlwidgets::JS(init_complete_js),
@@ -728,6 +761,13 @@ listings_server <- function(module_id,
       }
       
       return(res)
+    })
+
+    output[[TBL$FOOTER_ID]] <- shiny::renderUI({
+      dataset_name <- input[[TBL$DATASET_ID]]
+      shiny::req(dataset_name)
+      footer <- footers[[dataset_name]]
+      htmltools::HTML(sprintf("<p>%s</p>", paste0(footer, collapse = "<br>")))
     })
     
     shiny::exportTestValues(
@@ -799,13 +839,20 @@ listings_server <- function(module_id,
 #'   adsl = c("STUDYID", "USUBJID", "SITEID", "ARM"),
 #'   adae = c("STUDYID", "ASTDY", "AENDT", "AESER")
 #' )
+#' 
+#' # Provide optional per-domain footers
+#' footers <- list(
+#'   adsl = c("First line", "Second line"), 
+#'   adae = c("<b>Bold HTML formatting</b>")
+#' )
 #'
 #' # 3. Module list
 #' module_list <- list(
 #'   "Exemplary listings" = mod_listings(
 #'     module_id = "mod1",
 #'     dataset_names = c("adsl", "adae", "adtte"),
-#'     default_vars = default_vars
+#'     default_vars = default_vars,
+#'     footers = footers
 #'   )
 #' )
 #'
@@ -813,17 +860,19 @@ listings_server <- function(module_id,
 #' dv.manager::run_app(
 #'   data = list("MyData" = data_list),
 #'   module_list = module_list,
-#'   filter_data = "adsl"
+#'   filter_dataset_name = "adsl"
 #' )
 mod_listings <- function(
     module_id,
     dataset_names,
     default_vars = NULL,
+    footers = NULL,
     pagination = NULL,
     intended_use_label = "Use only for internal review and monitoring during the conduct of clinical trials.",
     subjid_var = "USUBJID",
     receiver_id = NULL,
-    review = NULL) {
+    review = NULL,
+    exclude_var_names_from_column_headings = FALSE) {
   # Check validity of parameters
   checkmate::assert_character(dataset_names)
   
@@ -832,7 +881,7 @@ mod_listings <- function(
       listings_UI(module_id = module_id)
     },
     server = function(afmm) {
-      dataset_list <- shiny::reactive(afmm$filtered_dataset()[dataset_names])
+      dataset_list <- shiny::reactive(afmm$filtered_dataset_list()[dataset_names])
       
       on_sbj_click_fun <- NULL
       if (!is.null(receiver_id)) {
@@ -841,8 +890,10 @@ mod_listings <- function(
       
       if (is.list(review)) {
         # These afmm fields are only required for the review functionality, so we bundle them in the `review` list
-        review[["data"]] <- afmm[["data"]]
-        review[["selected_dataset"]] <- afmm[["dataset_metadata"]][["name"]]
+        review[["data"]] <- lapply(afmm[["data"]], function(e) if (is.function(e)) e() else e)
+        review[["selected_dataset"]] <- shiny::reactive(
+          attr(afmm[["unfiltered_dataset_list_with_filter_info"]]()[["unfiltered_dataset_list"]], "dataset_list_name")
+        )
         
         # Prevent and warn against multiple `dv.listings` instances with active review functionality.
         #
@@ -874,16 +925,36 @@ mod_listings <- function(
       listings_server(
         dataset_list = dataset_list,
         default_vars = default_vars,
-        dataset_metadata = afmm$dataset_metadata,
+        footers = footers,
+        dataset_metadata = list(
+          name = shiny::reactive(
+            attr(
+              afmm[["unfiltered_dataset_list_with_filter_info"]]()[["unfiltered_dataset_list"]], "dataset_list_name"
+            )
+          ),
+          date_range = shiny::reactive(
+            attr(
+              afmm[["unfiltered_dataset_list_with_filter_info"]]()[["unfiltered_dataset_list"]], "date_range"
+            )
+          )
+        ),
         pagination = pagination,
         module_id = module_id,
         intended_use_label = intended_use_label,
         subjid_var = subjid_var,
         on_sbj_click = on_sbj_click_fun,
-        review = review
+        review = review,
+        exclude_var_names_from_column_headings = exclude_var_names_from_column_headings
       )
     },
-    module_id = module_id
+    module_id = module_id,
+    meta = list(
+      dataset_info = list(all = unique(dataset_names), subject_level = character(0)),
+      check_mod_fn = function(afmm, dataset) {
+        check_mod_listings(afmm, dataset, module_id, dataset_names, default_vars, footers, pagination, 
+                           intended_use_label, subjid_var, receiver_id, review, exclude_var_names_from_column_headings)
+      }
+    )
   )
   return(mod)
 }
@@ -895,6 +966,7 @@ mod_listings_API_docs <- list(
   module_id = "",
   dataset_names = list(""),
   default_vars = list(""),
+  footers = list(""),
   pagination = list(""),
   intended_use_label = list(""),
   subjid_var = list(""), 
@@ -905,15 +977,17 @@ mod_listings_API_docs <- list(
     choices = list(""),
     roles = list(""),
     store_path = list("")
-  )
+  ),
+  exclude_var_names_from_column_headings = list("")
 )
 
 mod_listings_API_spec <- TC$group(
   module_id = TC$mod_ID(),
   dataset_names = TC$dataset_name() |> TC$flag("one_or_more"),
   default_vars = TC$group() |> TC$flag("manual_check"),                         # manually tested by check_mod_listings
+  footers = TC$group() |> TC$flag("manual_check"),                              # manually tested by check_mod_listings
   pagination = TC$logical() |> TC$flag("manual_check", "optional"),             # manually tested by check_mod_listings
-  intended_use_label = TC$character() |> TC$flag("manual_check", "optional"),   # manually tested by check_mod_listings
+  intended_use_label = TC$character() |> TC$flag("optional"),
   subjid_var = TC$character() |> TC$flag("manual_check"),                       # manually tested by check_mod_listings
   receiver_id = TC$character() |> TC$flag("manual_check"),                      # manually tested by check_mod_listings
   review = TC$group(
@@ -921,23 +995,19 @@ mod_listings_API_spec <- TC$group(
     choices = TC$character() |> TC$flag("one_or_more"),
     roles = TC$character() |> TC$flag("one_or_more"),
     store_path = TC$character() |> TC$flag("optional")
-  ) |> TC$flag("manual_check", "optional")
+  ) |> TC$flag("manual_check", "optional"),                                     # see `check_review_parameter`
+  exclude_var_names_from_column_headings = TC$logical()
 ) |> TC$attach_docs(mod_listings_API_docs)
 
-dataset_info_listings <- function(dataset_names, ...) {
-  return(list(all = unique(dataset_names), subject_level = character(0)))
-}
-
 check_mod_listings <- function(afmm, datasets, module_id, dataset_names, 
-                               default_vars, pagination, intended_use_label,
-                               subjid_var, receiver_id, review) {
-  warn <- CM$container()
+                               default_vars, footers, pagination, intended_use_label,
+                               subjid_var, receiver_id, review, exclude_var_names_from_column_headings) {
   err <- CM$container()
   
   ok <- check_mod_listings_auto(
     afmm, datasets,
-    module_id, dataset_names, default_vars, pagination, intended_use_label,
-    subjid_var, receiver_id, review, warn, err
+    module_id, dataset_names, default_vars, footers, pagination, intended_use_label,
+    subjid_var, receiver_id, review, exclude_var_names_from_column_headings, err
   )
   
   # default_vars 
@@ -959,6 +1029,16 @@ check_mod_listings <- function(afmm, datasets, module_id, dataset_names,
         )
       }
     }
+  }
+
+  # footers
+  if (ok[["dataset_names"]] && !is.null(footers)) {
+    CM$assert(
+      container = err,
+      cond = (checkmate::test_list(footers, types = "character", names = "unique") &&
+              checkmate::test_subset(names(footers), dataset_names)),
+      msg = "`footers` should be a named list, whose names are unique references to elements of `dataset_names`."
+    )
   }
   
   # pagination
@@ -994,12 +1074,8 @@ check_mod_listings <- function(afmm, datasets, module_id, dataset_names,
     )
   )
 
-  check_review_parameter(datasets, dataset_names, review, err)
+  check_review_parameter(datasets, dataset_names, review, err, afmm)
   
-  res <- list(warnings = warn[["messages"]], errors = err[["messages"]])
+  res <- err[["messages"]]
   return(res)
 }
-
-mod_listings <- CM$module(
-  mod_listings, check_mod_listings, dataset_info_listings
-)

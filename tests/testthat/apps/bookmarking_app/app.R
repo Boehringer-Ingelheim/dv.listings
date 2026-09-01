@@ -32,7 +32,8 @@ test_server <- function(input, output, session) {
       name = shiny::reactive("test_name"),
       date_range = shiny::reactive(c("2022-01-01", "2022-12-03"))
     ),
-    intended_use_label = NULL
+    intended_use_label = NULL,
+    exclude_var_names_from_column_headings = FALSE
   )
 
   exported_url <- shiny::reactiveVal(NULL)

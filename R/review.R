@@ -57,62 +57,20 @@ REV_time_from_timestamp <- function(v) {
   return(res)
 }
 
-REV_filter_annotation_info <- function(info, mask) {
-  res <- info 
-
-  # filter data rows
-  res <- res[mask, ]
-
-  # filter latest_reviews
-  latest_reviews <- attr(res, "latest_reviews")
-  for (i in seq_along(latest_reviews)){ 
-    latest_reviews[[i]][["review"]] <- latest_reviews[[i]][["review"]][mask]
-    latest_reviews[[i]][["timestamp"]] <- latest_reviews[[i]][["timestamp"]][mask]
-  }
-  attr(res, "latest_reviews") <- latest_reviews
-
-  # filter revisions 
-  revisions <- attr(res, "revisions")
-  tracked_hashes <- revisions[["tracked_hashes"]]
-  for (i in seq_along(tracked_hashes)){
-    h <- tracked_hashes[[i]]
-    h <- h[, mask, drop = FALSE]
-    tracked_hashes[[i]] <- h
-  }
-  revisions[["tracked_hashes"]] <- tracked_hashes
-  attr(res, "revisions") <- revisions
-
-  return(res)
-}
-
 # Prepends review columns to those of the `data` table
 # Prepends review column names to `col_names`
-REV_include_review_info <- function(annotation_info, data, col_names) {
-  if (nrow(data) != nrow(annotation_info)) 
-    return(
-      simpleCondition("Internal error in `REV_include_review_info`: Annotation info should have the same number of rows as the data listing.")
-    )
-  
+REV_compute_main_review_columns <- function(annotation_info) {
   reviews <- annotation_info[["review"]]
   roles <- annotation_info[["role"]]
   status <- NA_character_
   
   # include review-related columns
   res <- data.frame(reviews, roles) # FIXME: (maybe) Can't pass latest review as argument. List confuses data.frame
-  res[["status"]] <- rep(status, nrow(data)) # Explicit `rep` avoids assignment error when `nrow(data) == 0`
+  res[["status"]] <- rep(status, nrow(res)) # Explicit `rep` avoids assignment error when `nrow(res) == 0`
   names(res)[[1]] <- REV$ID$REVIEW_COL
   names(res)[[2]] <- REV$ID$ROLE_COL
   names(res)[[3]] <- REV$ID$STATUS_COL
-  res_col_names <- c(REV$LABEL$REVIEW_COLS)
- 
-  # append actual data columns
-  res <- cbind(res, data)
-  res_col_names <- c(res_col_names, col_names)
- 
-  attributes_to_restore <- setdiff(ls(attributes(data)), c("class", "names"))
-  for (e in attributes_to_restore) attr(res, e) <- attr(data, e)
-
-  return(list(data = res, col_names = res_col_names))
+  return(res)
 }
 
 # Append columns named "__<NAME_OF_COLUMN>_highlight__" for each of the tracked columns, indicating
@@ -122,10 +80,9 @@ REV_include_review_info <- function(annotation_info, data, col_names) {
 # > 2  2         4         7        14                   FALSE                   FALSE 
 # > 3  3         6         9        21                   FALSE                   FALSE 
 # Row 1 of the TRACKED_1 column has been altered after review.
-REV_include_highlight_info <- function(table_data, annotation_info, tracked_vars) {
-  data <- table_data[["data"]]
+REV_compute_highlight_info <- function(annotation_info, tracked_vars, status) {
   # Compute dataset changes that make current reviews obsolete
-  row_col_changes_st <- local({
+  row_col_changes <- local({
     revisions <- attr(annotation_info, "revisions")
     h0 <- REV_collect_latest_review_hashes(
       revisions = revisions, 
@@ -143,22 +100,33 @@ REV_include_highlight_info <- function(table_data, annotation_info, tracked_vars
   })
   
   highlight_col_names <- paste0("__", sort(tracked_vars), REV$ID$HIGHLIGHT_SUFFIX)
-  table_data[["col_names"]] <- c(table_data[["col_names"]], highlight_col_names)
-  row_count <- nrow(data)
+  row_count <- nrow(annotation_info)
+  data <- data.frame(matrix(nrow = row_count, ncol = 0))
   for (col_name in highlight_col_names) 
     data[[col_name]] <- rep(FALSE, row_count) # Explicit `rep` avoids assignment error when `nrow(data) == 0`
  
-  map_canonical_indices_into_current_order <- attr(annotation_info, "map_canonical_indices_into_current_order")
-  for (row_cols_st in row_col_changes_st){
-    i_row_df <- map_canonical_indices_into_current_order(row_cols_st[["row"]])
-    if (i_row_df > 0 && data[[REV$ID$STATUS_COL]][[i_row_df]] == REV$STATUS_LEVELS$LATEST_OUTDATED) {
-      col_names <- highlight_col_names[row_cols_st[["cols"]]]
-      data[i_row_df, col_names] <- TRUE
+  for (row_cols in row_col_changes){
+    row_i <- row_cols[["row"]]
+    if (status[[row_i]] == REV$STATUS_LEVELS$OK) {
+      stop(sprintf("Detected inconsistency in outdated column highlight calculation (row %d)", row_i))
     }
+   
+    # TODO? Here we could try highlighting all states other than PENDING and OK, to provide more information based
+    #       on the latest review of the current role. So even in the case of a review conflict, the current role would
+    #       see what has changed since their last review
+    if (status[[row_i]] == REV$STATUS_LEVELS$LATEST_OUTDATED) {
+      col_names <- highlight_col_names[row_cols[["cols"]]]
+      data[row_i, col_names] <- TRUE
+    }
+    # FIXME: There is still space for inconsistency between rows tagged as outdated and column highlights.
+    #       - Review a row
+    #       - Data refresh changes that row
+    #       - Second data refresh reverts the change to that row
+    #       Outdated row tagging relies on timestamps, so it will flag a change
+    #       Highlighting will see no differences in hashes and thus highlight no columns
   }
-  table_data[["data"]] <- data
   
-  return(table_data)
+  return(data)
 }
 
 REV_UI <- function(ns, roles) {
@@ -181,6 +149,8 @@ REV_UI <- function(ns, roles) {
 REV_load_annotation_info <- function(folder_contents, review, dataset_lists) {
   loaded_annotation_info <- list()
 
+  # IMPORTANT: The structure returned by this function is patched in response user actions (see #aimowa)
+  #            If this structure changes, those pieces of code will need some work
   error <- character()
 
   IO_plan <- list()
@@ -198,16 +168,38 @@ REV_load_annotation_info <- function(folder_contents, review, dataset_lists) {
       contents <- folder_contents[[file_path]]
       review_info <- RS_parse_review_codes(contents)
       if (!identical(review_info, review[["choices"]])) {
-        error <- c(
-          error, 
-          paste0(
-            "Review choices should remain stable during the course of a trial.\n",
-            "The original review choices are: ", paste(sprintf('"%s"', review_info), collapse = ", "), ".\n",
-            "This restriction is likely to be lifted in a future revision of the review feature."
+        # See if the new reviews can be appended cleanly to the old ones
+        new_contents <- RS_compute_review_codes_memory(review[["choices"]])
+        new_review_options_extend_old_ones <- (length(contents) < length(new_contents) && 
+                                                 identical(contents, new_contents[seq_along(contents)]))
+        if (new_review_options_extend_old_ones) {
+          epilogue <- new_contents[(length(contents) + 1):length(new_contents)]
+          append_IO_action(list(kind = "write", path = file_path, contents = epilogue, offset = FS$WRITE_OFFSET_APPEND))
+        } else {
+          choices_diff_report <- local({
+            old_choices <- review_info
+            new_choices <- review[["choices"]]
+            max_len <- max(length(old_choices), length(new_choices))
+            length(old_choices) <- max_len
+            length(new_choices) <- max_len
+            df <- data.frame(`Old choices` = old_choices, `New choices` = new_choices, check.names = FALSE)
+            return(utils::capture.output(print(df)))
+          })
+          undo_table_s <- paste0("<pre style='max-height: 12rem;'>", paste(choices_diff_report, collapse = "<br>"), "</pre>")
+          
+          error <- c(
+            error, 
+            paste0(
+              "Review choices cannot be removed or reordered during the course of a trial.<br>",
+              "Each choice has an associated integer value that should remain constant. These are the old and new ",
+              "review choices:<br>",
+              undo_table_s,
+              "The recommended action is to restore the previous review choices:<br>",
+              paste0("<pre>choices = c(", sprintf('"%s"', review_info) |> paste(collapse = ","), ")</pre>"),
+              "and append any extra desired choices at the end."
+            )
           )
-          # TODO: Combine new review[["choices"]] with old `review.codes`
-          #       while preserving original associated integer codes
-        )
+        }
       }
     } else {
       contents <- RS_compute_review_codes_memory(review[["choices"]])
@@ -237,10 +229,21 @@ REV_load_annotation_info <- function(folder_contents, review, dataset_lists) {
      
       base_timestamp <- NA_real_
       data_timestamps_st <- rep(NA_real_, row_count)
-      # <domain>_000.base
-      file_path <- file.path(dataset_lists_name, paste0(dataset_review_name, "_000.base"))
-      if (file_path %in% names(folder_contents)) {
-        contents <- folder_contents[[file_path]]        
+      
+      # <domain>_0000.base
+      # - Older versions of the review functionality devoted three digits to the `.base` and `.delta` sequence numbers.
+      #   The current version uses four digits. Here we detect the one that was used for this particular domain (if it
+      #   exists) and use it for the associated delta files.
+      base_file_path_pattern <- sprintf("^%s_0+.base$", file.path(dataset_lists_name, dataset_review_name))
+      base_file_path <- grep(base_file_path_pattern, names(folder_contents), value = TRUE)
+      if (length(base_file_path) > 1L) {
+        error <- c(error, paste0("[", dataset_review_name, "] ", "Multiple `.base` files found:\n",
+                                 paste(sprintf("`%s`", base_file_path), collapse = ", "), ".\n"))
+        base_file_path <- sort(base_file_path)[[1]]
+      }
+      
+      if (length(base_file_path) == 1) { # existing `.base` file
+        contents <- folder_contents[[base_file_path]]        
 
         sorted_delta_file_paths <- local({
           pattern <- sprintf("^%s_[0-9]*.delta", file.path(dataset_lists_name, dataset_review_name))
@@ -361,18 +364,22 @@ REV_load_annotation_info <- function(folder_contents, review, dataset_lists) {
               base_info <- RS_load(contents, deltas)
               
               delta_number <- length(sorted_delta_file_paths) + 1
-              file_path <- file.path(dataset_lists_name, sprintf("%s_%03d.delta", dataset_review_name, delta_number))
+              revision_digit_count <- nchar(sub(".*_(0+)\\.base$", "\\1", base_file_path))
+              file_path <- file.path(
+                dataset_lists_name, sprintf("%s_%.*d.delta", dataset_review_name, revision_digit_count, delta_number)
+              )
               append_IO_action(list(kind = "write", path = file_path, contents = new_delta_contents, offset = 0L))
             }
         }
-      } else {
+      } else { # new `.base` file
+        base_file_path <- file.path(dataset_lists_name, paste0(dataset_review_name, "_0000.base"))
         contents <- RS_compute_base_memory(dataset_review_name, dataset, id_vars, tracked_vars)
         if (inherits(contents, "simpleCondition")) {
           # IMPORTANT: Not being able to compute the base info is too severe an error to recover from, so we error out
           return(list(error = c(error, contents[["message"]])))
         } else {
           base_info <- RS_load(base = contents, deltas = list())
-          append_IO_action(list(kind = "write", path = file_path, contents = contents, offset = 0L))
+          append_IO_action(list(kind = "write", path = base_file_path, contents = contents, offset = 0L))
         }
       }
       
@@ -429,7 +436,7 @@ REV_load_annotation_info <- function(folder_contents, review, dataset_lists) {
         function(indices) df_map_st[indices]
       })
      
-      dataset_review_df[["timestamp"]] <- base_timestamp
+      dataset_review_df[["timestamp"]] <- rep(base_timestamp, nrow(dataset_review_df)) # rep for `nrow(...) == 0`
       dataset_review_df[["data_timestamps"]] <- map_canonical_data_into_current_order(data_timestamps_st)
       
       # <domain>_<ROLE>.review      
@@ -505,7 +512,13 @@ REV_load_annotation_info <- function(folder_contents, review, dataset_lists) {
       
       attr(sub_res[[dataset_review_name]], "base_timestamp") <- base_timestamp
       # Add tracked_hashes for each revision of the dataset to be able to attribute row changes to specific columns
-      attr(sub_res[[dataset_review_name]], "revisions") <- base_info[["revisions"]]
+      attr(sub_res[[dataset_review_name]], "revisions") <- local({
+        res <- base_info[["revisions"]]
+        for (i in seq_along(res[["tracked_hashes"]])) { # map from canonical to current order
+          res[["tracked_hashes"]][[i]] <- res[["tracked_hashes"]][[i]][, st_map_df, drop = FALSE]
+        }
+        return(res)
+      })
       
       attr(sub_res[[dataset_review_name]], "latest_reviews") <- all_latest_reviews
     }
@@ -552,9 +565,10 @@ REV_compute_storage_folder_error_message <- function(paths, app_id) {
   return(error_message)
 }
     
-REV_main_logic <- function(ns, state, input, review, datasets, fs_client) {
+REV_loader_state_machine <- function(ns, state, input, review, datasets, fs_client) {
   state[["connected"]] <- shiny::reactiveVal(FALSE)
   state[["contents_ready"]] <- shiny::reactiveVal(FALSE)
+  state[["action_count"]] <- shiny::reactiveVal(0)
   state[["folder"]] <- NULL
   state[["annotation_info"]] <- NULL
 
@@ -723,7 +737,7 @@ REV_compute_review_changes <- function(data, row_indices, annotation_info, choic
   attr(annotation_info, "latest_reviews") <- latest_reviews
   
   # `REV_load_annotation_info()` would return this same (modified) state, but we do manual synchronization
-  # to avoid potentially expensive data reloading
+  # to avoid potentially expensive data reloading (see #aimowa)
   annotation_info[["review"]][row_indices] <- choices[[choice_index]]
   annotation_info[["timestamp"]][row_indices] <- timestamp
   annotation_info[["role"]][row_indices] <- role
@@ -892,8 +906,6 @@ REV_respond_to_user_review <- function(ns, state, input, review, selected_datase
     
     # NOTE: This local computes updates to the state of the app (annotation_info, IO_plan), independent from rendering
     changes_based_on_unfiltered_data <- local({
-      unfiltered_data <- review[["data"]][[dataset_list_name]][[dataset_name]]
-      
       info <- input[[REV$ID$REVIEW_SELECT]]
       
       # Replace in full bulk operation
@@ -908,17 +920,13 @@ REV_respond_to_user_review <- function(ns, state, input, review, selected_datase
       }
       
       annotation_info <- state[["annotation_info"]][[dataset_list_name]][[dataset_name]]
-      changes <- REV_include_review_info(annotation_info = annotation_info, data = unfiltered_data, col_names = list())
-      if (inherits(changes, "simpleCondition")) {
-        shiny::showNotification(changes[["message"]], type = "warning")
-        warning(changes[["message"]])
-        shiny::req(FALSE)
-      }
+      new_data <- REV_compute_main_review_columns(annotation_info = annotation_info)
       
-      new_data <- changes[["data"]]
       timestamp <- SH$get_UTC_time_in_seconds()
       choice_index <- as.integer(info[["option"]])
       
+      # TODO: We could send the unfiltered indices along with the information we send to DT
+      #       Then we wouldn't have to undo the filtering here
       defiltered_row_indices <- local({
         row_indices <- as.integer(info[["row"]]) # relative to the filtered data sent to the client
         filter_mask <- attr(data(), "filter_mask")
@@ -942,43 +950,14 @@ REV_respond_to_user_review <- function(ns, state, input, review, selected_datase
       changes_based_on_unfiltered_data[["annotation_info"]]
     IO_plan <- changes_based_on_unfiltered_data[["IO_plan"]]
     
-    # NOTE: The following code repeats the logic on the main renderDataTable reactive to match its behavior
-    #       It does so on the filtered dataset. This code is in need of deduplication. The addition of explicit filter
-    #       state to dv.manager will prove invaluable to iron out these large wrinkles
-    if (TRUE) { # NOTE: Partially repeats #weilae 
-      table_data <- list(data = data(), col_names = list())
-      filter_mask <- attr(table_data[["data"]], "filter_mask")
-      annotation_info <- state[["annotation_info"]][[dataset_list_name]][[dataset_name]] # IMPORTANT: Includes changes based on review
-      if (!all(filter_mask)) { # subset `annotation_info` to match data filter
-        annotation_info <- REV_filter_annotation_info(annotation_info, filter_mask)
-      } 
-      
-      changes <- REV_include_review_info(
-        annotation_info = annotation_info,
-        data = table_data[["data"]],
-        col_names = table_data[["col_names"]]
-      )
-      shiny::validate(shiny::need(!inherits(changes, "simpleCondition"), changes[["message"]]))
-      changes[["data"]][[REV$ID$STATUS_COL]] <- REV_compute_status(
-        dataset_review = changes[["data"]], 
-        role = role, 
-        latest_reviews_by_role = attr(annotation_info, "latest_reviews"), 
-        data_timestamps = annotation_info[["data_timestamps"]]
-      )
-      changes[["data"]][[REV$ID$LATEST_REVIEW_COL]] <- REV_review_var_to_json(
-        latest_reviews = attr(annotation_info, "latest_reviews"), 
-        data_timestamps = annotation_info[["data_timestamps"]]
-      )
-      changes[["data"]] <- relocate_column(changes[["data"]], REV$ID$LATEST_REVIEW_COL, 4L)
-      
-      table_data[["data"]] <- changes[["data"]]
-      table_data <- REV_include_highlight_info(
-        table_data, annotation_info, 
-        tracked_vars = review[["datasets"]][[selected_dataset_name()]][["tracked_vars"]]
-      )
-      
-      new_data <- table_data[["data"]]
-    }
+    table_data <- list(data = data(), col_names = list())
+    table_data <- REV_include_review_interface(
+      table_data = table_data,
+      annotation_info = state[["annotation_info"]][[dataset_list_name]][[dataset_name]],
+      role = role,
+      tracked_vars = review[["datasets"]][[selected_dataset_name()]][["tracked_vars"]]
+    )
+    new_data <- table_data[["data"]]
    
     # If we were doing pure client-side rendering of DT, maybe we could do a lighter upgrade with javascript:
     # > var table = $('#DataTables_Table_0').DataTable();
@@ -988,6 +967,7 @@ REV_respond_to_user_review <- function(ns, state, input, review, selected_datase
     # > table.row(5).data(tmp).invalidate();
     rownames(new_data) <- NULL # otherwise row numbers returned from DT are not relative to presented table
     DT::replaceData(dt_proxy, new_data, resetPaging = FALSE, clearSelection = "none")
+    state[["action_count"]](state[["action_count"]]() + 1)
     
     fs_execute_IO_plan(IO_plan, callback = update_undo_description_callback)
     
@@ -1061,8 +1041,7 @@ REV_respond_to_user_review <- function(ns, state, input, review, selected_datase
     REV_show_blocker(ns(TBL$TABLE_ID), message = paste(REV$MESSAGE$UNDO_REVIEW))
     on.exit(REV_hide_blocker(ns(TBL$TABLE_ID)))
     
-    # NOTE: compute data and reload through proxy
-    if (TRUE) { # FIXME: Partially repeats #weilae 
+    if (TRUE) { # NOTE: recompute table and reload through DT proxy
       datasets <- review[["data"]]
       
       dataset_list_name <- update_table_and_undo_resolved_reactives[["dataset_list_name"]]
@@ -1072,46 +1051,18 @@ REV_respond_to_user_review <- function(ns, state, input, review, selected_datase
       load_results <- REV_load_annotation_info(fs_contents, review, datasets)
       state[["annotation_info"]] <- load_results[["loaded_annotation_info"]]
 
-      # NOTE: The following code repeats the logic on the main renderDataTable reactive to match its behavior
-      #       It does so on the filtered dataset. This code is in need of deduplication. The addition of explicit filter
-      #       state to dv.manager will prove invaluable to iron out these large wrinkles
-      if (TRUE) { # NOTE: Partially repeats #weilae 
-        table_data <- list(data = data(), col_names = list())
-        filter_mask <- attr(table_data[["data"]], "filter_mask")
-        annotation_info <- state[["annotation_info"]][[dataset_list_name]][[dataset_name]] # IMPORTANT: Includes changes based on review
-        if (!all(filter_mask)) { # subset `annotation_info` to match data filter
-          annotation_info <- REV_filter_annotation_info(annotation_info, filter_mask)
-        } 
-        
-        changes <- REV_include_review_info(
-          annotation_info = annotation_info,
-          data = table_data[["data"]],
-          col_names = table_data[["col_names"]]
-        )
-        shiny::validate(shiny::need(!inherits(changes, "simpleCondition"), changes[["message"]]))
-        changes[["data"]][[REV$ID$STATUS_COL]] <- REV_compute_status(
-          dataset_review = changes[["data"]], 
-          role = role, 
-          latest_reviews_by_role = attr(annotation_info, "latest_reviews"), 
-          data_timestamps = annotation_info[["data_timestamps"]]
-        )
-        changes[["data"]][[REV$ID$LATEST_REVIEW_COL]] <- REV_review_var_to_json(
-          latest_reviews = attr(annotation_info, "latest_reviews"), 
-          data_timestamps = annotation_info[["data_timestamps"]]
-        )
-        changes[["data"]] <- relocate_column(changes[["data"]], REV$ID$LATEST_REVIEW_COL, 4L)
-        
-        table_data[["data"]] <- changes[["data"]]
-        table_data <- REV_include_highlight_info(
-          table_data, annotation_info, 
-          tracked_vars = review[["datasets"]][[selected_dataset_name()]][["tracked_vars"]]
-        )
-        
-        new_data <- table_data[["data"]]
-      }
+      table_data <- list(data = data(), col_names = list())
+      table_data <- REV_include_review_interface(
+        table_data = table_data,
+        annotation_info = state[["annotation_info"]][[dataset_list_name]][[dataset_name]], # IMPORTANT: Includes changes based on review
+        role = role,
+        tracked_vars = review[["datasets"]][[selected_dataset_name()]][["tracked_vars"]]
+      )
+      new_data <- table_data[["data"]]
 
       rownames(new_data) <- NULL # otherwise row numbers returned from DT are not relative to presented table
       DT::replaceData(dt_proxy, new_data, resetPaging = FALSE, clearSelection = "none")
+      state[["action_count"]](state[["action_count"]]() + 1)
     }
     
     undo_desc <- REV_describe_undo_action(review, REV_state = state, fs_contents, dataset_list_name, dataset_name, role)
@@ -1149,7 +1100,7 @@ REV_review_var_to_json <- function(latest_reviews, data_timestamps) {
   return(res)
 }
 
-REV_compute_status <- function(dataset_review, role, latest_reviews_by_role, data_timestamps) {
+REV_compute_status <- function(dataset_review, role, latest_reviews_by_role, data_timestamps, modified_row_mask) {
   # Does this function make sense with no role? Yes it does because the latest review is the one that may be outdated,
   # conflicting, unreviewed, etc.
   # Optionally, we could indicate if the current role does have a conflict or is it someone else?
@@ -1204,13 +1155,19 @@ REV_compute_status <- function(dataset_review, role, latest_reviews_by_role, dat
   # [3] A conflict in which the current role participates deserves even more attention
   res[conflict_with_role_mask] <- REV$STATUS_LEVELS$CONFLICT_ROLE
   # [4] But a review based on outdated information is the most relevant
-  res[outdated_latest_mask] <- REV$STATUS_LEVELS$LATEST_OUTDATED
+  res[outdated_latest_mask & modified_row_mask] <- REV$STATUS_LEVELS$LATEST_OUTDATED
   
   return(res)
 }
 
 # Collect hashes that were known prior to the times indicated by `review_timestamps` 
 REV_collect_latest_review_hashes <- function(revisions, review_timestamps) {
+  for (th in revisions[["tracked_hashes"]]) {
+    if (ncol(th) != length(review_timestamps)) {
+      stop(("REV_collect_latest_review_hashes: shape mismatch between `revisions` and `review_timestamps` arguments"))
+    }
+  }
+
   res <- revisions$tracked_hashes[[1]]
   
   revision_count <- length(revisions$tracked_hashes)
@@ -1227,7 +1184,6 @@ REV_collect_latest_review_hashes <- function(revisions, review_timestamps) {
 
 # Infer which cells changed based of two matrices of old (`h0`) and new (`h1`) hashes
 # Returns pairs of (row, col) based on the ordering of h0
-# The hashes are kept in canonical order, so that's the order this function outputs
 REV_report_changes <- function(h0, h1, verbose = FALSE) {
   res <- list()
   if (nrow(h0) != nrow(h1) || nrow(h0) %% 2 != 0) {
@@ -1266,8 +1222,82 @@ REV_report_changes <- function(h0, h1, verbose = FALSE) {
   return(res)
 }
 
+
+REV_include_review_interface <- function(table_data, annotation_info, role, tracked_vars) {
+  main_review_columns <- REV_compute_main_review_columns(annotation_info = annotation_info)
+
+  # NOTE: The purpose of `modified_row_mask` is to address discrepancies between the "Status" column and the 
+  # orange highlighting of individual tracked columns:
+  # - The contents of the "Status" column are calculated looking only at data and review timestamps. A review
+  #   is marked as outdated if it precedes a data change.
+  # - The orange highlighting is calculated based on the hash of the _contents_ of the cells, instead.
+  #
+  # There is a situation in which these two ways of computing review status disagree:
+  # - there was a review of row A
+  # - there was a dataset update that modified row A
+  # - there was a dataset update that reverted row A to the state it had prior to the review
+  # 
+  # In this case, the review of row A will be tagged as "Outdated" but no highlighting will appear.
+  #
+  # Here we take a shortcut to address this discrepancy. We create an `modified_row_mask` mask based on the
+  # information provided by the column highlighting routine (which is based on the contents of a row) and
+  # use it to filter out the misleading "Outdated" tags of rows that have been modified and rolled back.
+  modified_row_mask <- local({
+    highlight_columns_tmp <- REV_compute_highlight_info(
+      annotation_info = annotation_info, 
+      tracked_vars = tracked_vars,
+      status = rep(REV$STATUS_LEVELS$LATEST_OUTDATED, nrow(main_review_columns))
+    )
+    return(as.logical(rowSums(highlight_columns_tmp)))
+  })
+  
+  main_review_columns[[REV$ID$STATUS_COL]] <- REV_compute_status(
+    dataset_review = main_review_columns, 
+    role = role, 
+    latest_reviews_by_role = attr(annotation_info, "latest_reviews"), 
+    data_timestamps = annotation_info[["data_timestamps"]],
+    modified_row_mask
+  )
+  
+  main_review_columns[[REV$ID$LATEST_REVIEW_COL]] <- REV_review_var_to_json(
+    latest_reviews = attr(annotation_info, "latest_reviews"), 
+    data_timestamps = annotation_info[["data_timestamps"]]
+  )
+  
+  for (i in seq_along(main_review_columns))
+    attr(main_review_columns[[i]], "label") <- c(REV$LABEL$REVIEW_COLS[[i]])
+  
+  highlight_columns <- REV_compute_highlight_info(
+    annotation_info = annotation_info, 
+    tracked_vars = tracked_vars,
+    status = main_review_columns[[REV$ID$STATUS_COL]]
+  )
+  
+  filter_mask <- attr(table_data[["data"]], "filter_mask")
+  if (!all(filter_mask)) {
+    main_labels <- get_labels(main_review_columns)
+    highlight_labels <- get_labels(highlight_columns)
+    
+    main_review_columns <- main_review_columns[filter_mask, ]
+    highlight_columns <- highlight_columns[filter_mask, ]
+    
+    main_review_columns <- set_labels(main_review_columns, main_labels)
+    highlight_columns <- set_labels(highlight_columns, highlight_labels)
+  } 
+  
+  # inject columns into the (possibly) filtered table
+  table_data[["col_names"]] <- c(
+    REV$LABEL$REVIEW_COLS, 
+    table_data[["col_names"]],
+    names(highlight_columns)
+  )
+  table_data[["data"]] <- cbind(main_review_columns, table_data[["data"]], highlight_columns)
+  
+  return(table_data)
+}
+
 #' Early error feedback function for the optional review parameter
-#'
+#' 
 #' @param datasets `[list(data.frame)]`
 #'
 #' Available datasets for review.
@@ -1283,9 +1313,15 @@ REV_report_changes <- function(h0, h1, verbose = FALSE) {
 #' @param err `[environment]`
 #' This environment has at least one element named "messages". It is a character vector. Diagnostic messages related to
 #' the configuration of the review parameter will be placed here.
+#'
+#' @param afmm
 #' 
+#' Pass-through of the server afmm parameter.
+#'
 #' @export
-check_review_parameter <- function(datasets, dataset_names, review, err) {
+check_review_parameter <- function(datasets, dataset_names, review, err, afmm = NULL) {
+  # NOTE: This function is also used by `dv.tables::mod_tplyr_table`, so think about backwards and forwards 
+  #       compatibility in that broader context before modifying it
   if (is.null(review)) return(NULL)
   ok <- CM$assert(
     container = err,
@@ -1298,7 +1334,7 @@ check_review_parameter <- function(datasets, dataset_names, review, err) {
       cond = (checkmate::test_list(review[["datasets"]]) &&
                 checkmate::test_subset(names(review[["datasets"]]), dataset_names)),
       msg = sprintf(
-        "`review$datasets` should be a list and its elements should be named after the following dataset names: %s",
+        "`review$datasets` should be a list and its elements should be named after the following dataset names: %s.",
         paste(dataset_names, collapse = ", ")
       )
     ) &&
@@ -1421,4 +1457,104 @@ check_review_parameter <- function(datasets, dataset_names, review, err) {
       )
     }
   }
+  if (!ok) return(NULL)
+ 
+  # https://en.wikipedia.org/wiki/Filename#Problematic_characters 
+  problematic_chars <- c("/", "\\\\", "?", "%", "*", ":", "|", '"', "<", ">", ".", ",", ";", "=")
+  problematic_chars_regexp <- paste("([", paste(problematic_chars, collapse = ""), "])")
+  
+  report_problematic_names <- function(message_template, v) {
+    res <- character(0)
+    for (e in v){
+      matches <- character(0)
+      for (pc in problematic_chars) if (grepl(pc, e, fixed = TRUE)) {
+        single_char <- substr(pc, 1, 1) # deals with backslash
+        matches <- c(matches, single_char)
+      }
+      if (length(matches)) {
+        res <- c(res, sprintf(message_template, e, paste(sprintf("'<b>%s</b>'", matches), collapse = ", ")))
+      }
+    }
+    res <- paste(res, collapse = "<br>")
+    return(res)
+  }
+  if (!is.null(afmm)) {
+    dataset_list_names <- names(afmm[["data"]])
+    CM$assert(
+      container = err,
+      cond = !any(grepl(problematic_chars_regexp, dataset_list_names)),
+      msg = report_problematic_names(
+        paste('The dataset list name "<b>%s</b>" contains characters (%s) incompatible with the review functionality.',
+              "That string would be used as part of review-related folder names and those characters could cause problems",
+              '<a href="https://en.wikipedia.org/wiki/Filename#Problematic_characters" target="_blank">(details)<a>.',
+              "Please, exclude them."),
+        dataset_list_names)
+    ) 
+  }
+  dataset_names <- names(review[["datasets"]])
+  CM$assert(
+    container = err,
+    cond = !any(grepl(problematic_chars_regexp, dataset_names)),
+    msg = report_problematic_names(
+      paste('The dataset name "<b>%s</b>" contains characters (%s) incompatible with the review functionality.',
+            "That string would be used as part of review-related file names and those characters could cause problems",
+            '<a href="https://en.wikipedia.org/wiki/Filename#Problematic_characters" target="_blank">(details)<a>.',
+            "Please, exclude them."),
+      dataset_names)
+  )
+}
+
+REV_check_review_info_parameter <- function(review_info) {
+  if (!is.null(review_info)) {
+    checkmate::assert(
+      checkmate::check_list(review_info),
+      checkmate::check_environment(review_info[["state"]]),
+      checkmate::check_class(review_info[["role"]], "reactive"),
+      checkmate::check_class(review_info[["filter_mask"]], "reactive"),
+      combine = "and"
+    )
+  }
+  return(NULL)
+}
+
+REV_include_review_info_in_exported_data <- function(export_data, annotation_info, review_role, filter_mask, 
+                                                     tracked_vars) {
+  data_label <- attr(export_data[["data"]], "label")
+  # exporting the `status` of the latest review is the most finicky bit of the whole process
+  review_reviewer_status_df <- local({
+    attr(export_data[["data"]], "filter_mask") <- filter_mask
+    res <- REV_include_review_interface(export_data, annotation_info, review_role, tracked_vars)
+    return(res[["data"]][c(REV$ID$REVIEW_COL, REV$ID$ROLE_COL, REV$ID$STATUS_COL)])
+  })
+ 
+  export_data[["data"]] <- data.frame(review_reviewer_status_df, export_data[["data"]], check.names = FALSE)
+  attr(export_data[["data"]], "label") <- data_label
+  export_data[["col_names"]] <- c(REV$LABEL$REVIEW_COLS[1:3], export_data[["col_names"]])
+  return(export_data)
+}
+
+REV_include_review_info_in_exported_data_if_available <- function(
+    export_data, review_info, dataset_list_name, domain_name, tracked_vars
+) {
+  # this function resolves all reactives and calls the plain `REV_include_review_info_in_exported_data` function
+  review_state <- review_info[["state"]]
+  can_export_review_info <- ("contents_ready" %in% names(review_state) && review_state[["contents_ready"]]())
+  if (can_export_review_info) {
+    review_role <- review_info[["role"]]()
+    filter_mask <- review_info[["filter_mask"]]()
+
+    annotation_info <- review_state[["annotation_info"]][[dataset_list_name]][[domain_name]]
+
+    export_data <- shiny::maskReactiveContext(
+      REV_include_review_info_in_exported_data(
+        export_data, 
+        annotation_info = annotation_info,
+        review_role = review_role,
+        filter_mask = filter_mask,
+        tracked_vars = tracked_vars
+      )
+    )
+  }
+
+  return(export_data)
 }

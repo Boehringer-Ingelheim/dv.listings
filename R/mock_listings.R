@@ -125,7 +125,7 @@ mock_listings_mm <- function() {
   dv.manager::run_app(
     data = list("demo" = data, "demo no labels" = data_no_lab),
     module_list = module_list,
-    filter_data = "adsl",
+    filter_dataset_name = "adsl",
     enableBookmarking = "url"
   )
 }
@@ -252,7 +252,7 @@ mock_review <- function() {
       "Listing" = listing,
       "Signal receiver" = mod_receiver(module_id = "papo", sender_id = "listing")
     ),
-    filter_data = "dm",
+    filter_dataset_name = "dm",
     filter_key = "USUBJID"
   )
 }
@@ -323,7 +323,8 @@ mock_synthetic_review <- function() {
       ),
       choices = c("Pending", "Reviewed with no issues", "Action required", "Resolved"),
       roles = c("ROLE_1", "ROLE_2", "ROLE_3", "ROLE_4"),
-      store_path = tempdir()
+      store_path = tempdir(),
+      allow_row_deletion = TRUE
     )
   )
   
@@ -331,7 +332,7 @@ mock_synthetic_review <- function() {
   dv.manager::run_app(
     data = list("data_list" = data_list),
     module_list = list("Listing" = listing),
-    filter_data = "df",
+    filter_dataset_name = "df",
     filter_key = "ID"
   )
 }

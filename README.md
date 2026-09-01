@@ -100,9 +100,26 @@ module_list <- list(
 dv.manager::run_app(
   data = list("MyData" = data_list),
   module_list = module_list,
-  filter_data = "adsl"
+  filter_dataset_name = "adsl"
 )
 ```
+
+## Configuration of Optional arguments
+
+The behavior and appearance of the listings module can be adjusted through several optional arguments of `mod_listings`:
+
+- `default_vars`: `[list(character(1+)) | NULL]`  
+  Specifies default variables per dataset (named by `dataset_names`). If `NULL`, the first six variables are shown.
+
+- `footers`: `[list(character(1+)) | NULL]`  
+  Defines dataset-specific footer text shown below listings. Each vector element is displayed on a new line.
+
+- `pagination`: `[logical(1) | NULL]`  
+  Controls pagination. If `NULL`, it is automatically enabled for datasets with more than 1000 rows.
+
+- `intended_use_label`: `[character(1) | NULL]`  
+  Adds a label shown before download and included in exports. Useful for indicating context (e.g., *internal use only*), and complements the export functionality described below.
+
 ## Export functionality 
 
 The listings module allows users to export listings. Users have the option to either download only the currently displayed listing or all available listings.

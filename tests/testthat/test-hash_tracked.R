@@ -200,18 +200,11 @@ test_that("Row changes can be attributed to specific modified columns" |>
   
   changes <- REV_report_changes(h0, h1)
 
-  # Row and column numbers reported here are canonical. Meaning:
-  # - rows denote order in which they were added. 1 and 2 are the first rows even though they are now rows 3 and 4
-  #   in the last revision of the dataset
-  # - columns refer to the indices of columns after _sorting them by name_
-   
+  # Row numbers are relative to current ordering. Column numbers refer to indices after they have been sorted by name.
   expected_changes <- list(
-    # Row 1 is not listed here because we've specified that #first_change preceeds the review time of this row
-    # AESEV of second row, modified here #second_change
-    list(row = 2L, cols = 9L),
-    # All columns for the third and fourth rows (added on #second_change) are notified
-    list(row = 3L, cols = 1:13), 
-    list(row = 4L, cols = 1:13)
+    list(row = 1L, cols = 1:13),
+    list(row = 2L, cols = 1:13),
+    list(row = 4L, cols = 9L)
   )
   
   expect_equal(changes, expected_changes)

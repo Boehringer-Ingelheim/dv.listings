@@ -402,11 +402,14 @@ pdf_preprocessing <- function(df, ref) {
 #' @param current_data `[data.frame]` A single data frame with named columns.
 #' @param data_selection_name `[character(1)]` A string specifying the name of \code{current_data}.
 #' @param dataset_list `[list(data.frame)]` A list of named datasets.
+#' @param footers `[list(character(1+)) | NULL]` Pass-through argument from `mod_listings` specifying per-dataset footer
+#' text.
+#'
 #'
 #' @return Named list containing the data frames which are now ready for download.
 #'
 #' @keywords internal
-prep_export_data <- function(data_selection, current_data, data_selection_name, dataset_list) {
+prep_export_data <- function(data_selection, current_data, data_selection_name, dataset_list, footers) {
   # check validity of parameters
   checkmate::assert(
     checkmate::check_string(data_selection),
@@ -424,21 +427,56 @@ prep_export_data <- function(data_selection, current_data, data_selection_name, 
     data_to_download <- dataset_list
   }
 
-  names(data_to_download) <- shorten_entries(
-    paste0(names(data_to_download), " (", get_labels(data_to_download), ")"),
-    as.integer(31) # name has to be shortened to 31 characters due to Excel's sheet name limit
-  )
+  labeled_dataframe_names <- paste0(names(data_to_download), " (", get_labels(data_to_download), ")")
 
-  # convert types to character to avoid representation issues in Excel
-  data_to_download <- lapply(data_to_download, function(df) {
-    labels <- get_labels(df)
-    data <- data.frame(sapply(df, as.character))
-    data <- set_labels(data, labels)
+  data_to_download <- local({
+    res <- list()
+    for (i_dataset in seq_along(data_to_download)){
+      df <- data_to_download[[i_dataset]]
+      
+      # convert types to character to avoid representation issues in Excel
+      labels <- get_labels(df)
+      data <- data.frame(sapply(df, as.character, simplify = FALSE), check.names = FALSE)
+      data <- set_labels(data, labels)
+     
+      # attach footer, if available
+      dataset_name <- names(data_to_download)[[i_dataset]]
+      attr(data, "footer") <- footers[[dataset_name]]
+      
+      res[[length(res) + 1]] <- data
+    }
+    return(res)
   })
+    
+  names(data_to_download) <- labeled_dataframe_names
 
   return(data_to_download)
 }
 
+sanitize_excel_sheet_names <- function(sheet_names) {
+  tweak_invalid_excel_sheet_name <- function(s) {
+    s <- gsub(r"([\\/?*:\[\]])", " ", s, perl = TRUE) # forbidden characters \ / ? * : [ ] replaced with whitespace
+    s <- trimws(s, whitespace = "'")                  # forbidden only at the beginning and end
+    if (identical(s, "History")) s <- "History."       # "History" is just not an allowed name
+    if (nchar(trimws(s)) == 0) s <- "."               # pure whitespaced not allowed
+    return(s)
+  }
+  
+  sheet_names <- sapply(sheet_names, tweak_invalid_excel_sheet_name, USE.NAMES = FALSE)
+  sheet_names <- shorten_entries(sheet_names, as.integer(31))
+  if (anyDuplicated(tolower(sheet_names))) { # edge case: duplication when case is ignored
+    sheet_names <- sprintf("(%d) %s", seq_along(sheet_names), sheet_names) # prepend a unique number to all names
+    sheet_names <- shorten_entries(sheet_names, as.integer(31)) # numbering could push us over limit of 31 characters
+  }
+  
+  return(sheet_names)
+}
+
+sanitize_dataset_list_for_excel_export <- function(dataset_list) {
+  sanitized_sheet_names <- sanitize_excel_sheet_names(names(dataset_list))
+  names(dataset_list) <- sanitized_sheet_names
+  return(dataset_list)
+}
 
 #' Internal helper function which performs the download as .xlsx file.
 #'
@@ -458,11 +496,20 @@ excel_export <- function(data_to_download, file, intended_use_label) {
     combine = "and"
   )
 
-  # Add column labels
+  # Add column labels and footers
   data_to_download <- lapply(data_to_download, function(x) {
     names(x) <- paste0(names(x), " [", get_labels(x), "]")
+    footer <- attr(x, "footer")
+    if (!is.null(footer)) {
+      first_new_row <- nrow(x) + 1
+      last_new_row <- nrow(x) + length(footer)
+      x[first_new_row:last_new_row, ] <- NA
+      x[first_new_row:last_new_row, 1] <- footer
+    }
     return(x)
   })
+  
+  data_to_download <- sanitize_dataset_list_for_excel_export(data_to_download)
 
   # Add first sheet as title page
   title_page <- data.frame(c(EXP$EXP_TITLE, intended_use_label))
@@ -490,7 +537,8 @@ excel_export <- function(data_to_download, file, intended_use_label) {
 #' @return Number of PDF pages that are generated.
 #'
 #' @keywords internal
-pdf_export <- function(data_to_download, ref_cols, file, metadata, active_session = TRUE, intended_use_label) {
+pdf_export <- function(data_to_download, ref_cols, file, metadata, active_session = TRUE, intended_use_label,
+                       keep_tex = FALSE) {
   # Check validity of parameters
   checkmate::assert(
     checkmate::check_list(data_to_download, types = "data.frame", len = 1, null.ok = FALSE),
@@ -522,11 +570,12 @@ pdf_export <- function(data_to_download, ref_cols, file, metadata, active_sessio
       trial_name = gsub("_", "\\\\_", metadata[1]), # Rmd does not allow underscore
       time_stamp = gsub("[^-/A-Za-z0-9!?.,:() ]", "?", metadata[2]), # replace characters that could cause problems
       snap_shot_name = gsub("[^-/A-Za-z0-9!?.,:() ]", "?", metadata[3]), # same here
+      footer = attr(data_to_download[[1]], "footer"),
       df_list = res_preprocess,
       active_session = active_session
     ),
     envir = new.env(parent = globalenv()),
-    output_format = "pdf_document"
+    output_format = rmarkdown::pdf_document(keep_tex = keep_tex)
   )
   # copy+remove instead of rename because we can't guarantee that the temp folder lives in the same filesystem as `file`
   file.copy(out, file)
