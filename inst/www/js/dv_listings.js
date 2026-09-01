@@ -626,32 +626,36 @@ const dv_fsa = (function() {
         throw new Error("Paths " + Array.from(invalid_paths).join(', ') + " are invalid.");
       
       for(let path of paths){
-        let path_components = path.split('/');
-        let fname = path_components.pop();
-        if(path_components.length == 0) path_components = ['.']; // file with no path trips getDirectoryHandle otherwise
+        try {
+          let path_components = path.split('/');
+          let fname = path_components.pop();
+          if(path_components.length == 0) path_components = ['.']; // file with no path trips getDirectoryHandle otherwise
 
-        let dir_handle = g_directory_handle;
-        
-        for(subdirname of path_components){
-          if(subdirname === ".") {}
-          else dir_handle = await dir_handle.getDirectoryHandle(subdirname);
+          let dir_handle = g_directory_handle;
+          
+          for(subdirname of path_components){
+            if(subdirname === ".") {}
+            else dir_handle = await dir_handle.getDirectoryHandle(subdirname);
+          }
+
+          let file_handle = await dir_handle.getFileHandle(fname);
+
+          let expected_size_in_bytes = g_cached_listing[path].size;
+          let file = await file_handle.getFile();
+
+          if (file.size != expected_size_in_bytes)
+            throw new Error(`Expected ${expected_size_in_bytes} bytes and got ${file.size} instead.`);
+          
+          let contents = await file.arrayBuffer();
+          g_cached_contents[path] = contents;
+
+          status['contents'][path] = await _buffer_to_base64(contents);
+        } catch(error) {
+          throw new Error(`${path}: ${error.message}`);
         }
-
-        let file_handle = await dir_handle.getFileHandle(fname);
-
-        let expected_size_in_bytes = g_cached_listing[path].size;
-        let file = await file_handle.getFile();
-
-        if (file.size != expected_size_in_bytes)
-          throw new Error(`Expected ${expected_size_in_bytes} bytes and got ${file.size} instead.`);
-        
-        let contents = await file.arrayBuffer();
-        g_cached_contents[path] = contents;
-
-        status['contents'][path] = await _buffer_to_base64(contents);
       }
     } catch(error) {
-      g_error = status.error = `Error writing: ${path}/${fname}: ${error}`;
+      g_error = status.error = `Write error: ${error.message}`;
       status.contents = {};
       console.error(status.error);
     }

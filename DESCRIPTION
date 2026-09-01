@@ -1,7 +1,7 @@
 Package: dv.listings
 Type: Package
 Title: Data listings module
-Version: 4.3.4-9014
+Version: 4.3.4-9015
 Authors@R: 
     c(
       person("Boehringer-Ingelheim Pharma GmbH & Co.KG", role = c("cph", "fnd")),
