@@ -183,7 +183,7 @@ REV_load_annotation_info <- function(folder_contents, review, dataset_lists) {
             length(old_choices) <- max_len
             length(new_choices) <- max_len
             df <- data.frame(`Old choices` = old_choices, `New choices` = new_choices, check.names = FALSE)
-            return(capture.output(print(df)))
+            return(utils::capture.output(print(df)))
           })
           undo_table_s <- paste0("<pre style='max-height: 12rem;'>", paste(choices_diff_report, collapse = "<br>"), "</pre>")
           

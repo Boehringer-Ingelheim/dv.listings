@@ -1,57 +1,18 @@
-# dv.listings 4.3.4-9015
-- [NOT USER-FACING] Fix bug in JS exception handler
-
-# dv.listings 4.3.4-9014
-- [NOT USER-FACING] Address dv.manager deprecation warning messages
-
-# dv.listings 4.3.4-9013
-- Excel export:
-  - Ensure valid sheet names
-
-# dv.listings 4.3.4-9012
-- [NOT USER-FACING] Delegate some EEF logic into dv.manager
-
-# dv.listings 4.3.4-9011
-- New `exclude_var_names_from_column_headings` parameter
-
-# dv.listings 4.3.4-9010
-- Exported single listings include review information, if available
-
-# dv.listings 4.3.4-9009
-- Revert NA highlighting
-
-# dv.listings 4.3.4-9008
+# dv.listings 4.3.5
+- New `exclude_var_names_from_column_headings` parameter allows simpler headings
+- New `footers` parameter allows providing per-dataset footer text
+- Enforce Excel sheet name validity rules prior to export
+- Fix header and body offsetting when dv.manager's sidebar collapses/expands
 - Review functionality:
-  - Remove column change highlighting from rows that have been modified but restored afterwards
-
-# dv.listings 4.3.4-9007
-- Review functionality:
-  - Fix bug in column change highlight when known rows are removed
-
-# dv.listings 4.3.4-9006
-- Prevent header and body offsetting when dv.manager sidebar collapses/expands
-
-# dv.listings 4.3.4-9005
-- Static per-dataset footer text
-
-# dv.listings 4.3.4-9004
-- Review functionality:
-  - Expand revision count limit from 1000 to 10000 entries
-
-# dv.listings 4.3.4-9003
-- Review functionality:
-  - Guard against problematic characters in dataset names
-
-# dv.listings 4.3.4-9002
-- Review functionality:
-  - Cope with initially empty datasets
-
-# dv.listings 4.3.4-9001
-- Review functionality:
-  - Allow expanding review choices
-
-# dv.listings 4.3.4-9000
-- [NOT USER-FACING] Update CM.R snippet
+  - Features:
+    - Allow expanding review choices
+    - Include review information in single listing exports, if available
+    - Expand revision count limit from 1000 to 10000 entries
+  - Bug fixes:
+    - Cope with initially empty datasets
+    - Guard against problematic characters in dataset names
+    - Remove column change highlighting from rows that have been modified but restored afterwards
+    - Fix bug in column change highlight when known rows are removed
 
 # dv.listings 4.3.4
 - Review functionality:
