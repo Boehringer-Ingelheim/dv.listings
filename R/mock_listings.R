@@ -40,7 +40,8 @@ mock_listings_app <- function(mode = "single") {
         date_range = shiny::reactive({
           c("2022-01-01", "2022-12-03")
         })
-      )
+      ),
+      exclude_var_names_from_column_headings = FALSE
     )
   }
 

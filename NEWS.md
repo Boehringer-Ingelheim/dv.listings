@@ -1,3 +1,6 @@
+# dv.listings 4.3.5-9000
+- [SOMEWHAT USER-FACING, BUT IRRELEVANT] Fixed missing value in non-module-manager mock.
+
 # dv.listings 4.3.5
 - New `exclude_var_names_from_column_headings` parameter allows simpler headings
 - New `footers` parameter allows providing per-dataset footer text
