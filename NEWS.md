@@ -1,3 +1,6 @@
+# dv.listings 4.3.5-9001
+- [NOT USER-FACING] Patch shiny tests to avoid calling library. Prefix package symbols with namespace.
+
 # dv.listings 4.3.5-9000
 - [SOMEWHAT USER-FACING, BUT IRRELEVANT] Fixed missing value in non-module-manager mock.
 
