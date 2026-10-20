@@ -1,8 +1,5 @@
-# dv.listings 4.3.5-9001
-- [NOT USER-FACING] Patch shiny tests to avoid calling library. Prefix package symbols with namespace.
-
-# dv.listings 4.3.5-9000
-- [SOMEWHAT USER-FACING, BUT IRRELEVANT] Fixed missing value in non-module-manager mock.
+# dv.listings 4.3.6
+- Maintenance: Adapt package to new behavior of {shinytest}. Fix missing value in mock function.
 
 # dv.listings 4.3.5
 - New `exclude_var_names_from_column_headings` parameter allows simpler headings
