@@ -19,7 +19,6 @@ Feel free to copy the following code chunk to install the latest version
 of {dv.listings}.
 
 ``` r
-
 if (!require("remotes")) install.packages("remotes")
 remotes::install_github("Boehringer-Ingelheim/dv.listings")
 ```
@@ -46,7 +45,6 @@ you have to include them manually in the scope of preprocessing. For
 example:
 
 ``` r
-
 my_data <- datasets::mtcars
 my_data[["index"]] <- rownames(my_data)
 attributes(my_data$index)$label <- "Former row names"
@@ -66,7 +64,6 @@ The following example contains the listed steps. For data protection
 purposes, the example uses dummy data from {pharmaverseadam}.
 
 ``` r
-
 library(dv.listings)
 
 # 1. Create a data list with example data
@@ -115,19 +112,19 @@ dv.manager::run_app(
 The behavior and appearance of the listings module can be adjusted
 through several optional arguments of `mod_listings`:
 
-- `default_vars`: `[list(character(1+)) | NULL]`\
+- `default_vars`: `[list(character(1+)) | NULL]`  
   Specifies default variables per dataset (named by `dataset_names`). If
   `NULL`, the first six variables are shown.
 
-- `footers`: `[list(character(1+)) | NULL]`\
+- `footers`: `[list(character(1+)) | NULL]`  
   Defines dataset-specific footer text shown below listings. Each vector
   element is displayed on a new line.
 
-- `pagination`: `[logical(1) | NULL]`\
+- `pagination`: `[logical(1) | NULL]`  
   Controls pagination. If `NULL`, it is automatically enabled for
   datasets with more than 1000 rows.
 
-- `intended_use_label`: `[character(1) | NULL]`\
+- `intended_use_label`: `[character(1) | NULL]`  
   Adds a label shown before download and included in exports. Useful for
   indicating context (e.g., *internal use only*), and complements the
   export functionality described below.

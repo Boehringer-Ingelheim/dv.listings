@@ -27,7 +27,6 @@ Example code of a module list definition to turn the communication
 feature on between a listings and a Patient Profile module:
 
 ``` r
-
 library(dv.listings)
 
 # 1. Create a data list with example data

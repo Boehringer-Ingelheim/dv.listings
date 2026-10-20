@@ -103,7 +103,7 @@ listings_server(
 
 ## Functions
 
-- `listings_server()`:
+- `listings_server()`: Listings UI function
 
 ## See also
 

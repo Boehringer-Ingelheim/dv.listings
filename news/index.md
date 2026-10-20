@@ -1,5 +1,10 @@
 # Changelog
 
+## dv.listings 4.3.6
+
+- Maintenance: Adapt package to new behavior of {shinytest}. Fix missing
+  value in mock function.
+
 ## dv.listings 4.3.5
 
 - New `exclude_var_names_from_column_headings` parameter allows simpler
