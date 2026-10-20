@@ -11,8 +11,8 @@ mock_listings_mm()
 the module manager (dv.manager).
 }
 \seealso{
-Other mock apps: 
-\code{\link{mock_listings_app}()}
+Other mock apps:
+\code{\link[=mock_listings_app]{mock_listings_app()}}
 }
 \concept{mock apps}
 \keyword{internal}

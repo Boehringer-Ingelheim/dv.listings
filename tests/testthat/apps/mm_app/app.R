@@ -1,8 +1,6 @@
 use_load_all <- isTRUE(as.logical(Sys.getenv("TEST_LOCAL"))) | isTRUE(as.logical(Sys.getenv("TEST_PUSH")))
 if (use_load_all) {
   devtools::load_all("../../../../", quiet = TRUE)
-} else {
-  library(dv.listings)
 }
 
 # Load dummy data for testing purpose
@@ -10,9 +8,9 @@ source("../../dummy-data.R")
 
 # Test app
 data <- list()
-data[["adsl"]] <- convert_data(dm_dummy)
-data[["adae"]] <- convert_data(ae_dummy)
-data[["small"]] <- convert_data(dm_dummy[1:4])
+data[["adsl"]] <- dv.listings::convert_data(dm_dummy)
+data[["adae"]] <- dv.listings::convert_data(ae_dummy)
+data[["small"]] <- dv.listings::convert_data(dm_dummy[1:4])
 
 
 # Add data list without any labels for comparison purposes

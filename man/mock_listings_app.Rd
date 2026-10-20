@@ -14,8 +14,8 @@ mock_listings_app(mode = "single")
 \code{mock_listings_app} launches a mock app for the dv.listings shiny module. Only for development purposes.
 }
 \seealso{
-Other mock apps: 
-\code{\link{mock_listings_mm}()}
+Other mock apps:
+\code{\link[=mock_listings_mm]{mock_listings_mm()}}
 }
 \concept{mock apps}
 \keyword{internal}
