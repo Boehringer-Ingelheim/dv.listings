@@ -65,7 +65,7 @@ Display only dataset variable labels for variables that have them (e.g. turns "V
 This module will present the dataset as listing using the DT package.
 }
 \examples{
-\dontshow{if (interactive()) (if (getRversion() >= "3.4") withAutoprint else force)(\{ # examplesIf}
+\dontshow{if (interactive()) withAutoprint(\{ # examplesIf}
 library(dv.listings)
 
 # 1. Create a data list with example data
@@ -117,7 +117,7 @@ dv.manager::run_app(
 \dontshow{\}) # examplesIf}
 }
 \seealso{
-Other data_listings: 
-\code{\link{listings_UI}()}
+Other data_listings:
+\code{\link[=listings_UI]{listings_UI()}}
 }
 \concept{data_listings}

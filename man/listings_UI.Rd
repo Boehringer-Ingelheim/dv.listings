@@ -75,11 +75,11 @@ more than one.
 }
 \section{Functions}{
 \itemize{
-\item \code{listings_server()}: 
+\item \code{listings_server()}: Listings UI function
 
 }}
 \seealso{
-Other data_listings: 
-\code{\link{mod_listings}()}
+Other data_listings:
+\code{\link[=mod_listings]{mod_listings()}}
 }
 \concept{data_listings}
