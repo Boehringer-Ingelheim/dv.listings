@@ -222,6 +222,8 @@ listings_UI <- function(module_id) {
 }
 
 #' @describeIn listings_UI
+#' 
+#' Listings UI function
 #'
 #' @param dataset_list `[shiny::reactive(list(data.frame)]`
 #'

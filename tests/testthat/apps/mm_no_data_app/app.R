@@ -1,8 +1,6 @@
 use_load_all <- isTRUE(as.logical(Sys.getenv("TEST_LOCAL"))) | isTRUE(as.logical(Sys.getenv("TEST_PUSH")))
 if (use_load_all) {
   devtools::load_all("../../../../", quiet = TRUE)
-} else {
-  library(dv.listings)
 }
 
 data <- list(adsl = head(safetyData::adam_adsl, 0))

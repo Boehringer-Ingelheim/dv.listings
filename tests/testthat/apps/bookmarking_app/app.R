@@ -1,8 +1,6 @@
 use_load_all <- isTRUE(as.logical(Sys.getenv("TEST_LOCAL"))) | isTRUE(as.logical(Sys.getenv("TEST_PUSH")))
 if (use_load_all) {
   devtools::load_all("../../../../", quiet = TRUE)
-} else {
-  library(dv.listings)
 }
 
 # Load dummy data for testing purpose
@@ -12,7 +10,7 @@ source("../../dummy-data.R")
 test_UI <- function(request) { # nolint
   shiny::fluidPage(
     shiny::bookmarkButton(),
-    listings_UI("listings")
+    dv.listings::listings_UI("listings")
   )
 }
 
@@ -24,7 +22,7 @@ test_server <- function(input, output, session) {
   data <- list("dummy1" = dummy1, "dummy2" = dummy2)
   def_vars <- list("dummy1" = names(dummy1[1:3]), "dummy2" = names(dummy2))
 
-  listings_server(
+  dv.listings::listings_server(
     "listings",
     dataset_list = shiny::reactive(data),
     default_vars = def_vars,
